@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { BUILT_IN_RULES, isExported, parseWordList, rulesFromWords, scanFiles } from './release-scan';
+import { BUILT_IN_RULES, parseWordList, rulesFromWords, scanFiles } from './release-scan';
 
 describe('parseWordList', () => {
   it('skips blank lines and comments, trims the rest', () => {
@@ -59,17 +59,3 @@ describe('scanFiles', () => {
   });
 });
 
-describe('isExported', () => {
-  it('keeps the private design history out', () => {
-    expect(isExported('docs/superpowers/specs/a.md')).toBe(false);
-    expect(isExported('docs/configuration.md')).toBe(true);
-  });
-
-  it("keeps the repo's own notes out, but only those exact files", () => {
-    expect(isExported('CLAUDE.md')).toBe(false);
-    expect(isExported('docs/oss-roadmap.md')).toBe(false);
-    expect(isExported('docs/post-review-roadmap.md')).toBe(false);
-    expect(isExported('scripts/export.ts')).toBe(false);
-    expect(isExported('server/CLAUDE.md.test.ts')).toBe(true);
-  });
-});

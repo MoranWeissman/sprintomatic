@@ -1,6 +1,6 @@
 /**
- * The release check: finds private words in the files that would go into the
- * public repo. Pure — the caller reads the files and the word list.
+ * The privacy check: finds private words in the repo's files before they are
+ * committed or pushed. Pure — the caller reads the files and the word list.
  *
  * The word list itself is private (it names the user's employer, org and
  * tenant), so it never lives in the repo. It sits next to the data home and
@@ -17,18 +17,6 @@ export interface ScanHit {
   path: string;
   line: number;
   text: string;
-}
-
-/**
- * Paths that stay in the private repo and never get exported: the design
- * history, the files about this repo's own history and its owner, and the
- * script that builds the public copy.
- * Entries ending in "/" are folders; the rest are exact file paths.
- */
-const NOT_EXPORTED = ['docs/superpowers/', 'CLAUDE.md', 'docs/oss-roadmap.md', 'docs/post-review-roadmap.md', 'scripts/export.ts'];
-
-export function isExported(path: string): boolean {
-  return !NOT_EXPORTED.some((p) => (p.endsWith('/') ? path.startsWith(p) : path === p));
 }
 
 /** One term per line. Blank lines and `#` comments are skipped. */

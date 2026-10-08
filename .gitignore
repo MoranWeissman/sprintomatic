@@ -35,3 +35,9 @@ Thumbs.db
 
 # Superpowers brainstorming companion (mockup iterations)
 .superpowers/
+
+# Local design notes and plans — never committed
+docs/superpowers/
+
+# Local Claude Code settings
+.claude/settings.local.json

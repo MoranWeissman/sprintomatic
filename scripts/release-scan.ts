@@ -1,6 +1,6 @@
 /**
- * Checks every file that would go into the public repo for private words.
- * Exits 1 if anything is found, so an export can't go ahead by accident.
+ * Checks every file in the repo for private words. Exits 1 if anything is
+ * found, so the git hooks can stop a commit or a push.
  *
  *   npm run release-scan          # counts per word, per file
  *   npm run release-scan -- --all # every matching line
@@ -14,7 +14,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
-import { BUILT_IN_RULES, isExported, parseWordList, rulesFromWords, scanFiles } from '../server/release-scan';
+import { BUILT_IN_RULES, parseWordList, rulesFromWords, scanFiles } from '../server/release-scan';
 
 const home = join(homedir(), '.sprintomatic');
 const wordsPath = process.env.SH_RELEASE_WORDS ?? join(home, 'release-words.txt');
@@ -42,7 +42,7 @@ function ticketIds(): string[] {
 }
 const ids = ticketIds();
 
-const paths = execFileSync('git', ['ls-files'], { encoding: 'utf8' }).split('\n').filter(Boolean).filter(isExported);
+const paths = execFileSync('git', ['ls-files'], { encoding: 'utf8' }).split('\n').filter(Boolean);
 const files = paths
   .map((path) => ({ path, buf: readFileSync(path) }))
   .filter((f) => !f.buf.includes(0)) // skip images and other binary files
