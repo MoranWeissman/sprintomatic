@@ -1,3 +1,5 @@
+<p align="center"><img src="public/mascot.png" alt="The sprintomatic mascot: a wind-up robot sprinting" width="280"></p>
+
 # sprintomatic
 
 sprintomatic is a memory and bookkeeping layer on top of **your** Azure DevOps
