@@ -25,7 +25,7 @@ import { configValue } from './user-config';
 import { readToken } from './secrets';
 import { SetupNeededError } from './setup-needed';
 import { logError } from './log';
-import { azFailureError } from './az-error';
+import { azFailureError, describeHttpFailure } from './az-error';
 
 // The Azure DevOps app id. `az rest` can't auto-derive the AAD resource for
 // dev.azure.com URLs, so it's passed explicitly to get a proper bearer token.
@@ -193,10 +193,13 @@ export class RestAdoClient implements AdoClient {
     const text = await res.text();
 
     if (!res.ok) {
-      throw new Error(
-        `Azure DevOps API ${res.status} ${res.statusText} for ${req.method} ${shortUri(req.uri)}: ` +
-          `${text.slice(0, 300) || '(empty body)'}`,
-      );
+      // The raw answer is for the log; the user reads the sentence.
+      logError('ado-client.rest', `Azure DevOps API ${res.status} ${res.statusText}`, {
+        uri: shortUri(req.uri),
+        method: req.method,
+        body: text.slice(0, 300),
+      });
+      throw new Error(describeHttpFailure(res.status, text).text);
     }
 
     // ADO's classic trap: an invalid/expired PAT returns 200 with the HTML

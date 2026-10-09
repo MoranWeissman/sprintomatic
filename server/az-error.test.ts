@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { azFailureError, describeAzFailure } from './az-error';
+import { azFailureError, describeAzFailure, describeHttpFailure } from './az-error';
 
 /**
  * Every `raw` string below is a real failure text taken from the error log,
@@ -116,5 +116,40 @@ describe('describeAzFailure — timed out', () => {
     expect(f.kind).toBe('timeout');
     expect(f.headline).toBe('The board took too long to answer');
     expect(f.text).not.toContain('az login');
+  });
+});
+
+describe('describeAzFailure — a name that does not match the board', () => {
+  it('reads a 404 from az as a wrong name, with setup as the fix', () => {
+    const f = describeAzFailure('ERROR: The resource cannot be found.');
+    expect(f.kind).toBe('not-found');
+    expect(f.message).toContain('organization, project or team');
+    expect(f.fix).toContain('npm run setup');
+  });
+});
+
+describe('describeHttpFailure', () => {
+  it('turns a 404 into plain words, never the address', () => {
+    const f = describeHttpFailure(404, '{"message":"The resource cannot be found."}');
+    expect(f.kind).toBe('not-found');
+    expect(f.text).not.toMatch(/404|_apis/);
+  });
+
+  it('names the missing item when Azure DevOps says which one', () => {
+    const f = describeHttpFailure(
+      404,
+      '{"message":"TF401232: Work item 100001 does not exist, or you do not have permissions to read it."}',
+    );
+    expect(f.message).toBe("Couldn't find #100001 on the board. It may have been deleted, or you can't see it.");
+  });
+
+  it('reads 401 and 403 as a token problem', () => {
+    expect(describeHttpFailure(401, '').kind).toBe('signed-out');
+    expect(describeHttpFailure(403, '').fix).toContain('npm run setup');
+  });
+
+  it('keeps the board message for anything else', () => {
+    const f = describeHttpFailure(400, '{"message":"VS402337: The field is not valid."}');
+    expect(f.message).toBe('Azure DevOps said (400): VS402337: The field is not valid.');
   });
 });

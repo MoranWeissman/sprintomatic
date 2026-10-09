@@ -82,11 +82,11 @@ describe('RestAdoClient.rest', () => {
     expect(opts.body).toBe(JSON.stringify([{ op: 'add', path: '/fields/System.State', value: 'Done' }]));
   });
 
-  it('throws a helpful error on a non-OK response', async () => {
+  it('throws a plain sentence on a non-OK response', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => res(false, 404, 'Not Found', 'no such item')));
     await expect(
       new RestAdoClient('tok').rest({ method: 'GET', uri: 'https://dev.azure.com/org/_apis/wit/workitems/9' }),
-    ).rejects.toThrow(/404/);
+    ).rejects.toThrow(/organization, project or team/);
   });
 
   it('detects the sign-in HTML page returned for an invalid token', async () => {

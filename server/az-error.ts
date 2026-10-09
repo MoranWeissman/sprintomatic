@@ -27,6 +27,8 @@ export type AzFailureKind =
   | 'not-configured'
   /** The call was still waiting when we gave up on it. */
   | 'timeout'
+  /** The organization, project or team name doesn't match a real one. */
+  | 'not-found'
   /** Something we don't have a rule for yet. */
   | 'other';
 
@@ -144,9 +146,14 @@ export function describeAzFailure(raw: string, code?: string): AzFailure {
     return build(
       'signed-out',
       "You're signed out of Azure",
-      "Your Azure sign-in isn't valid any more, so sprintomatic can't read or change the board.",
+      "Your Azure sign-in isn't there, or it ran out, so sprintomatic can't read or change the board.",
       'Run `az login` — in a chat here you can type `! az login`.',
     );
+  }
+
+  // A name that doesn't match the board: wrong organization, project or team.
+  if (/TF200016|TF400813|cannot be found|could not be found|\b404\b/i.test(text)) {
+    return notFound();
   }
 
   const line = firstErrorLine(text);
@@ -154,6 +161,63 @@ export function describeAzFailure(raw: string, code?: string): AzFailure {
     'other',
     'A board command failed',
     line ? `The Azure CLI said: ${line}` : 'The Azure CLI failed without saying why.',
+    null,
+  );
+}
+
+function notFound(): AzFailure {
+  return build(
+    'not-found',
+    "Couldn't find your board",
+    "Couldn't find that organization, project or team. Check the names — they are in your board's web address.",
+    'Run `npm run setup` again to fix them.',
+  );
+}
+
+/**
+ * The words for a failed call to the Azure DevOps web API (token mode).
+ *
+ * Same idea as `describeAzFailure`: the raw answer goes to the log, the user
+ * reads a sentence. `body` is the answer's text; Azure DevOps usually sends
+ * JSON with a `message` field.
+ */
+export function describeHttpFailure(status: number, body: string): AzFailure {
+  let said = '';
+  try {
+    said = String((JSON.parse(body) as { message?: unknown }).message ?? '');
+  } catch {
+    said = '';
+  }
+
+  if (status === 401 || status === 403) {
+    return build(
+      'signed-out',
+      'Azure DevOps turned down the token',
+      'Azure DevOps turned down the stored token. It may be wrong, out of date, or missing the Work Items (Read & write) permission.',
+      'Run `npm run setup` again to give it a new token.',
+    );
+  }
+
+  if (status === 404) {
+    // A task or story that is gone is a different thing from a wrong board
+    // name, and Azure DevOps' own sentence for it is already readable.
+    const item = /work item (\d+) does not exist/i.exec(said);
+    if (item) {
+      return build(
+        'other',
+        "Couldn't find that item",
+        `Couldn't find #${item[1]} on the board. It may have been deleted, or you can't see it.`,
+        null,
+      );
+    }
+    return notFound();
+  }
+
+  const line = firstErrorLine(said || body);
+  return build(
+    'other',
+    'A board call failed',
+    line ? `Azure DevOps said (${status}): ${line}` : `Azure DevOps answered ${status} without saying why.`,
     null,
   );
 }
