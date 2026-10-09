@@ -108,8 +108,8 @@ async function main() {
   } catch (err) {
     const e = err as Error & { azMessage?: string; azFix?: string | null };
     console.log(`  Couldn't reach the board: ${e.azMessage ?? e.message}`);
-    if (e.azFix) console.log(`  ${e.azFix}`);
-    console.log('  Fix that and run `npm run setup` again. Your answers so far are saved.');
+    if (e.azFix) console.log(`  ${e.azFix} Your answers so far are saved.`);
+    else console.log('  Fix that and run `npm run setup` again. Your answers so far are saved.');
   }
 
   console.log('\nTo use it from Claude Code, run this once:\n');
