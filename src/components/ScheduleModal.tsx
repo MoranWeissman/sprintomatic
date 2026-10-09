@@ -161,7 +161,7 @@ export function ScheduleModal({ open, onClose, onSaved }: ScheduleModalProps) {
           <p className="schedule-modal-foot-note">
             {saveError
               ? <span role="alert" style={{ color: 'oklch(0.78 0.10 30)' }}>{saveError}</span>
-              : 'Outlook integration coming soon — once you connect Outlook, these times can auto-fill from your calendar.'}
+              : 'These times drive the reminders and the page each meeting opens. Your real meetings come from your calendar, if you linked one.'}
           </p>
           <div className="schedule-modal-foot-actions">
             <button className="schedule-btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>

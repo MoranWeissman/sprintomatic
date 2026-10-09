@@ -194,7 +194,7 @@ export interface ApiUserStoryGroup {
 }
 
 export type CeremonyId = 'daily' | 'preplan' | 'plan' | 'demo' | 'retro';
-export type ModeId = 'day' | 'plan' | 'demo' | 'retro' | 'dnd';
+export type ModeId = 'day' | 'plan' | 'retro' | 'dnd';
 
 export interface ApiUpcomingCeremony {
   id: CeremonyId;

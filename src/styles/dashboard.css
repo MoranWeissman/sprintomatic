@@ -1419,45 +1419,6 @@ html, body {
 .settings-bad { color: oklch(0.78 0.10 30); font-size: 14px; }
 .r21-rail-gear + .r21-rail-gear { margin-top: 0; }
 
-/* ----- Mode placeholder (non-Day modes) ----- */
-.mode-placeholder {
-  display: flex; align-items: center; justify-content: center;
-  min-height: 480px;
-  padding: 60px 20px;
-}
-.mode-placeholder-card {
-  max-width: 460px;
-  display: flex; flex-direction: column; align-items: center; gap: 14px;
-  text-align: center;
-  padding: 36px 32px;
-  background: oklch(0.165 0.028 258 / 0.5);
-  border: 1px solid var(--line-soft);
-  border-radius: 10px;
-}
-.mode-placeholder-icon {
-  width: 48px; height: 48px;
-  display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 50%;
-  background: oklch(0.78 0.075 245 / 0.10);
-  border: 1px solid oklch(0.78 0.075 245 / 0.20);
-  color: var(--accent);
-}
-.mode-placeholder-icon .glyph { width: 22px; height: 22px; display: inline-flex; }
-.mode-placeholder-title {
-  font-size: 26px; font-weight: 400; letter-spacing: -0.02em;
-  color: var(--ink-0); margin: 0;
-}
-.mode-placeholder-line {
-  font-size: 16px; color: var(--ink-2);
-  line-height: 1.5; margin: 0;
-  max-width: 360px;
-}
-.mode-placeholder-slice {
-  font-size: 13px; letter-spacing: 0.16em; text-transform: uppercase;
-  color: var(--accent); font-weight: 500;
-  margin: 8px 0 0;
-}
-
 /* ============================================================ */
 /* SLICE 1.7 — expand-in-place rows + inline editors             */
 /* ============================================================ */

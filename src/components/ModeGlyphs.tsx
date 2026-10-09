@@ -15,11 +15,6 @@ const GLYPHS: Record<ModeId | 'gear', ReactElement> = {
       <path d="M5.8 7.2 h6.4 M5.8 10 h6.4 M5.8 12.8 h3.8" />
     </svg>
   ),
-  demo: (
-    <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M7 5.8 v6.4 l5.4 -3.2 z" />
-    </svg>
-  ),
   retro: (
     <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M14.4 9 a5.4 5.4 0 1 1 -1.9 -4.1" />
