@@ -1,8 +1,8 @@
 # Connect your Outlook calendar to sprintomatic
 
 sprintomatic uses your Outlook calendar to figure out your **real** desk time
-during a sprint — meetings eat your week, and a sprint plan that ignores them
-is a lie. This guide walks through hooking it up.
+during a sprint. Meetings take up part of your week, and a sprint plan that
+leaves them out promises hours you don't have. This guide walks through hooking it up.
 
 ## What you'll do
 
@@ -47,7 +47,7 @@ No app to install, no IT ticket, no popups during the day.
 > **Security:** the ICS link is private but anyone who has it can read
 > whatever level of calendar detail you chose. Keep it out of public places
 > (repos, chats, docs). sprintomatic stores it locally in
-> `~/.sprintomatic/data.db` on your Mac — it's never sent anywhere else.
+> `~/.sprintomatic/data.db` on your computer. It's never sent anywhere else.
 
 ## Step 2 — Give the URL to sprintomatic
 
@@ -69,10 +69,12 @@ Ask the assistant:
 
 It'll call `capacity_check` and report something like:
 
-> *"Sprint 26_11 has ~80h on paper (8h/day × 10 working days). You've got
-> ~22h of meetings (BUSY + half of TENTATIVE), so your real desk time is
-> ~58h. You've planned 71h of task work — that's 13h over what fits. Want to
-> trim something?"*
+> *"This sprint has 80h on paper (8h a day for 10 working days). Meetings
+> take about 22h, so you have about 58h at your desk. You've planned 71h of
+> tasks, which is 13h more than fits. Want to move something out?"*
+
+Meetings you said "maybe" to are left out by default. Settings → "Meetings
+you said maybe to" changes that.
 
 If the URL is wrong or the fetch fails, the answer will surface the error
 plainly — no silent failures.
@@ -84,9 +86,9 @@ Options:
 
 - **File a ticket** with IT asking them to enable calendar publishing (very
   common, low-risk feature — usually approved).
-- **Skip Outlook for now.** sprintomatic has a manual schedule (in the
-  Schedule modal) you can fill in. You lose meeting awareness but get the
-  rest.
+- **Skip Outlook for now.** Everything else still works. Only the meeting
+  hours are missing, so your free hours will look bigger than they really
+  are.
 
 ## Frequently asked
 
@@ -107,5 +109,5 @@ Yes — anyone with the link can read whatever detail level you chose. Treat
 it like a private share link.
 
 **Why not connect via Microsoft Graph?**
-That requires registering an app in your AAD tenant, which most enterprises
-lock down. Publish-URL is the user-level path that works without IT.
+That needs an app registered with your company's Microsoft sign-in, which
+most companies don't allow. Publish-URL is the user-level path that works without IT.

@@ -24,7 +24,12 @@ sprintomatic sits between the chat and your Azure DevOps board.
   stopped yesterday. Tomorrow's chat picks up where today's ended.
 - **It shows your day on one screen.** A small dashboard in your browser shows
   what you're working on, what's stuck, and how many hours you have left this
-  sprint. It also helps with the daily meeting, planning and the retro.
+  sprint. Its pages: **Day** (your stories and the daily meeting), **Plan**
+  (getting the next sprint ready) and **Retro** (a first draft for the retro
+  meeting, from what really happened).
+- **Optional: Discovery and Design.** If you work out a problem or write a
+  design before the stories, turn these on in Settings. Each one adds its own
+  page and its own help in the chat. Both are off until you turn them on.
 
 **The board always wins.** sprintomatic never keeps its own copy of your plans
 or task states. It reads them from Azure DevOps every time. It only stores what
@@ -54,21 +59,24 @@ Know this before you start:
 
 ## Get started
 
-You need **Node 24** and access to an Azure DevOps project.
+You need **Node 24**, **git** and access to an Azure DevOps project.
 
-**1. Choose how to reach your board.** Either sign in with the Azure CLI
-(`az login`), or make a personal access token (see
-[docs/azure-access.md](docs/azure-access.md)).
+**1. Choose how to reach your board.** Either the Azure CLI (the `az`
+command, signed in with `az login`), or a personal access token. Both are
+explained step by step in [docs/azure-access.md](docs/azure-access.md).
 
-**2. Install and set it up.** In the folder where you cloned this repo:
+**2. Get it, install it and set it up.** The address to clone is under the
+green **Code** button at the top of this page.
 
 ```sh
+git clone <the address>
+cd sprintomatic
 npm install
 npm run setup
 ```
 
-Setup asks which board you use and what your work week looks like. Then it
-checks that it can reach the board. You can run it again any time, and you can
+Setup asks which board you use, what your work week looks like, and whether
+you want the Discovery and Design pages. Then it checks that it can reach the board. You can run it again any time, and you can
 change everything later in the dashboard's Settings.
 
 **3. Connect it to Claude Code.** Setup prints this line with your folder

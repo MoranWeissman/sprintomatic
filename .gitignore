@@ -41,3 +41,6 @@ docs/superpowers/
 
 # Local Claude Code settings
 .claude/settings.local.json
+
+# Claude Code settings for one person's own chats
+.claude/

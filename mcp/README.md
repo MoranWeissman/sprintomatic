@@ -1,7 +1,7 @@
 # sprintomatic MCP server
 
 Lets Claude Code (or any MCP client) read sprintomatic data and drive edits and
-session logging — the same backend the Vite dashboard uses. Time is tracked
+session logging — the same backend the dashboard uses. Time is tracked
 silently by the session lifecycle; there are no manual timer tools.
 
 The whole server is one file, `mcp/server.ts`. It talks over standard input and
@@ -14,11 +14,11 @@ From any directory, run this once, replacing the path with wherever you cloned
 the repo:
 
 ```sh
-claude mcp add sprintomatic -- npm --prefix /path/to/sprintomatic run mcp --silent
+claude mcp add -s user sprintomatic -- npm --prefix /path/to/sprintomatic run mcp --silent
 ```
 
-If your shell is already sitting in the repo, `--prefix "$PWD"` does the same
-job.
+`npm run setup` prints this line with your folder already filled in.
+`-s user` makes it work in every folder, not only this one.
 
 Then in any Claude Code session, the tools below are available.
 
@@ -26,7 +26,7 @@ To remove later: `claude mcp remove sprintomatic`.
 
 ## Tools
 
-42 tools, grouped by what they are for.
+52 tools, grouped by what they are for.
 
 ### Getting oriented
 
@@ -75,6 +75,9 @@ To remove later: `claude mcp remove sprintomatic`.
 
 ### Discovery, design and sharing
 
+These only work when Discovery or Design is turned on in Settings → Pages.
+With a half turned off, its tools answer that it is turned off.
+
 | Tool | What it does |
 |---|---|
 | `workspace_feature_folder` | Start non-code work on a feature: makes its folder, records it as one being driven, and puts it on the board view. |
@@ -91,6 +94,25 @@ To remove later: `claude mcp remove sprintomatic`.
 |---|---|
 | `helper_notes_get` | Read the nudges already sitting in the user's notes space. Call before writing, so you do not repeat yourself. |
 | `helper_note_add` | Drop one short plain-English nudge. Never touches Azure DevOps. |
+| `helper_note_dismiss` | Clear one note once it is dealt with. |
+| `retro_get` | The sprint's retro draft, built from the sprint's own record. |
+
+### Things to remember about the user
+
+| Tool | What it does |
+|---|---|
+| `fact_remember` | Save a fact that stays true for weeks — a path, a preference, a rule of the user's process. Every new chat gets it. |
+| `facts_list` | List every saved fact. |
+| `fact_forget` | Remove a saved fact. |
+
+### Days off
+
+| Tool | What it does |
+|---|---|
+| `days_off_set` | Record days off, so they come out of the sprint's hours. |
+| `days_off_remove` | Put canceled days off back into the sprint. |
+| `days_off_dismiss` | Mark an all-day calendar entry as not a day off, so it is not asked about again. |
+| `days_off_list` | List the stored days off. |
 
 ### Setup and where things live
 
@@ -103,6 +125,7 @@ To remove later: `claude mcp remove sprintomatic`.
 | `workspace_set` | Register a folder as a workspace for non-code work, and fill it once with the planning setup. |
 | `workspace_decline` | Remember the user said no to a folder, so it is never offered again. |
 | `workspace_status` | List registered workspaces, and decide whether the current folder is worth offering. |
+| `dashboard_stop` | Stop the dashboard running in the background. The next chat starts it again. |
 | `repo_link_set` | Write `.sprintomatic/link.json` in a code repository, saying which feature or stories that repository serves. |
 
 ## Recommended flow at session start
