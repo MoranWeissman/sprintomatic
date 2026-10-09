@@ -4806,6 +4806,25 @@ button.r21-standup-item-head.is-toggle:hover .r21-standup-item-title { color: va
   color: var(--ink-2);
 }
 
+/* How the user's guesses compare with real hours */
+.retro-habit {
+  border: 1px solid var(--line-soft);
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 14px 18px;
+}
+.retro-habit-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-1);
+  margin: 0 0 6px;
+}
+.retro-habit-line {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin: 0;
+}
+
 /* Buckets */
 .retro-section {
   display: flex;

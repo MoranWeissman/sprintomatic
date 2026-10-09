@@ -31,6 +31,8 @@ export interface AnchorCalibration {
   actualSum: number;
   /** Tasks ran on average about Nx their estimate. Plain-English number. */
   overallRatio: number | null;
+  /** One plain sentence about how the user's guesses usually land. Echo it. */
+  summary: string;
 }
 
 export interface EstimateAnchor {
@@ -48,6 +50,8 @@ export interface EstimateAnchor {
 
 const MAX_SIBLINGS = 8;
 const MAX_CALIBRATION = 30;
+/** Fewer finished tasks than this and the ratio is noise, so we don't claim one. */
+export const MIN_CALIBRATION_SAMPLES = 5;
 
 export async function buildEstimateAnchor(opts: {
   parentId?: number;
@@ -78,6 +82,11 @@ export async function buildEstimateAnchor(opts: {
   };
 }
 
+/** Just the "how far off are my guesses" part, for the Retro page. */
+export async function buildCalibration(): Promise<AnchorCalibration> {
+  return computeCalibration((await listClosedCalibration()).slice(0, MAX_CALIBRATION));
+}
+
 function toSample(w: WorkItem): AnchorSample | null {
   if (w.originalEstimate == null || w.completedWork == null) return null;
   if (w.originalEstimate <= 0 || w.completedWork <= 0) return null;
@@ -92,7 +101,7 @@ function toSample(w: WorkItem): AnchorSample | null {
   };
 }
 
-function computeCalibration(items: WorkItem[]): AnchorCalibration {
+export function computeCalibration(items: WorkItem[]): AnchorCalibration {
   const ratios: number[] = [];
   let estimateSum = 0;
   let actualSum = 0;
@@ -111,6 +120,7 @@ function computeCalibration(items: WorkItem[]): AnchorCalibration {
       estimateSum: 0,
       actualSum: 0,
       overallRatio: null,
+      summary: estimateHabitLine(0, null),
     };
   }
   ratios.sort((a, b) => a - b);
@@ -124,7 +134,29 @@ function computeCalibration(items: WorkItem[]): AnchorCalibration {
     estimateSum: round2(estimateSum),
     actualSum: round2(actualSum),
     overallRatio: round2(overall),
+    summary: estimateHabitLine(ratios.length, median),
   };
+}
+
+/**
+ * The plain sentence for "how far off are my guesses?". Uses the median, so
+ * one task that ran 10x long doesn't speak for all the others.
+ */
+export function estimateHabitLine(samples: number, medianRatio: number | null): string {
+  if (samples < MIN_CALIBRATION_SAMPLES || medianRatio == null) {
+    const sofar = samples === 0 ? 'none yet' : `${samples} so far`;
+    return `Not enough finished tasks yet to tell how your guesses compare with the real hours (${sofar}; it needs ${MIN_CALIBRATION_SAMPLES} with both an estimate and logged hours).`;
+  }
+  const from = `from your last ${samples} finished tasks`;
+  const r = Math.round(medianRatio * 10) / 10;
+  if (r >= 0.9 && r <= 1.1) {
+    return `Your guesses are usually about right: the real hours land close to the estimate (${from}).`;
+  }
+  const example = Math.round(4 * r * 2) / 2;
+  if (r > 1.1) {
+    return `You usually take about ${r}x your guess, so a 4-hour guess tends to end up near ${example} hours (${from}).`;
+  }
+  return `You usually finish faster than your guess, about ${r}x, so a 4-hour guess tends to end up near ${example} hours (${from}).`;
 }
 
 function round2(n: number): number {

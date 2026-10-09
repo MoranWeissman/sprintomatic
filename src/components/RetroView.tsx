@@ -132,6 +132,13 @@ export function RetroView() {
         </section>
       )}
 
+      {data.estimateHabit && (
+        <section className="retro-habit">
+          <h2 className="retro-habit-title">How your guesses compare with the real hours</h2>
+          <p className="retro-habit-line">{data.estimateHabit}</p>
+        </section>
+      )}
+
       {BUCKETS.map(bucket => {
         const items = data.items.filter(i => i.bucket === bucket.id);
         return (

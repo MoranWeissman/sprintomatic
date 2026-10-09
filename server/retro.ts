@@ -17,6 +17,7 @@ import { getDb } from './db';
 import { displayNameFor } from './display-name';
 import { listDaysOff } from './days-off';
 import { isDoneState } from './states';
+import { buildCalibration } from './estimate-anchor';
 
 /* ============================================================ */
 /*  Shapes                                                       */
@@ -288,6 +289,8 @@ export interface RetroView {
   savedAt: string | null;
   /** What LAST sprint's retro kept, for the "did we change it?" opener. */
   previous: { sprintName: string; kept: { bucket: RetroBucket; text: string }[] } | null;
+  /** How the user's guesses usually compare with real hours; null when the board read failed. */
+  estimateHabit: string | null;
 }
 
 /** Build the live retro view for the current sprint. Throws when no sprint. */
@@ -365,6 +368,11 @@ export async function buildRetro(): Promise<RetroView> {
     daysOffCount,
   });
 
+  // Across the last few months, not just this sprint — one sprint is too few tasks.
+  const estimateHabit = await buildCalibration()
+    .then(c => c.summary)
+    .catch(() => null);
+
   const saved = getSavedRetro(sprint.name);
   const decisionByKey = new Map((saved?.items ?? []).map(i => [i.key, i.decision]));
   const prev = getPreviousRetro(sprint.name);
@@ -380,5 +388,6 @@ export async function buildRetro(): Promise<RetroView> {
           kept: prev.items.filter(i => i.decision === 'keep').map(i => ({ bucket: i.bucket, text: i.text })),
         }
       : null,
+    estimateHabit,
   };
 }

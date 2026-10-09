@@ -618,9 +618,12 @@ set and stay honest.
   2. Anchor: call \`estimate_anchor({ parentId })\` for real
      estimate-vs-actual data from their closed tasks. Pick the 1-3 closest
      siblings by title and use their ACTUAL hours, not their estimates. If
-     samples are sparse (2 or fewer), use \`calibration.overallRatio\` as a
+     samples are sparse (2 or fewer), use \`calibration.medianRatio\` as a
      multiplier on your gut sum. If \`isColdStart\` is true, say so
      plainly: "no history to anchor on yet — this is a gut number".
+     Always add \`calibration.summary\` word for word when you propose
+     the number. It tells the user how their guesses usually land, or that
+     there are too few finished tasks to tell yet.
   3. Propose, citing the anchor: "Similar past tasks under this story ran
      4-6h actual. Decomposed I get about 5h. Sound right?" Never just
      "what's your estimate?" — that pushes the work back to them. Use the
@@ -2074,7 +2077,7 @@ server.registerTool(
   {
     title: 'Anchor an hour estimate on real past actuals',
     description:
-      "Pull real estimate-vs-actual data from the user's closed Azure DevOps tasks so you propose hour estimates anchored to history, not to gut. Call this BEFORE proposing OriginalEstimate for any new task (in task_create or workitem_edit). Returns: (1) siblings — closed tasks under the SAME parent story with their estimate / actual / ratio; (2) calibration — the user's recent closed tasks across the project with median/average actual-over-estimate ratios. The AI picks the most semantically similar siblings (read titles + types) and uses them as the primary anchor; the calibration ratio is a fallback multiplier when sibling data is sparse. If isColdStart is true (no usable history at all), say so plainly to the user — propose a labeled gut estimate and ask if it feels right.",
+      "Pull real estimate-vs-actual data from the user's closed Azure DevOps tasks so you propose hour estimates anchored to history, not to gut. Call this BEFORE proposing OriginalEstimate for any new task (in task_create or workitem_edit). Returns: (1) siblings — closed tasks under the SAME parent story with their estimate / actual / ratio; (2) calibration — the user's recent closed tasks across the project with median/average actual-over-estimate ratios. The AI picks the most semantically similar siblings (read titles + types) and uses them as the primary anchor; the calibration ratio is a fallback multiplier when sibling data is sparse. calibration.summary is a ready plain sentence about how the user's guesses usually land (or that there are too few finished tasks yet) — paste it word for word when you propose the number. If isColdStart is true (no usable history at all), say so plainly to the user — propose a labeled gut estimate and ask if it feels right.",
     inputSchema: {
       parentId: z
         .number()
