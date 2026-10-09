@@ -264,7 +264,7 @@ function DashboardLive({
           <div className="r21-top is-overview">
             <div className="r21-brand">
               <span className="r21-brand-mark" aria-hidden="true" />
-              <span className="r21-brand-name">SPRINT&nbsp;HELPER</span>
+              <span className="r21-brand-name">SPRINTOMATIC</span>
               <span className="r21-brand-meta"><Mono>{userName.toLowerCase()}</Mono></span>
             </div>
             <div className="r21-top-right">
@@ -295,7 +295,7 @@ function DashboardLive({
           <div className="r21-top is-focus">
             <div className="r21-brand">
               <span className="r21-brand-mark" aria-hidden="true" />
-              <span className="r21-brand-name">SPRINT&nbsp;HELPER</span>
+              <span className="r21-brand-name">SPRINTOMATIC</span>
               <span className="r21-strip-meta">
                 <span className="sep">·</span>
                 <span>sprint <span className="v">{sprintLabel}</span></span>
@@ -2229,7 +2229,7 @@ function LoadingShell({ now }: { now: Date }) {
       <header className="ember-top">
         <div className="ember-brand">
           <span className="ember-brand-mark" aria-hidden="true" />
-          <span className="ember-brand-name">SPRINT&nbsp;HELPER</span>
+          <span className="ember-brand-name">SPRINTOMATIC</span>
         </div>
         <div className="ember-top-right">
           <span className="ember-chip"><Mono>{formatClock(now)}</Mono></span>
@@ -2289,7 +2289,7 @@ function ErrorShell({
         <header className="ember-top">
           <div className="ember-brand">
             <span className="ember-brand-mark" aria-hidden="true" />
-            <span className="ember-brand-name">SPRINT&nbsp;HELPER</span>
+            <span className="ember-brand-name">SPRINTOMATIC</span>
           </div>
           <div className="ember-top-right">
             <span className="ember-chip"><Mono>{formatClock(now)}</Mono></span>
@@ -2327,7 +2327,7 @@ function ErrorShell({
       <header className="ember-top">
         <div className="ember-brand">
           <span className="ember-brand-mark" aria-hidden="true" />
-          <span className="ember-brand-name">SPRINT&nbsp;HELPER</span>
+          <span className="ember-brand-name">SPRINTOMATIC</span>
         </div>
         <div className="ember-top-right">
           <span className="ember-chip"><Mono>{formatClock(now)}</Mono></span>

@@ -5,7 +5,7 @@
  */
 export function buildNotePrompt(body: string, extra: string): string {
   const lines = [
-    'Help me deal with this note from my sprint helper:',
+    'Help me deal with this note from sprintomatic:',
     '',
     `"${body}"`,
   ];
