@@ -15,6 +15,7 @@ import {
   ensureCapacityNudge,
   reviewNotesAgainstBoard,
   clearedNotesLine,
+  ensureStaleRemainingNudge,
 } from './helper-notes';
 
 function makeDb() {
@@ -208,5 +209,29 @@ describe('clearedNotesLine', () => {
     expect(line).toBe(
       "I cleared 2 old notes about work that's closed on the board now: **Run design** (#100001) and **Ship it** (#100002).",
     );
+  });
+});
+
+describe('ensureStaleRemainingNudge — one note per task', () => {
+  const base = { workItemId: 100001, title: 'Example task', remainingWork: 3, daysSince: 4 };
+
+  it('a new sprint replaces the old sprint\'s copy of the note', () => {
+    ensureStaleRemainingNudge({ ...base, sprintName: 'S1' });
+    ensureStaleRemainingNudge({ ...base, sprintName: 'S2' });
+    const open = listNotes(10).filter(n => n.workItemId === 100001);
+    expect(open).toHaveLength(1);
+  });
+
+  it('a kept copy stays', () => {
+    const first = ensureStaleRemainingNudge({ ...base, sprintName: 'S1' });
+    pinNote(first!.id);
+    ensureStaleRemainingNudge({ ...base, sprintName: 'S2' });
+    expect(listNotes(10).filter(n => n.workItemId === 100001)).toHaveLength(2);
+  });
+
+  it('other notes on the same task stay', () => {
+    addNote('A note the user wrote about this task.', 100001);
+    ensureStaleRemainingNudge({ ...base, sprintName: 'S1' });
+    expect(listNotes(10).filter(n => n.workItemId === 100001)).toHaveLength(2);
   });
 });

@@ -259,7 +259,11 @@ export function scanStaleRemaining(opts: {
   return created;
 }
 
-function ensureStaleRemainingNudge(opts: {
+/** The fixed end of every "task going too long" note. Used to find the older copy. */
+const STALE_REMAINING_TAIL = 'update Remaining or move the task off your plate.';
+
+/** Exported for tests. */
+export function ensureStaleRemainingNudge(opts: {
   sprintName: string;
   workItemId: number;
   title: string;
@@ -282,8 +286,14 @@ function ensureStaleRemainingNudge(opts: {
     opts.daysSince != null && opts.daysSince > 0
       ? `${displayName} has been going for ${opts.daysSince} days but ${remPart}`
       : `${displayName} has been going with no activity yet and ${remPart}`;
-  const body = `${lead} — update Remaining or move the task off your plate.`;
+  const body = `${lead} — ${STALE_REMAINING_TAIL}`;
 
+  // A task carried into a new sprint gets a fresh note; the old sprint's copy
+  // of the same note goes, so the user never sees it twice. Kept notes stay.
+  db.prepare(
+    `UPDATE helper_notes SET dismissed_at = ?
+      WHERE work_item_id = ? AND dismissed_at IS NULL AND pinned_at IS NULL AND body LIKE ?`,
+  ).run(new Date().toISOString(), opts.workItemId, `%${STALE_REMAINING_TAIL}`);
   const note = addNote(body, opts.workItemId);
   db.prepare(
     `INSERT INTO settings (key, value) VALUES (?, ?)

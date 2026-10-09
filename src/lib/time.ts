@@ -75,6 +75,19 @@ export function sprintDays(sprint: SprintContext, now: Date): SprintDay[] {
   });
 }
 
+/**
+ * The one count of sprint days the screens show: working days only, so days
+ * off never count. Today counts in both `soFar` and `left`.
+ */
+export function workingDayCount(days: Array<{ state: string; isOff: boolean }>): { soFar: number; total: number; left: number } {
+  const work = days.filter(d => !d.isOff);
+  return {
+    soFar: work.filter(d => d.state !== 'future').length,
+    total: work.length,
+    left: work.filter(d => d.state !== 'past').length,
+  };
+}
+
 /** Elapsed sec → "1h 12m" (rolls minutes up to hours; 0h hides the hour part). */
 export function fmtHM(baseSec: number, tick: number): string {
   const total = baseSec + tick;

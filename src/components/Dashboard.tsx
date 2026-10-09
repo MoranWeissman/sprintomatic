@@ -18,14 +18,15 @@ import {
   type ModeId,
 } from '../lib/api';
 import { boardStateClass } from '../lib/boardStateClass';
+import { boldParts } from '../lib/boldParts';
 import {
-  dayOfSprint,
   fmtEstimate,
   fmtHM,
   formatClock,
   formatLongDate,
   greetingForHour,
   sprintDays,
+  workingDayCount,
   useNow,
 } from '../lib/time';
 import { useMode } from '../lib/useMode';
@@ -110,9 +111,10 @@ function DashboardLive({
   const userName = nameFromEmail(data.user);
   const date = formatLongDate(now);
   const clock = formatClock(now);
-  const today = sprintCtx ? dayOfSprint(sprintCtx, now) : 0;
-  const daysRemaining = sprintCtx ? Math.max(0, sprintCtx.totalDays - today + 1) : 0;
   const railDays = sprintCtx ? sprintDays(sprintCtx, now) : [];
+  const workDays = workingDayCount(railDays);
+  const today = workDays.soFar;
+  const daysRemaining = workDays.left;
 
   // Side-panel collapse state — persisted to localStorage so the choice
   // survives refresh. Each panel collapses independently; collapsing both
@@ -282,11 +284,11 @@ function DashboardLive({
                   }}
                 />
               )}
-              <span className="r21-pill">day&nbsp;<span className="v">{today}/{sprintCtx?.totalDays ?? '—'}</span></span>
+              <span className="r21-pill">day&nbsp;<span className="v">{today}/{workDays.total || '—'}</span></span>
               <span className="r21-pill"><span className="v">{clock}</span></span>
-              <button className="ember-sync" onClick={onRefresh} title="Refresh from Azure DevOps">
+              <button className="ember-sync" onClick={onRefresh} title="This page updates by itself. Click to read the board again now.">
                 <Dot size={5} color="var(--accent)" />
-                <span className="dim-small">live</span>&nbsp;<span className="ember-sync-icon">↻</span>
+                <span className="dim-small">updates by itself</span>&nbsp;<span className="ember-sync-icon">↻</span>
               </button>
             </div>
           </div>
@@ -299,7 +301,7 @@ function DashboardLive({
                 <span className="sep">·</span>
                 <span>sprint <span className="v">{sprintLabel}</span></span>
                 <span className="sep">·</span>
-                <span>day <span className="v">{today}/{sprintCtx?.totalDays ?? '—'}</span></span>
+                <span>day <span className="v">{today}/{workDays.total || '—'}</span></span>
                 <span className="sep">·</span>
                 <span><span className="v">{Math.round(data.capacity.remainingHours)}h</span> remaining</span>
                 <span className="sep">·</span>
@@ -307,9 +309,9 @@ function DashboardLive({
               </span>
             </div>
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button className="ember-sync" onClick={onRefresh} title="Refresh from Azure DevOps">
+              <button className="ember-sync" onClick={onRefresh} title="This page updates by itself. Click to read the board again now.">
                 <Dot size={5} color="var(--accent)" />
-                <span className="dim-small">live</span>&nbsp;<span className="ember-sync-icon">↻</span>
+                <span className="dim-small">updates by itself</span>&nbsp;<span className="ember-sync-icon">↻</span>
               </button>
               <button className="r21-escape" onClick={() => setShowBoard(true)} title="Show the whole board — your work keeps logging">
                 <span><span className="v">{Math.max(0, storyOnlyAll.length - 1)}</span> more in sprint</span>
@@ -352,7 +354,7 @@ function DashboardLive({
               now={now}
               standup={data.standup}
               today={today}
-              totalDays={sprintCtx?.totalDays ?? 0}
+              totalDays={workDays.total}
               live={liveItems.length > 0}
               focalTitle={focalTask?.title}
               onRefresh={onRefresh}
@@ -630,6 +632,7 @@ function R21Sidebar({
             aria-selected={view === 'daily'}
             className={`r21-place-seg ${view === 'daily' ? 'is-active' : ''}`}
             onClick={onPickDaily}
+            title="All your stories: yesterday, today and the notes"
           >
             Daily
           </button>
@@ -640,7 +643,7 @@ function R21Sidebar({
             disabled={!hasLive}
             className={`r21-place-seg ${view === 'focus' ? 'is-active' : ''}`}
             onClick={onPickFocus}
-            title={hasLive ? 'Switch to Focus on your live task' : 'Focus is only available while a session is live'}
+            title={hasLive ? 'Show only the task your timer is running on' : 'Focus opens when a timer is running on a task'}
           >
             Focus
           </button>
@@ -651,7 +654,7 @@ function R21Sidebar({
             <span className="cap">Up next · {next.label}</span>
             <div className="row">
               <span className="when"><Mono>{fmtClockISO(next.startsAt)}</Mono></span>
-              <span className="rel">{relUntil(minutesUntilFresh(next.startsAt, now))}</span>
+              <span className="rel">{whenLabel(next.startsAt, now)}</span>
             </div>
             <span className="name">{next.label}</span>
           </div>
@@ -660,8 +663,7 @@ function R21Sidebar({
         {totalDays > 0 && (() => {
           // Count in WORKING days, not calendar days — the user's days off
           // don't count. Working-day-of-N = working days up to & including today.
-          const workingTotal = railDays.filter(d => !d.isOff).length;
-          const workingSoFar = railDays.filter(d => !d.isOff && d.state !== 'future').length;
+          const { total: workingTotal, soFar: workingSoFar } = workingDayCount(railDays);
           return (
             <div className="r21-side-week">
               <div className="r21-side-week-head">
@@ -782,7 +784,7 @@ function StandupEntry({ entry: e }: { entry: ApiPayload['standup']['yesterday'][
           {activeTasks.length} active
         </span>
       )}
-      <span className={`r21-standup-task-state state-${status}`}>{status}</span>
+      <span className={`r21-standup-task-state state-${status}`}>{e.storyState ?? 'in work'}</span>
       <StandupStateBadge state={e.state} minutes={e.minutesInWindow} />
     </>
   );
@@ -823,7 +825,7 @@ function StandupEntry({ entry: e }: { entry: ApiPayload['standup']['yesterday'][
 }
 
 function StandupStateBadge({ state }: { state: 'live' | 'paused' | 'closed'; minutes: number | null }) {
-  if (state === 'live') return <span className="r21-standup-pill is-live">live</span>;
+  if (state === 'live') return <span className="r21-standup-pill is-live">timer running</span>;
   // Closed/paused entries: don't show minutes here. Session-open duration is
   // a poor proxy for work time (sessions left open overnight bloat it),
   // and the summary line already says what got done.
@@ -877,8 +879,8 @@ function StateMark({ state }: { state?: 'working' | 'waiting' | 'stale' }) {
   }
   if (state === 'stale') {
     return (
-      <span className="r21-mark is-stale">
-        <span aria-hidden="true">🌙</span> quiet a while
+      <span className="r21-mark is-stale" title="The timer is still running, but the chat has been quiet for over 2 hours.">
+        <span aria-hidden="true">🌙</span> chat quiet for 2h+
       </span>
     );
   }
@@ -1043,8 +1045,8 @@ function FocusPanel({
   const loggedSec = task.localLoggedSeconds;
   const logged = fmtHM(loggedSec, 0);
   const startedAt = task.activeSession ? fmtEventStamp(task.activeSession.startedAt) : '';
-  const remaining = task.remainingWork != null ? `${Math.round(task.remainingWork)}h` : '—';
-  const completed = task.completedWork != null ? `${Math.round(task.completedWork)}h` : '—';
+  const remaining = task.remainingWork != null ? `${Math.round(task.remainingWork)}h` : 'not set';
+  const completed = task.completedWork != null ? `${Math.round(task.completedWork)}h` : 'not set';
 
   const storyDominant = story ? storyDominantState(story) : null;
   const taskIdStr = String(task.id);
@@ -1100,7 +1102,7 @@ function FocusPanel({
       <section className="r21-focal-current">
         <div className="r21-focal-current-head">
           <span className="r21-focal-current-label">Currently running</span>
-          <span className="r21-live-pill">live</span>
+          <span className="r21-live-pill">timer running</span>
           {startedAt && (
             <span className="r21-since">
               started <span className="v">{startedAt}</span>
@@ -1120,26 +1122,26 @@ function FocusPanel({
           </span>
         </button>
         <div className="r21-focal-meta">
-          <span className="r21-num">
+          <span className="r21-num" title="Time the timer has counted on this task">
             <span className="cap">LOGGED</span>
             <span className="val">{logged}</span>
             {task.sessionCount > 0 && (
               <span className="sub">
-                · {task.sessionCount} sitting{task.sessionCount === 1 ? '' : 's'}
+                · {task.sessionCount} session{task.sessionCount === 1 ? '' : 's'}
               </span>
             )}
           </span>
-          <span className="r21-num">
+          <span className="r21-num" title="Hours written on the board as done">
             <span className="cap">COMPLETED</span>
             <span className={`val ${task.completedWork == null ? 'is-missing' : ''}`}>
               {completed}
             </span>
           </span>
-          <span className="r21-num">
+          <span className="r21-num" title="The first guess, set once">
             <span className="cap">ESTIMATE</span>
             <span className="val">{estimateFor(task)}</span>
           </span>
-          <span className="r21-num">
+          <span className="r21-num" title="Hours the board says are left">
             <span className="cap">REMAINING</span>
             <span className={`val ${task.remainingWork == null ? 'is-missing' : ''}`}>
               {remaining}
@@ -1176,7 +1178,7 @@ function FocusPanel({
                   >
                     <span className={`r21-focal-task-state state-${stateClass}`}>{t.state}</span>
                     <span className="r21-focal-task-title">{t.title}</span>
-                    {isLive && <span className="r21-focal-task-live">live</span>}
+                    {isLive && <span className="r21-focal-task-live">timer running</span>}
                     <span className="r21-grow" />
                     <span className="r21-num is-compact">
                       <span className="cap">EST</span>
@@ -1228,8 +1230,8 @@ function FocusTaskDrill({
   const loggedSec = task.localLoggedSeconds;
   const logged = fmtHM(loggedSec, 0);
   const startedAt = task.activeSession ? fmtEventStamp(task.activeSession.startedAt) : '';
-  const remaining = task.remainingWork != null ? `${Math.round(task.remainingWork)}h` : '—';
-  const completed = task.completedWork != null ? `${Math.round(task.completedWork)}h` : '—';
+  const remaining = task.remainingWork != null ? `${Math.round(task.remainingWork)}h` : 'not set';
+  const completed = task.completedWork != null ? `${Math.round(task.completedWork)}h` : 'not set';
   const events = task.recentActivity;
   const taskBlocked = isBlockedState(task.state) || (task.type === 'Bug' && isBlocked(task.tags));
   const stateClass = boardStateClass(task.state);
@@ -1246,7 +1248,7 @@ function FocusTaskDrill({
       <div className="r21-focal-story-meta">
         <span className={`r21-focal-task-state state-${stateClass}`}>{task.state}</span>
         <Mono className="r21-focal-story-id">#{task.id}</Mono>
-        {isLive && <span className="r21-live-pill">live</span>}
+        {isLive && <span className="r21-live-pill">timer running</span>}
       </div>
       <h1 className="r21-focal-title">
         <button type="button" onClick={() => onOpenItem(task.id)} title="Open task details">
@@ -1267,7 +1269,7 @@ function FocusTaskDrill({
         <span className="r21-num">
           <span className="cap">LOGGED</span>
           <span className="val">{logged}</span>
-          {task.sessionCount > 0 && <span className="sub">· {task.sessionCount} sitting{task.sessionCount === 1 ? '' : 's'}</span>}
+          {task.sessionCount > 0 && <span className="sub">· {task.sessionCount} session{task.sessionCount === 1 ? '' : 's'}</span>}
         </span>
         <span className="r21-num">
           <span className="cap">COMPLETED</span>
@@ -1662,13 +1664,13 @@ function RailSprintTime({
       {live && focalTitle ? (
         <button type="button" className="live" onClick={jumpToLive} title="Jump to the story you're working on">
           <span className="dot" aria-hidden="true" />
-          Live on <b>{focalTitle}</b>
+          Timer running on <b>{focalTitle}</b>
           <span className="arr" aria-hidden="true">↗</span>
         </button>
       ) : (
         <span className="live is-quiet">
           <span className="dot" aria-hidden="true" />
-          Nothing live right now
+          No timer running right now
         </span>
       )}
     </section>
@@ -1721,7 +1723,9 @@ function NoteRow({ note, onChange }: { note: ApiHelperNote; onChange: () => void
   return (
     <li className={`note${kept ? ' is-kept' : ''}`}>
       <div className="note-main">
-        <p className="note-body">{note.body}</p>
+        <p className="note-body">
+          {boldParts(note.body).map((p, i) => (p.bold ? <strong key={i}>{p.text}</strong> : <span key={i}>{p.text}</span>))}
+        </p>
         <span className="note-age">{relAgo(note.createdAt)}</span>
       </div>
       <div className="note-actions">
@@ -2142,6 +2146,16 @@ function fmtEventStamp(iso: string): string {
   return `${date} · ${time}`;
 }
 
+/** "in 2h 10m" when it is today; the day's name ("tomorrow", "Sunday") when it is not. */
+function whenLabel(startsAt: string, now: Date): string {
+  const at = new Date(startsAt);
+  if (at.toDateString() === now.toDateString()) return relUntil(minutesUntilFresh(startsAt, now));
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
+  if (at.toDateString() === tomorrow.toDateString()) return 'tomorrow';
+  return at.toLocaleDateString(undefined, { weekday: 'long' });
+}
+
 function relUntil(min: number): string {
   if (min === 0) return 'now';
   if (min > 0) {
@@ -2389,11 +2403,11 @@ function estimateFor(w: ApiWorkItem): string {
 
 function greetingCopy(inProgressCount: number, daysRemaining: number): string {
   if (inProgressCount === 0 && daysRemaining > 0) {
-    return `You've got ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} left in this sprint and nothing in progress. Pick something from up next when you're ready.`;
+    return `You've got ${daysRemaining} working day${daysRemaining === 1 ? '' : 's'} left in this sprint and nothing in progress. Pick something from up next when you're ready.`;
   }
   if (inProgressCount === 1) {
-    return `One task in progress. ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} left in the sprint.`;
+    return `One task in progress. ${daysRemaining} working day${daysRemaining === 1 ? '' : 's'} left in the sprint.`;
   }
-  return `${inProgressCount} tasks in progress. ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} left in the sprint — start with whichever is most urgent.`;
+  return `${inProgressCount} tasks in progress. ${daysRemaining} working day${daysRemaining === 1 ? '' : 's'} left in the sprint — start with whichever is most urgent.`;
 }
 

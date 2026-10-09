@@ -99,9 +99,10 @@ export function RetroView() {
         <div>
           <h1 className="retro-h">Retro</h1>
           <p className="retro-sub">{data.sprintLine}</p>
+          <p className="retro-sub">A first draft from this sprint's record. Drop what you don't want to bring up — the rest is your list for the retro meeting.</p>
         </div>
         <div className="retro-head-actions">
-          <span className="retro-kept">{keptCount} of {data.items.length} lines kept</span>
+          <span className="retro-kept">{keptCount} of {data.items.length} lines on your list</span>
           <button
             className="retro-save"
             onClick={() => void save()}
@@ -112,10 +113,10 @@ export function RetroView() {
               : saveState === 'failed'
                 ? 'Save failed — try again'
                 : dirty
-                  ? 'Save this pass'
+                  ? 'Save my list'
                   : data.savedAt || saveState === 'saved'
                     ? 'Saved'
-                    : 'Save this pass'}
+                    : 'Save my list'}
           </button>
         </div>
       </header>
