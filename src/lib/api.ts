@@ -86,7 +86,15 @@ export interface ApiHelperNotes {
 }
 
 /** Outlook-calendar derived capacity for the current sprint. */
+export interface ApiFitsToday {
+  freeHours: number;
+  fits: { id: number; title: string; remainingHours: number; displayName: string }[];
+  summary: string;
+}
+
 export interface ApiOutlookCapacity {
+  /** Desk time still free today after today's meetings. Older payloads omit it. */
+  freeHoursToday?: number;
   sprintStart: string;
   sprintEnd: string;
   workingDays: number;
@@ -410,6 +418,8 @@ export interface ApiPayload {
   };
   /** Outlook-calendar derived capacity, null when there's no sprint. */
   outlookCapacity: ApiOutlookCapacity | null;
+  /** What can be finished today. Null with no sprint; older payloads omit it. */
+  fitsToday?: ApiFitsToday | null;
   pendingChanges: number;
   /** Which halves of the Discovery & Design page are turned on. Older payloads omit it. */
   pages?: { discovery: boolean; design: boolean };

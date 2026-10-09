@@ -220,6 +220,8 @@ no bullets, no sub-headers, no horizontal rules:
     before walking them into new work;
   - mention the sprint day naturally if it helps;
   - if \`capacitySummary\` is set, echo it as one sentence;
+  - if \`fitsTodaySummary\` is set, echo it verbatim — it says what can
+    really be finished today in today's free desk time;
   - if \`openNudgeCount\` > 0, say only the count ("you've got 2 notes from
     your helper waiting on the dashboard"). Bodies aren't in the packet —
     don't summarise what you can't see;
@@ -806,6 +808,8 @@ wired in through a private published URL, stored locally and never echoed.
     tell them plainly and point at \`docs/setup/outlook-calendar.md\`.
   - The raw \`capacity\` object is there for specific numbers ("how many
     hours of meetings?"). Otherwise prefer the summary.
+  - "What can I finish today?" → call \`capacity_check\` and echo its
+    \`fitsTodaySummary\` verbatim.
   - Call \`capacity_check\` directly when the user asks "is this realistic?",
     "how much time do I really have?", "do I have room for X?", and always
     at pre-planning and planning moments before agreeing to add work.
@@ -3316,7 +3320,7 @@ server.registerTool(
         sprintEnd: new Date(payload.sprint.finishDate),
         plannedHours,
       });
-      return jsonResult({ sprintName: payload.sprint.name, ...cap });
+      return jsonResult({ sprintName: payload.sprint.name, ...cap, fitsTodaySummary: payload.fitsToday?.summary ?? null });
     } catch (e) {
       return errorResult(e instanceof Error ? e.message : String(e));
     }

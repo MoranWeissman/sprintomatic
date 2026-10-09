@@ -16,6 +16,7 @@ import {
   type WorkItem,
 } from './ado';
 import { computeCapacity, type Capacity } from './capacity';
+import { buildFitsToday, type FitsToday } from './fits-today';
 import {
   computeUpcomingCeremonies,
   modeForCeremony,
@@ -38,7 +39,7 @@ import {
   type SessionEvent,
 } from './sessions';
 import { sessionActivityState, type SessionActivityState } from './session-activity';
-import { isActiveState, isDoneState } from './states';
+import { isActiveState, isDoneState, isWaitingState } from './states';
 import { buildNeedsYou, RECENTLY_FINISHED_HOURS, type NeedsYouBlock } from './needs-you';
 import { buildWrap, todayActivityRows, isWorkingDayFor, type WrapBlock } from './wrap';
 import {
@@ -207,6 +208,8 @@ export interface DashboardPayload {
    * hours total).
    */
   outlookCapacity: Capacity | null;
+  /** What can be finished today in today's free desk time. Null with no sprint. */
+  fitsToday: FitsToday | null;
   /** Count of local edits that haven't reached ADO yet. */
   pendingChanges: number;
   /** Which halves of the Discovery & Design page are turned on. */
@@ -579,6 +582,7 @@ export async function buildDashboard(opts: BuildOptions = {}): Promise<Dashboard
       userStories: [],
       capacity: { remainingHours: 0, completedHours: 0, totalEstimateHours: 0 },
       outlookCapacity: null,
+      fitsToday: null,
       pendingChanges: getPendingChangesCount(),
       pages: getPages(),
       activeSessions: 0,
@@ -723,6 +727,23 @@ export async function buildDashboard(opts: BuildOptions = {}): Promise<Dashboard
     outlookCapacity = null;
   }
 
+  // Remaining hours net of timer time not yet on the board, same as capacity.
+  const toFitsTask = (w: DashboardWorkItem) => ({
+    id: Number(w.id),
+    title: w.title,
+    remainingHours: Math.round(Math.max(0, (w.remainingWork ?? 0) - w.localUncapturedSeconds / 3600) * 10) / 10,
+  });
+  const isTask = (w: DashboardWorkItem) => w.type.toLowerCase() === 'task';
+  const fitsToday = outlookCapacity
+    ? buildFitsToday({
+        freeHours: outlookCapacity.freeHoursToday,
+        isWorkToday: outlookCapacity.isWorkToday,
+        going: inProgress.filter(isTask).map(toFitsTask),
+        waiting: upNext.filter(w => isTask(w) && isWaitingState(w.state)).map(toFitsTask),
+        hasCalendar: outlookCapacity.hasUrl && !outlookCapacity.fetchError,
+      })
+    : null;
+
   // Build the standup block — pulls yesterday + today entries from the
   // sessions DB, joined to task titles + parent story titles for display.
   const taskMeta = buildTaskMeta(items);
@@ -830,6 +851,7 @@ export async function buildDashboard(opts: BuildOptions = {}): Promise<Dashboard
     userStories,
     capacity,
     outlookCapacity,
+    fitsToday,
     pendingChanges: getPendingChangesCount(),
     pages: getPages(),
     activeSessions: activeSessions.size,

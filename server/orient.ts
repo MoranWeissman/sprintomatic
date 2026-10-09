@@ -182,6 +182,11 @@ export interface OrientPacket {
    */
   capacitySummary: string | null;
   /**
+   * Pre-formatted plain sentence: what can really be finished today in
+   * today's free desk time. Null when there's no sprint. Echo verbatim.
+   */
+  fitsTodaySummary: string | null;
+  /**
    * Pre-formatted plain-English question about all-day calendar entries that
    * overlap this sprint and may be the user's days off. The feed can't tell
    * on its own — the user's days off are published as all-day FREE entries,
@@ -792,6 +797,7 @@ export async function buildOrientPacket(chatCwd: string | null = null): Promise<
     ceremonyToday,
     capacity,
     capacitySummary: plainCapacitySummary(capacity),
+    fitsTodaySummary: payload.fitsToday?.summary ?? null,
     daysOffQuestion,
     daysOffCandidates,
     planningHome: {

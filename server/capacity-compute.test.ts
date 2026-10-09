@@ -154,3 +154,43 @@ describe('computeCapacity — confirmed days off', () => {
     expect(cap.workingDaysRemaining).toBe(9);
   });
 });
+
+describe('computeCapacity — free hours today', () => {
+  beforeEach(() => {
+    intervals.value = [];
+  });
+  const sprintStart = new Date(2026, 5, 7);
+  const sprintEnd = new Date(2026, 5, 18, 23, 59);
+
+  it('is the rest of the workday minus the meetings still ahead today', async () => {
+    const now = new Date(2026, 5, 10, 12); // Wed noon; window ends 18:00
+    intervals.value = [
+      mtg(2026, 6, 10, 9, 10), // this morning, already past
+      mtg(2026, 6, 10, 13, 15), // 2h still ahead today
+      mtg(2026, 6, 11, 10, 12), // tomorrow, not today
+    ];
+    const cap = await computeCapacity({ sprintStart, sprintEnd, plannedHours: 0, now });
+    expect(cap.freeHoursToday).toBe(4);
+  });
+
+  it('is capped at the workday length before the day starts', async () => {
+    const now = new Date(2026, 5, 10, 6); // before 08:00; window is 10h, the day is 9h
+    const cap = await computeCapacity({ sprintStart, sprintEnd, plannedHours: 0, now });
+    expect(cap.freeHoursToday).toBe(9);
+  });
+
+  it('is 0 after the workday and on a day off', async () => {
+    const late = await computeCapacity({ sprintStart, sprintEnd, plannedHours: 0, now: new Date(2026, 5, 10, 19) });
+    expect(late.freeHoursToday).toBe(0);
+    const off = await computeCapacity({
+      sprintStart,
+      sprintEnd,
+      plannedHours: 0,
+      now: new Date(2026, 5, 10, 12),
+      daysOffDates: ['2026-06-10'],
+    });
+    expect(off.freeHoursToday).toBe(0);
+    expect(off.isWorkToday).toBe(false);
+    expect(late.isWorkToday).toBe(true);
+  });
+});

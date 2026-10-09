@@ -61,6 +61,14 @@ export interface Capacity {
    * where the confirmations come from.
    */
   daysOff: number;
+  /**
+   * Desk time still free TODAY: what is left of today's workday window from
+   * now on, minus today's meetings that are still ahead. 0 on a day off, a
+   * non-working day, or outside the sprint.
+   */
+  freeHoursToday: number;
+  /** False on a day off, a non-working day, or outside the sprint. */
+  isWorkToday: boolean;
   plannedHours: number;
   difference: number;
   hasUrl: boolean;
@@ -137,6 +145,21 @@ export async function computeCapacity(opts: ComputeCapacityOptions): Promise<Cap
       : Math.max(0, countWorkingDays(remainingStart, opts.sprintEnd, workdaySet) - daysOffRemaining);
   const workingHoursRemaining = workingDaysRemaining * workdayHours;
 
+  // Today's window, from now (or the start of the day) to the end of the day.
+  const todayFrom = new Date(now);
+  todayFrom.setHours(workdayStart, 0, 0, 0);
+  if (now > todayFrom) todayFrom.setTime(now.getTime());
+  const todayTo = new Date(now);
+  todayTo.setHours(workdayEnd, 0, 0, 0);
+  const isWorkToday =
+    workdaySet.has(now.getDay()) &&
+    !dayOffDates.has(todayIso) &&
+    todayIso >= sprintStartIso &&
+    todayIso <= sprintEndIso;
+  const hoursLeftToday = isWorkToday
+    ? Math.min(workdayHours, Math.max(0, (todayTo.getTime() - todayFrom.getTime()) / 3_600_000))
+    : 0;
+
   const baseResult: Capacity = {
     sprintStart: opts.sprintStart.toISOString(),
     sprintEnd: opts.sprintEnd.toISOString(),
@@ -149,6 +172,8 @@ export async function computeCapacity(opts: ComputeCapacityOptions): Promise<Cap
     availableHours: workingHoursTotal,
     availableHoursRemaining: workingHoursRemaining,
     daysOff,
+    freeHoursToday: hoursLeftToday,
+    isWorkToday,
     plannedHours: opts.plannedHours,
     difference: opts.plannedHours - workingHoursTotal,
     hasUrl: getCalendarUrl() != null,
@@ -174,7 +199,16 @@ export async function computeCapacity(opts: ComputeCapacityOptions): Promise<Cap
   let remBusyMins = 0;
   let remTentativeMins = 0;
   let remOofMins = 0;
+  let todayMeetingHours = 0;
   for (const iv of intervals) {
+    if (hoursLeftToday > 0) {
+      const from = Math.max(iv.start.getTime(), todayFrom.getTime());
+      const to = Math.min(iv.end.getTime(), todayTo.getTime());
+      if (to > from) {
+        const weight = iv.busyStatus === 'TENTATIVE' ? tentativeWeight : iv.busyStatus === 'BUSY' || iv.busyStatus === 'OOF' ? 1 : 0;
+        todayMeetingHours += ((to - from) / 3_600_000) * weight;
+      }
+    }
     const clippedMins = clipToWorkingHours(iv.start, iv.end, workdaySet, workdayStart, workdayEnd, dayOffDates);
     if (iv.busyStatus === 'BUSY') busyMins += clippedMins;
     else if (iv.busyStatus === 'TENTATIVE') tentativeMins += clippedMins;
@@ -203,6 +237,7 @@ export async function computeCapacity(opts: ComputeCapacityOptions): Promise<Cap
     meetingHours: { busy, tentative, oof, weighted },
     availableHours,
     availableHoursRemaining,
+    freeHoursToday: Math.max(0, hoursLeftToday - todayMeetingHours),
     difference: opts.plannedHours - availableHours,
   };
 }

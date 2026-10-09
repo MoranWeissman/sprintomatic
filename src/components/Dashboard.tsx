@@ -1580,6 +1580,11 @@ function DailyView({
             focalTitle={focalTitle}
             scrollerRef={storiesColRef}
           />
+          <RailFitsToday
+            fitsToday={data.fitsToday}
+            hasCalendar={!!outlookCapacity?.hasUrl && !outlookCapacity.fetchError}
+            onOpenItem={onOpenItem}
+          />
           <RailNeedsYou needsYou={needsYou} now={now} />
           <RailNotes notes={helperNotes} onRefresh={onRefresh} />
         </>
@@ -1787,6 +1792,49 @@ function ageShort(iso: string, now: Date): string {
 // displayName arrives as **title** (#id) — render the title plain.
 function plainTitle(displayName: string): string {
   return displayName.replace(/\*\*/g, '').replace(/\s*\(#\d+\)\s*$/, '');
+}
+
+/**
+ * What can really be finished today, in today's free desk time. Tasks
+ * already going come first. Calm on purpose: a short list, no colours that
+ * shout, nothing that counts down.
+ */
+function RailFitsToday({
+  fitsToday,
+  hasCalendar,
+  onOpenItem,
+}: {
+  fitsToday: ApiPayload['fitsToday'];
+  hasCalendar: boolean;
+  onOpenItem: (id: string) => void;
+}) {
+  // Older payloads have no fitsToday — render nothing, never crash.
+  if (!fitsToday) return null;
+  return (
+    <section className="r22-rail-card r22-rail-fits" aria-label="What fits today">
+      <div className="r22-rail-card-head">
+        <span className="r22-rail-card-label">What fits today</span>
+        {fitsToday.freeHours > 0 && <span className="r22-rail-card-meta">{fitsToday.freeHours}h free</span>}
+      </div>
+      {fitsToday.fits.length === 0 ? (
+        <p className="fits-none">{fitsToday.summary}</p>
+      ) : (
+        <>
+          <ul className="fits-list">
+            {fitsToday.fits.map(f => (
+              <li key={f.id}>
+                <button type="button" className="fits-row" onClick={() => onOpenItem(String(f.id))}>
+                  <span className="fits-title">{f.title}</span>
+                  <span className="fits-hours">{f.remainingHours}h left</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          {!hasCalendar && <p className="fits-none">No calendar is connected, so meetings are not counted.</p>}
+        </>
+      )}
+    </section>
+  );
 }
 
 function RailNeedsYou({ needsYou, now }: { needsYou: ApiNeedsYou | undefined; now: Date }) {
