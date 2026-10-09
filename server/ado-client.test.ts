@@ -34,8 +34,8 @@ const okJson = (obj: unknown) => res(true, 200, 'OK', JSON.stringify(obj));
 
 beforeEach(() => {
   h.settings.clear();
-  delete process.env.SH_ADO_ACCESS_MODE;
-  delete process.env.SH_ADO_PAT;
+  delete process.env.SPRINTOMATIC_ADO_ACCESS_MODE;
+  delete process.env.SPRINTOMATIC_ADO_PAT;
   resetAdoClient();
 });
 
@@ -167,7 +167,7 @@ describe('access mode selection', () => {
   });
 
   it('falls back to the env var when no setting is stored', () => {
-    process.env.SH_ADO_ACCESS_MODE = 'api';
+    process.env.SPRINTOMATIC_ADO_ACCESS_MODE = 'api';
     expect(getAdoAccessMode()).toBe('api');
   });
 

@@ -7,11 +7,11 @@
 import { configValue } from './user-config';
 import type { Session } from './sessions';
 
-/** env SH_MAX_PARALLEL_SESSIONS → setting max_parallel_sessions → default 4. */
+/** env SPRINTOMATIC_MAX_PARALLEL_SESSIONS → setting max_parallel_sessions → default 4. */
 export const DEFAULT_MAX_PARALLEL_SESSIONS = 4;
 
 export function maxParallelSessions(): number {
-  const raw = configValue('SH_MAX_PARALLEL_SESSIONS', 'max_parallel_sessions') ?? '';
+  const raw = configValue('SPRINTOMATIC_MAX_PARALLEL_SESSIONS', 'max_parallel_sessions') ?? '';
   const n = Number.parseInt(raw, 10);
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_MAX_PARALLEL_SESSIONS;
 }

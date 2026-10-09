@@ -19,7 +19,7 @@ function sess(workItemId: number): Session {
 
 beforeEach(() => {
   h.settings.clear();
-  delete process.env.SH_MAX_PARALLEL_SESSIONS;
+  delete process.env.SPRINTOMATIC_MAX_PARALLEL_SESSIONS;
 });
 
 describe('maxParallelSessions', () => {
@@ -29,20 +29,20 @@ describe('maxParallelSessions', () => {
   it('setting wins over default; env wins over setting', () => {
     h.settings.set('max_parallel_sessions', '3');
     expect(maxParallelSessions()).toBe(3);
-    process.env.SH_MAX_PARALLEL_SESSIONS = '2';
+    process.env.SPRINTOMATIC_MAX_PARALLEL_SESSIONS = '2';
     expect(maxParallelSessions()).toBe(2);
   });
   it('junk / zero / negative falls back to 4', () => {
-    process.env.SH_MAX_PARALLEL_SESSIONS = 'abc';
+    process.env.SPRINTOMATIC_MAX_PARALLEL_SESSIONS = 'abc';
     expect(maxParallelSessions()).toBe(4);
-    process.env.SH_MAX_PARALLEL_SESSIONS = '0';
+    process.env.SPRINTOMATIC_MAX_PARALLEL_SESSIONS = '0';
     expect(maxParallelSessions()).toBe(4);
-    process.env.SH_MAX_PARALLEL_SESSIONS = '-1';
+    process.env.SPRINTOMATIC_MAX_PARALLEL_SESSIONS = '-1';
     expect(maxParallelSessions()).toBe(4);
   });
   it('empty-string env var falls through to the setting', () => {
     h.settings.set('max_parallel_sessions', '3');
-    process.env.SH_MAX_PARALLEL_SESSIONS = '';
+    process.env.SPRINTOMATIC_MAX_PARALLEL_SESSIONS = '';
     expect(maxParallelSessions()).toBe(3);
   });
 });

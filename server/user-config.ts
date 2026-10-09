@@ -45,7 +45,7 @@ function configNumber(envKey: string, settingKey: string, fallback: number, ok: 
  * rather than leaving a week with no workdays in it.
  */
 export function getWorkingDays(): Set<number> {
-  const raw = configValue('SH_WORKING_DAYS', 'working_days');
+  const raw = configValue('SPRINTOMATIC_WORKING_DAYS', 'working_days');
   if (raw == null) return new Set(DEFAULT_WORKING_DAYS);
   const days = raw
     .split(',')
@@ -58,23 +58,23 @@ export function getWorkingDays(): Set<number> {
 
 /** Length of a workday in hours. Also what one story point means. */
 export function getWorkdayHours(): number {
-  return configNumber('SH_WORKDAY_HOURS', 'workday_hours', DEFAULT_WORKDAY_HOURS, n => n > 0 && n <= 24);
+  return configNumber('SPRINTOMATIC_WORKDAY_HOURS', 'workday_hours', DEFAULT_WORKDAY_HOURS, n => n > 0 && n <= 24);
 }
 
 /** Hour the workday starts (local). Meetings before it don't count. */
 export function getWorkdayStartHour(): number {
-  return configNumber('SH_WORKDAY_START_HOUR', 'workday_start_hour', DEFAULT_WORKDAY_START_HOUR, n => n >= 0 && n < 24);
+  return configNumber('SPRINTOMATIC_WORKDAY_START_HOUR', 'workday_start_hour', DEFAULT_WORKDAY_START_HOUR, n => n >= 0 && n < 24);
 }
 
 /** Hour the workday ends (local). Meetings after it don't count. */
 export function getWorkdayEndHour(): number {
   const start = getWorkdayStartHour();
-  return configNumber('SH_WORKDAY_END_HOUR', 'workday_end_hour', DEFAULT_WORKDAY_END_HOUR, n => n > start && n <= 24);
+  return configNumber('SPRINTOMATIC_WORKDAY_END_HOUR', 'workday_end_hour', DEFAULT_WORKDAY_END_HOUR, n => n > start && n <= 24);
 }
 
 /** How much a tentative meeting counts against desk time: 0 = not at all, 1 = in full. */
 export function getTentativeWeight(): number {
-  return configNumber('SH_TENTATIVE_WEIGHT', 'tentative_weight', DEFAULT_TENTATIVE_WEIGHT, n => n >= 0 && n <= 1);
+  return configNumber('SPRINTOMATIC_TENTATIVE_WEIGHT', 'tentative_weight', DEFAULT_TENTATIVE_WEIGHT, n => n >= 0 && n <= 1);
 }
 
 /** "Sun-Thu" for a run of days, "Mon, Wed, Fri" otherwise. */
@@ -117,8 +117,8 @@ export function tentativeLabel(weight: number = getTentativeWeight()): string {
  */
 export function getPages(): { discovery: boolean; design: boolean } {
   return {
-    discovery: configValue('SH_USE_DISCOVERY', 'use_discovery') === 'on',
-    design: configValue('SH_USE_DESIGN', 'use_design') === 'on',
+    discovery: configValue('SPRINTOMATIC_USE_DISCOVERY', 'use_discovery') === 'on',
+    design: configValue('SPRINTOMATIC_USE_DESIGN', 'use_design') === 'on',
   };
 }
 

@@ -17,11 +17,11 @@ import {
 } from './user-config';
 
 const ENV_KEYS = [
-  'SH_WORKING_DAYS',
-  'SH_WORKDAY_HOURS',
-  'SH_WORKDAY_START_HOUR',
-  'SH_WORKDAY_END_HOUR',
-  'SH_TENTATIVE_WEIGHT',
+  'SPRINTOMATIC_WORKING_DAYS',
+  'SPRINTOMATIC_WORKDAY_HOURS',
+  'SPRINTOMATIC_WORKDAY_START_HOUR',
+  'SPRINTOMATIC_WORKDAY_END_HOUR',
+  'SPRINTOMATIC_TENTATIVE_WEIGHT',
 ];
 
 beforeEach(() => {
@@ -33,15 +33,15 @@ beforeEach(() => {
 
 describe('configValue', () => {
   it('the environment wins over the stored setting', () => {
-    process.env.SH_WORKDAY_HOURS = '7';
+    process.env.SPRINTOMATIC_WORKDAY_HOURS = '7';
     h.settings.set('workday_hours', '8');
-    expect(configValue('SH_WORKDAY_HOURS', 'workday_hours')).toBe('7');
+    expect(configValue('SPRINTOMATIC_WORKDAY_HOURS', 'workday_hours')).toBe('7');
   });
 
   it('a blank value counts as unset in both places', () => {
-    process.env.SH_WORKDAY_HOURS = '  ';
+    process.env.SPRINTOMATIC_WORKDAY_HOURS = '  ';
     h.settings.set('workday_hours', '');
-    expect(configValue('SH_WORKDAY_HOURS', 'workday_hours')).toBeUndefined();
+    expect(configValue('SPRINTOMATIC_WORKDAY_HOURS', 'workday_hours')).toBeUndefined();
   });
 });
 

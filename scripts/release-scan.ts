@@ -6,7 +6,7 @@
  *   npm run release-scan -- --all # every matching line
  *
  * Two private sources, both outside the repo:
- *   - the word list: ~/.sprintomatic/release-words.txt (or SH_RELEASE_WORDS)
+ *   - the word list: ~/.sprintomatic/release-words.txt (or SPRINTOMATIC_RELEASE_WORDS)
  *   - every ticket id the local database has ever seen
  */
 import { execFileSync } from 'node:child_process';
@@ -17,7 +17,7 @@ import Database from 'better-sqlite3';
 import { BUILT_IN_RULES, parseWordList, rulesFromWords, scanFiles } from '../server/release-scan';
 
 const home = join(homedir(), '.sprintomatic');
-const wordsPath = process.env.SH_RELEASE_WORDS ?? join(home, 'release-words.txt');
+const wordsPath = process.env.SPRINTOMATIC_RELEASE_WORDS ?? join(home, 'release-words.txt');
 
 if (!existsSync(wordsPath)) {
   console.error(`No word list at ${wordsPath}.\nCreate it: one private word per line (employer, org, tenant, email, names).`);

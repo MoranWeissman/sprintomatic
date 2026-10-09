@@ -14,7 +14,7 @@ import { DASHBOARD_PORT } from './dashboard-process';
 import { contentType, resolveStatic } from './static-files';
 
 const distDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
-const port = Number(process.env.SH_PORT) || DASHBOARD_PORT;
+const port = Number(process.env.SPRINTOMATIC_PORT) || DASHBOARD_PORT;
 const api = createApi();
 
 async function sendFile(path: string): Promise<{ type: string; data: Buffer } | null> {

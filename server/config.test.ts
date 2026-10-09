@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 /**
  * These exist because of a bug that lived for months: the call site read
- * `azDefault(key) ?? process.env.SH_ADO_ORG`, and since a promise is always
+ * `azDefault(key) ?? process.env.SPRINTOMATIC_ADO_ORG`, and since a promise is always
  * truthy the environment variable was never reached. Nothing failed loudly —
- * setting SH_ADO_ORG just quietly did nothing.
+ * setting SPRINTOMATIC_ADO_ORG just quietly did nothing.
  */
 
 // Every `az` call in this module goes through execFile. Hand back whatever the
@@ -42,7 +42,7 @@ const LIST = 'devops configure --list';
 const TEAMS = 'devops team list --query [].name -o tsv';
 const WHOAMI = 'account show --query user.name -o tsv';
 
-const ENV_KEYS = ['SH_ADO_ORG', 'SH_ADO_PROJECT', 'SH_ADO_TEAM', 'SH_ADO_USER'] as const;
+const ENV_KEYS = ['SPRINTOMATIC_ADO_ORG', 'SPRINTOMATIC_ADO_PROJECT', 'SPRINTOMATIC_ADO_TEAM', 'SPRINTOMATIC_ADO_USER'] as const;
 
 beforeEach(() => {
   h.mode = 'cli';
@@ -64,8 +64,8 @@ function azKnowsEverything() {
 describe('CLI mode — the environment wins', () => {
   it('uses the environment variables even when az has its own defaults', async () => {
     azKnowsEverything();
-    process.env.SH_ADO_ORG = 'https://dev.azure.com/from-env';
-    process.env.SH_ADO_PROJECT = 'Project From Env';
+    process.env.SPRINTOMATIC_ADO_ORG = 'https://dev.azure.com/from-env';
+    process.env.SPRINTOMATIC_ADO_PROJECT = 'Project From Env';
 
     const cfg = await loadAdoConfig();
     expect(cfg.organization).toBe('https://dev.azure.com/from-env');
@@ -74,10 +74,10 @@ describe('CLI mode — the environment wins', () => {
 
   it('works with ONLY the environment set — az can be missing entirely', async () => {
     h.fail.add(LIST); // no az defaults at all
-    process.env.SH_ADO_ORG = 'https://dev.azure.com/from-env';
-    process.env.SH_ADO_PROJECT = 'Project From Env';
-    process.env.SH_ADO_TEAM = 'Team From Env';
-    process.env.SH_ADO_USER = 'someone@example.com';
+    process.env.SPRINTOMATIC_ADO_ORG = 'https://dev.azure.com/from-env';
+    process.env.SPRINTOMATIC_ADO_PROJECT = 'Project From Env';
+    process.env.SPRINTOMATIC_ADO_TEAM = 'Team From Env';
+    process.env.SPRINTOMATIC_ADO_USER = 'someone@example.com';
 
     const cfg = await loadAdoConfig();
     expect(cfg).toEqual({
@@ -89,8 +89,8 @@ describe('CLI mode — the environment wins', () => {
   });
 
   it('never asks az anything when the environment already answers', async () => {
-    for (const k of ENV_KEYS) process.env[k] = k === 'SH_ADO_ORG' ? 'https://dev.azure.com/o' : 'v';
-    process.env.SH_ADO_USER = 'someone@example.com';
+    for (const k of ENV_KEYS) process.env[k] = k === 'SPRINTOMATIC_ADO_ORG' ? 'https://dev.azure.com/o' : 'v';
+    process.env.SPRINTOMATIC_ADO_USER = 'someone@example.com';
 
     await loadAdoConfig();
     expect(h.calls).toHaveLength(0);
@@ -107,7 +107,7 @@ describe('CLI mode — the environment wins', () => {
 
   it('ignores an environment variable that is only spaces', async () => {
     azKnowsEverything();
-    process.env.SH_ADO_ORG = '   ';
+    process.env.SPRINTOMATIC_ADO_ORG = '   ';
     const cfg = await loadAdoConfig();
     expect(cfg.organization).toBe('https://dev.azure.com/from-az');
   });
@@ -141,7 +141,7 @@ describe('one rule in both modes — env, then stored setting', () => {
     h.settings.set('ado_project', 'Stored Project');
     h.settings.set('ado_team', 'Stored Team');
     h.settings.set('ado_user', 'someone@example.com');
-    process.env.SH_ADO_TEAM = 'Team From Env';
+    process.env.SPRINTOMATIC_ADO_TEAM = 'Team From Env';
 
     expect((await loadAdoConfig()).team).toBe('Team From Env');
   });

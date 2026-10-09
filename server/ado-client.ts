@@ -257,16 +257,16 @@ function shortUri(uri: string): string {
 /* ============================================================ */
 
 /**
- * Which doorway to use: SH_ADO_ACCESS_MODE, then the `ado_access_mode`
+ * Which doorway to use: SPRINTOMATIC_ADO_ACCESS_MODE, then the `ado_access_mode`
  * setting, defaulting to 'cli'. Anything other than 'api' means 'cli' — the
  * safe default that needs no token.
  */
 export function getAdoAccessMode(): AdoAccessMode {
-  const raw = (configValue('SH_ADO_ACCESS_MODE', 'ado_access_mode') ?? 'cli').toLowerCase();
+  const raw = (configValue('SPRINTOMATIC_ADO_ACCESS_MODE', 'ado_access_mode') ?? 'cli').toLowerCase();
   return raw === 'api' ? 'api' : 'cli';
 }
 
-/** The Azure DevOps token for API mode: SH_ADO_PAT, then the Keychain, then the `ado_pat` setting. */
+/** The Azure DevOps token for API mode: SPRINTOMATIC_ADO_PAT, then the Keychain, then the `ado_pat` setting. */
 function getStoredToken(): string | undefined {
   return readToken().value;
 }

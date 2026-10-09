@@ -5,7 +5,7 @@
  * settings file. Everywhere else (or when the Keychain can't be reached) it
  * falls back to the `ado_pat` setting, and the settings screen says so.
  *
- * Lookup order, same as every other knob: SH_ADO_PAT, then the Keychain, then
+ * Lookup order, same as every other knob: SPRINTOMATIC_ADO_PAT, then the Keychain, then
  * the `ado_pat` setting.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -20,9 +20,9 @@ let cache: { value: string | undefined; at: number } | null = null;
 
 export type TokenSource = 'env' | 'keychain' | 'setting' | 'none';
 
-/** SH_KEYCHAIN=off turns the Keychain off (tests set it so they never touch the real one). */
+/** SPRINTOMATIC_KEYCHAIN=off turns the Keychain off (tests set it so they never touch the real one). */
 export function keychainAvailable(): boolean {
-  return process.platform === 'darwin' && process.env.SH_KEYCHAIN !== 'off';
+  return process.platform === 'darwin' && process.env.SPRINTOMATIC_KEYCHAIN !== 'off';
 }
 
 function readKeychain(): string | undefined {
@@ -44,7 +44,7 @@ function readKeychain(): string | undefined {
 
 /** The token and where it came from. Never log the value. */
 export function readToken(): { value: string | undefined; source: TokenSource } {
-  const env = process.env.SH_ADO_PAT?.trim();
+  const env = process.env.SPRINTOMATIC_ADO_PAT?.trim();
   if (env) return { value: env, source: 'env' };
   const fromKeychain = readKeychain();
   if (fromKeychain) return { value: fromKeychain, source: 'keychain' };

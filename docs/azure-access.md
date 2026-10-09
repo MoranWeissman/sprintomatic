@@ -42,17 +42,17 @@ they just go through `rest()`.
 
 ## The token + mode (API mode)
 
-Selection is by the `SH_ADO_ACCESS_MODE` env var, then the **`ado_access_mode`** setting
+Selection is by the `SPRINTOMATIC_ADO_ACCESS_MODE` env var, then the **`ado_access_mode`** setting
 (`cli` | `api`), defaulting to `cli` — so an existing `az` user changes nothing. (Environment
 first, then setting, is the one rule for every knob — see `docs/configuration.md`.)
 
 API mode needs an Azure DevOps **Personal Access Token** with work-item read/write. It's a
-**secret**: `SH_ADO_PAT` env or the `ado_pat` setting, never echoed back in chat —
+**secret**: `SPRINTOMATIC_ADO_PAT` env or the `ado_pat` setting, never echoed back in chat —
 same handling as the Outlook calendar URL. The PAT returning a sign-in HTML page (ADO's way of
 saying "bad token") is detected and surfaced as a token problem, not a parse crash.
 
 Because there's no `az` to ask in API mode, the four config values come from settings too:
-`ado_org`, `ado_project`, `ado_team`, `ado_user` (the `SH_ADO_*` env vars win). After changing the
+`ado_org`, `ado_project`, `ado_team`, `ado_user` (the `SPRINTOMATIC_ADO_*` env vars win). After changing the
 mode or token, call `resetAdoClient()` + `invalidateAdoConfig()` so the next call rebuilds.
 
 You can set all of this in the dashboard under **Settings**, or with `npm run setup`.

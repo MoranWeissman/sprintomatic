@@ -132,7 +132,7 @@ function onOff(key: string, raw: string): string {
 const DEFS: SettingDef[] = [
   // ---- the week ----
   {
-    key: 'working_days', env: 'SH_WORKING_DAYS', group: 'week', kind: 'days',
+    key: 'working_days', env: 'SPRINTOMATIC_WORKING_DAYS', group: 'week', kind: 'days',
     label: 'Working days',
     help: 'The days you work. Capacity, the Daily and the sprint strip all count only these.',
     defaultLabel: workingDaysLabel(DEFAULT_WORKING_DAYS),
@@ -144,7 +144,7 @@ const DEFS: SettingDef[] = [
     },
   },
   {
-    key: 'workday_hours', env: 'SH_WORKDAY_HOURS', group: 'week', kind: 'number',
+    key: 'workday_hours', env: 'SPRINTOMATIC_WORKDAY_HOURS', group: 'week', kind: 'number',
     label: 'Hours in a workday',
     help: 'How long a normal day is. One story point counts as one of these days.',
     defaultLabel: String(DEFAULT_WORKDAY_HOURS),
@@ -152,7 +152,7 @@ const DEFS: SettingDef[] = [
     clean: raw => numberBetween('workday_hours', raw, n => n > 0 && n <= 24, 'A workday is more than 0 and at most 24 hours.'),
   },
   {
-    key: 'workday_start_hour', env: 'SH_WORKDAY_START_HOUR', group: 'week', kind: 'hour',
+    key: 'workday_start_hour', env: 'SPRINTOMATIC_WORKDAY_START_HOUR', group: 'week', kind: 'hour',
     label: 'Day starts at',
     help: 'Meetings before this time don\'t take away from your desk time.',
     defaultLabel: hourLabel(DEFAULT_WORKDAY_START_HOUR),
@@ -164,7 +164,7 @@ const DEFS: SettingDef[] = [
     },
   },
   {
-    key: 'workday_end_hour', env: 'SH_WORKDAY_END_HOUR', group: 'week', kind: 'hour',
+    key: 'workday_end_hour', env: 'SPRINTOMATIC_WORKDAY_END_HOUR', group: 'week', kind: 'hour',
     label: 'Day ends at',
     help: 'Meetings after this time don\'t take away from your desk time.',
     defaultLabel: hourLabel(DEFAULT_WORKDAY_END_HOUR),
@@ -178,7 +178,7 @@ const DEFS: SettingDef[] = [
     },
   },
   {
-    key: 'tentative_weight', env: 'SH_TENTATIVE_WEIGHT', group: 'week', kind: 'choice',
+    key: 'tentative_weight', env: 'SPRINTOMATIC_TENTATIVE_WEIGHT', group: 'week', kind: 'choice',
     label: 'Meetings you said "maybe" to',
     help: 'How much a tentative meeting takes away from your desk time.',
     choices: [
@@ -193,7 +193,7 @@ const DEFS: SettingDef[] = [
 
   // ---- the board ----
   {
-    key: 'ado_access_mode', env: 'SH_ADO_ACCESS_MODE', group: 'board', kind: 'choice',
+    key: 'ado_access_mode', env: 'SPRINTOMATIC_ADO_ACCESS_MODE', group: 'board', kind: 'choice',
     label: 'How to reach the board',
     help: 'The az command uses your existing az login. A token works without the Azure CLI.',
     choices: [
@@ -209,7 +209,7 @@ const DEFS: SettingDef[] = [
     },
   },
   {
-    key: 'ado_org', env: 'SH_ADO_ORG', group: 'board', kind: 'text',
+    key: 'ado_org', env: 'SPRINTOMATIC_ADO_ORG', group: 'board', kind: 'text',
     label: 'Organization',
     help: 'The address of your Azure DevOps organization.',
     defaultLabel: 'what az devops configure has',
@@ -220,25 +220,25 @@ const DEFS: SettingDef[] = [
     },
   },
   {
-    key: 'ado_project', env: 'SH_ADO_PROJECT', group: 'board', kind: 'text',
+    key: 'ado_project', env: 'SPRINTOMATIC_ADO_PROJECT', group: 'board', kind: 'text',
     label: 'Project',
     help: 'The Azure DevOps project your board lives in.',
     defaultLabel: 'what az devops configure has',
   },
   {
-    key: 'ado_team', env: 'SH_ADO_TEAM', group: 'board', kind: 'text',
+    key: 'ado_team', env: 'SPRINTOMATIC_ADO_TEAM', group: 'board', kind: 'text',
     label: 'Team',
     help: 'The team you plan sprints with.',
     defaultLabel: 'the only team, if there is just one',
   },
   {
-    key: 'ado_user', env: 'SH_ADO_USER', group: 'board', kind: 'text',
+    key: 'ado_user', env: 'SPRINTOMATIC_ADO_USER', group: 'board', kind: 'text',
     label: 'You',
     help: 'The email you sign in to Azure DevOps with. New tasks get assigned to it.',
     defaultLabel: 'the account az is signed in with',
   },
   {
-    key: 'ado_pat', env: 'SH_ADO_PAT', group: 'board', kind: 'secret',
+    key: 'ado_pat', env: 'SPRINTOMATIC_ADO_PAT', group: 'board', kind: 'secret',
     label: 'Personal access token',
     help: 'Only used when you reach the board with a token. Needs work item read and write.',
     defaultLabel: 'not saved',
@@ -246,7 +246,7 @@ const DEFS: SettingDef[] = [
 
   // ---- pages ----
   {
-    key: 'use_discovery', env: 'SH_USE_DISCOVERY', group: 'pages', kind: 'choice',
+    key: 'use_discovery', env: 'SPRINTOMATIC_USE_DISCOVERY', group: 'pages', kind: 'choice',
     label: 'Discovery',
     help: 'Working out a problem before anyone designs it: questions, meetings, a small demo. Turn on if your sprints have a discovery step.',
     choices: [{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }],
@@ -255,7 +255,7 @@ const DEFS: SettingDef[] = [
     clean: raw => onOff('use_discovery', raw),
   },
   {
-    key: 'use_design', env: 'SH_USE_DESIGN', group: 'pages', kind: 'choice',
+    key: 'use_design', env: 'SPRINTOMATIC_USE_DESIGN', group: 'pages', kind: 'choice',
     label: 'Design',
     help: 'Writing a design and turning it into stories on the board. Turn on if you design features before you build them.',
     choices: [{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }],
@@ -266,7 +266,7 @@ const DEFS: SettingDef[] = [
 
   // ---- other ----
   {
-    key: 'max_parallel_sessions', env: 'SH_MAX_PARALLEL_SESSIONS', group: 'other', kind: 'number',
+    key: 'max_parallel_sessions', env: 'SPRINTOMATIC_MAX_PARALLEL_SESSIONS', group: 'other', kind: 'number',
     label: 'Most tasks open at once',
     help: 'How many work sessions can run at the same time before a new one is refused.',
     defaultLabel: String(DEFAULT_MAX_PARALLEL_SESSIONS),

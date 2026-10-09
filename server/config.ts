@@ -46,8 +46,8 @@ export function invalidateAdoConfig(): void {
 
 async function loadConfigFromCli(): Promise<AdoConfig> {
   const [organization, project] = await Promise.all([
-    azDefault('organization', 'SH_ADO_ORG', 'ado_org'),
-    azDefault('project', 'SH_ADO_PROJECT', 'ado_project'),
+    azDefault('organization', 'SPRINTOMATIC_ADO_ORG', 'ado_org'),
+    azDefault('project', 'SPRINTOMATIC_ADO_PROJECT', 'ado_project'),
   ]);
 
   // Checked before asking for the team: on a fresh machine the team lookup
@@ -56,7 +56,7 @@ async function loadConfigFromCli(): Promise<AdoConfig> {
   if (!project) throw new SetupNeededError('No Azure DevOps project is set. Fill it in under Settings, or run: az devops configure --defaults project=<your-project>');
 
   const [team, user] = await Promise.all([resolveTeam(), resolveUser()]);
-  if (!team) throw new Error('ADO team not resolvable. Set SH_ADO_TEAM env var or ensure exactly one team exists in the project.');
+  if (!team) throw new Error('ADO team not resolvable. Set SPRINTOMATIC_ADO_TEAM env var or ensure exactly one team exists in the project.');
   if (!user) throw new Error('ADO user not resolvable. Ensure `az login` succeeded.');
 
   return { organization, project, team, user };
@@ -64,10 +64,10 @@ async function loadConfigFromCli(): Promise<AdoConfig> {
 
 /** API mode: org/project/team/user come from env, then stored settings. */
 function loadConfigFromStore(): AdoConfig {
-  const organization = configValue('SH_ADO_ORG', 'ado_org');
-  const project = configValue('SH_ADO_PROJECT', 'ado_project');
-  const team = configValue('SH_ADO_TEAM', 'ado_team');
-  const user = configValue('SH_ADO_USER', 'ado_user');
+  const organization = configValue('SPRINTOMATIC_ADO_ORG', 'ado_org');
+  const project = configValue('SPRINTOMATIC_ADO_PROJECT', 'ado_project');
+  const team = configValue('SPRINTOMATIC_ADO_TEAM', 'ado_team');
+  const user = configValue('SPRINTOMATIC_ADO_USER', 'ado_user');
 
   // In token mode there is no az to ask, so every one of these must be filled in.
   if (!organization) throw new SetupNeededError('No Azure DevOps organization is set. Fill it in under Settings (e.g. https://dev.azure.com/<your-org>).');
@@ -84,14 +84,14 @@ function loadConfigFromStore(): AdoConfig {
  *
  * The call site used to read `azDefault(key) ?? process.env.X`, which cannot
  * work: this function returns a promise, a promise is always truthy, so the
- * `??` never chose the environment variable — setting SH_ADO_ORG did nothing
+ * `??` never chose the environment variable — setting SPRINTOMATIC_ADO_ORG did nothing
  * for months. Each resolver now owns its own fallback, the way resolveTeam
  * always has, and the environment wins because that is what this file has
  * promised from the start.
  */
 async function azDefault(
   key: 'organization' | 'project',
-  envKey: 'SH_ADO_ORG' | 'SH_ADO_PROJECT',
+  envKey: 'SPRINTOMATIC_ADO_ORG' | 'SPRINTOMATIC_ADO_PROJECT',
   settingKey: 'ado_org' | 'ado_project',
 ): Promise<string | undefined> {
   const configured = configValue(envKey, settingKey);
@@ -106,7 +106,7 @@ async function azDefault(
 }
 
 async function resolveTeam(): Promise<string | undefined> {
-  const configured = configValue('SH_ADO_TEAM', 'ado_team');
+  const configured = configValue('SPRINTOMATIC_ADO_TEAM', 'ado_team');
   if (configured) return configured;
   let stdout: string;
   try {
@@ -135,7 +135,7 @@ async function resolveTeam(): Promise<string | undefined> {
 async function resolveUser(): Promise<string | undefined> {
   // Same rule as API mode — otherwise the same variable works or doesn't
   // depending on a setting nobody connects to it.
-  const configured = configValue('SH_ADO_USER', 'ado_user');
+  const configured = configValue('SPRINTOMATIC_ADO_USER', 'ado_user');
   if (configured) return configured;
   try {
     const { stdout } = await exec('az', ['account', 'show', '--query', 'user.name', '-o', 'tsv']);

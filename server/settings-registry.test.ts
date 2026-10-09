@@ -10,9 +10,9 @@ import { listSettings, parseWorkingDays, saveSettings, SettingError } from './se
 import { getPages } from './user-config';
 
 const ENV_KEYS = [
-  'SH_WORKING_DAYS', 'SH_WORKDAY_HOURS', 'SH_WORKDAY_START_HOUR', 'SH_WORKDAY_END_HOUR',
-  'SH_TENTATIVE_WEIGHT', 'SH_ADO_ACCESS_MODE', 'SH_ADO_ORG', 'SH_ADO_PAT', 'SH_ADO_TEAM',
-  'SH_USE_DISCOVERY', 'SH_USE_DESIGN',
+  'SPRINTOMATIC_WORKING_DAYS', 'SPRINTOMATIC_WORKDAY_HOURS', 'SPRINTOMATIC_WORKDAY_START_HOUR', 'SPRINTOMATIC_WORKDAY_END_HOUR',
+  'SPRINTOMATIC_TENTATIVE_WEIGHT', 'SPRINTOMATIC_ADO_ACCESS_MODE', 'SPRINTOMATIC_ADO_ORG', 'SPRINTOMATIC_ADO_PAT', 'SPRINTOMATIC_ADO_TEAM',
+  'SPRINTOMATIC_USE_DISCOVERY', 'SPRINTOMATIC_USE_DESIGN',
 ];
 
 beforeEach(() => {
@@ -44,7 +44,7 @@ describe('parseWorkingDays', () => {
 describe('listSettings', () => {
   it('says where each value comes from', () => {
     h.settings.set('workday_hours', '8');
-    process.env.SH_ADO_ORG = 'https://dev.azure.com/from-env';
+    process.env.SPRINTOMATIC_ADO_ORG = 'https://dev.azure.com/from-env';
     expect(view('workday_hours')).toMatchObject({ value: '8', source: 'setting', locked: false });
     expect(view('ado_org')).toMatchObject({ value: 'https://dev.azure.com/from-env', source: 'env', locked: true });
     expect(view('ado_project')).toMatchObject({ value: null, source: 'default' });
@@ -83,8 +83,8 @@ describe('saveSettings', () => {
   });
 
   it('refuses to change a value an environment variable forces', () => {
-    process.env.SH_ADO_TEAM = 'Env Team';
-    expect(() => saveSettings({ ado_team: 'Other Team' })).toThrow(/SH_ADO_TEAM/);
+    process.env.SPRINTOMATIC_ADO_TEAM = 'Env Team';
+    expect(() => saveSettings({ ado_team: 'Other Team' })).toThrow(/SPRINTOMATIC_ADO_TEAM/);
     // Sending the forced value back unchanged is fine — the screen sends the whole form.
     expect(() => saveSettings({ ado_team: 'Env Team' })).not.toThrow();
     expect(h.settings.has('ado_team')).toBe(false);

@@ -6,7 +6,7 @@ Every setting sprintomatic reads, in one list.
 
 Each value is looked up in this order, and the first one found wins:
 
-1. **Environment variable** (`SH_...`) — set it in the MCP server's `env` block
+1. **Environment variable** (`SPRINTOMATIC_...`) — set it in the MCP server's `env` block
    or in the shell that starts the dashboard.
 2. **Setting** — a row in the `settings` table of `~/.sprintomatic/data.db`.
 3. **Built-in default.**
@@ -41,11 +41,11 @@ dashboard right away.
 
 | What | Env variable | Setting | Default |
 |---|---|---|---|
-| Working days, as weekday numbers (0 = Sunday … 6 = Saturday), comma list | `SH_WORKING_DAYS` | `working_days` | `1,2,3,4,5` (Mon-Fri) |
-| Hours in a workday. Also what one story point means | `SH_WORKDAY_HOURS` | `workday_hours` | `9` |
-| Hour the workday starts (meetings before it don't count) | `SH_WORKDAY_START_HOUR` | `workday_start_hour` | `8` |
-| Hour the workday ends (meetings after it don't count) | `SH_WORKDAY_END_HOUR` | `workday_end_hour` | `18` |
-| How much a tentative meeting counts, 0 to 1 | `SH_TENTATIVE_WEIGHT` | `tentative_weight` | `0` (ignored) |
+| Working days, as weekday numbers (0 = Sunday … 6 = Saturday), comma list | `SPRINTOMATIC_WORKING_DAYS` | `working_days` | `1,2,3,4,5` (Mon-Fri) |
+| Hours in a workday. Also what one story point means | `SPRINTOMATIC_WORKDAY_HOURS` | `workday_hours` | `9` |
+| Hour the workday starts (meetings before it don't count) | `SPRINTOMATIC_WORKDAY_START_HOUR` | `workday_start_hour` | `8` |
+| Hour the workday ends (meetings after it don't count) | `SPRINTOMATIC_WORKDAY_END_HOUR` | `workday_end_hour` | `18` |
+| How much a tentative meeting counts, 0 to 1 | `SPRINTOMATIC_TENTATIVE_WEIGHT` | `tentative_weight` | `0` (ignored) |
 
 Code: `server/user-config.ts`.
 
@@ -53,12 +53,12 @@ Code: `server/user-config.ts`.
 
 | What | Env variable | Setting | Default |
 |---|---|---|---|
-| How to reach the board: `cli` (the `az` command) or `api` (a token) | `SH_ADO_ACCESS_MODE` | `ado_access_mode` | `cli` |
-| Organization URL, e.g. `https://dev.azure.com/your-org` | `SH_ADO_ORG` | `ado_org` | `cli` mode: `az devops configure` default |
-| Project | `SH_ADO_PROJECT` | `ado_project` | `cli` mode: `az devops configure` default |
-| Team you plan with | `SH_ADO_TEAM` | `ado_team` | `cli` mode: the only team, if there is just one |
-| Your identity (new items are assigned to it) | `SH_ADO_USER` | `ado_user` | `cli` mode: the signed-in `az` account |
-| Personal access token (`api` mode only, a secret) | `SH_ADO_PAT` | Mac Keychain, else `ado_pat` | — |
+| How to reach the board: `cli` (the `az` command) or `api` (a token) | `SPRINTOMATIC_ADO_ACCESS_MODE` | `ado_access_mode` | `cli` |
+| Organization URL, e.g. `https://dev.azure.com/your-org` | `SPRINTOMATIC_ADO_ORG` | `ado_org` | `cli` mode: `az devops configure` default |
+| Project | `SPRINTOMATIC_ADO_PROJECT` | `ado_project` | `cli` mode: `az devops configure` default |
+| Team you plan with | `SPRINTOMATIC_ADO_TEAM` | `ado_team` | `cli` mode: the only team, if there is just one |
+| Your identity (new items are assigned to it) | `SPRINTOMATIC_ADO_USER` | `ado_user` | `cli` mode: the signed-in `az` account |
+| Personal access token (`api` mode only, a secret) | `SPRINTOMATIC_ADO_PAT` | Mac Keychain, else `ado_pat` | — |
 
 In `api` mode org, project, team and user must be set — there is no `az` to
 ask. Details: `docs/azure-access.md`.
@@ -68,14 +68,14 @@ The token is the one secret. On a Mac, a token saved through Settings or
 `ado_pat`) and not in the settings file. Elsewhere it falls back to the
 `ado_pat` setting in plain text — the Settings panel says which one it is,
 and offers to move an old plain-text token into the Keychain.
-`SH_KEYCHAIN=off` turns the Keychain off (the tests use it).
+`SPRINTOMATIC_KEYCHAIN=off` turns the Keychain off (the tests use it).
 
 ## Pages
 
 | What | Env variable | Setting | Default |
 |---|---|---|---|
-| Discovery: work out a problem before it is designed | `SH_USE_DISCOVERY` | `use_discovery` | `off` |
-| Design: write a design and turn it into stories | `SH_USE_DESIGN` | `use_design` | `off` |
+| Discovery: work out a problem before it is designed | `SPRINTOMATIC_USE_DISCOVERY` | `use_discovery` | `off` |
+| Design: write a design and turn it into stories | `SPRINTOMATIC_USE_DESIGN` | `use_design` | `off` |
 
 Each is `on` or `off`. With one on, the menu shows a page named after it,
 with only that half. With both off, the page is not in the menu, and the
@@ -85,8 +85,8 @@ chat tools for feature work say they are turned off.
 
 | What | Env variable | Setting | Default |
 |---|---|---|---|
-| Most work sessions open at the same time | `SH_MAX_PARALLEL_SESSIONS` | `max_parallel_sessions` | `4` |
-| Dashboard port | `SH_PORT` | — | `7777` |
+| Most work sessions open at the same time | `SPRINTOMATIC_MAX_PARALLEL_SESSIONS` | `max_parallel_sessions` | `4` |
+| Dashboard port | `SPRINTOMATIC_PORT` | — | `7777` |
 
 ## Set through the tool, not by hand
 
