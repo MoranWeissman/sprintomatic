@@ -2372,6 +2372,7 @@ function ErrorShell({
     // Not broken, just never filled in — usually a first run. Point at the
     // two ways in instead of showing an error.
     return (
+      <>
       <div className="ember">
         <div className="ember-glow ember-glow-1" aria-hidden="true" />
         <div className="ember-glow ember-glow-2" aria-hidden="true" />
@@ -2405,11 +2406,13 @@ function ErrorShell({
             </div>
           </div>
         </div>
-        <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} onSaved={onRetry} />
       </div>
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} onSaved={onRetry} />
+      </>
     );
   }
   return (
+    <>
     <div className="ember">
       <div className="ember-glow ember-glow-1" aria-hidden="true" />
       <div className="ember-glow ember-glow-2" aria-hidden="true" />
@@ -2443,24 +2446,25 @@ function ErrorShell({
           </button>
         </aside>
         <div className="ember-content">
-          {fix ? (
-            <div className="ember-fix">
-              <p className="ember-fix-label dim-small">WHAT TO DO</p>
+          <div className="ember-fix">
+            <p className="ember-fix-label dim-small">WHAT TO DO</p>
+            {fix ? (
               <p className="ember-fix-line">{withCode(fix)}</p>
-              <p className="ember-fix-after dim">Then click <em>Try again</em>.</p>
-            </div>
-          ) : (
-            <p className="dim">
-              There's no known fix for this one. Check your settings, or run{' '}
-              <Mono>npm run setup</Mono> again. Any details that were saved are in{' '}
-              <Mono>~/.sprintomatic/logs/error.log</Mono>.
-            </p>
-          )}
-          <button className="schedule-btn-ghost" onClick={() => setSettingsOpen(true)}>Settings</button>
+            ) : (
+              <p className="ember-fix-line">
+                There's no known fix for this one. Check your settings, or run{' '}
+                <Mono>npm run setup</Mono> again. Any details that were saved are in{' '}
+                <Mono>~/.sprintomatic/logs/error.log</Mono>.
+              </p>
+            )}
+            <p className="ember-fix-after dim">Then click <em>Try again</em>.</p>
+            <button className="schedule-btn-ghost" onClick={() => setSettingsOpen(true)}>Settings</button>
+          </div>
         </div>
       </div>
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} onSaved={onRetry} />
     </div>
+    <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} onSaved={onRetry} />
+    </>
   );
 }
 
