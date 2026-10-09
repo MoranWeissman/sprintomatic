@@ -12,6 +12,7 @@
  * surfaces the numbers honestly.
  */
 import { getWorkItem, listClosedCalibration, listClosedSiblings, type WorkItem } from './ado.js';
+import { getLocalLoggedMap } from './timers.js';
 
 export interface AnchorSample {
   id: number;
@@ -63,12 +64,13 @@ export async function buildEstimateAnchor(opts: {
     opts.parentId ? getWorkItem(opts.parentId).catch(() => null) : Promise.resolve(null),
   ]);
 
+  const logged = getLocalLoggedMap();
   const siblings = siblingsRaw
     .slice(0, MAX_SIBLINGS)
-    .map(w => toSample(w))
+    .map(w => toSample(w, logged))
     .filter((s): s is AnchorSample => s != null);
 
-  const calibration = computeCalibration(calibrationRaw.slice(0, MAX_CALIBRATION));
+  const calibration = computeCalibration(calibrationRaw.slice(0, MAX_CALIBRATION), logged);
 
   const parent = parentDetail
     ? { id: parentDetail.id, title: parentDetail.title, type: parentDetail.type }
@@ -84,33 +86,46 @@ export async function buildEstimateAnchor(opts: {
 
 /** Just the "how far off are my guesses" part, for the Retro page. */
 export async function buildCalibration(): Promise<AnchorCalibration> {
-  return computeCalibration((await listClosedCalibration()).slice(0, MAX_CALIBRATION));
+  return computeCalibration((await listClosedCalibration()).slice(0, MAX_CALIBRATION), getLocalLoggedMap());
 }
 
-function toSample(w: WorkItem): AnchorSample | null {
-  if (w.originalEstimate == null || w.completedWork == null) return null;
-  if (w.originalEstimate <= 0 || w.completedWork <= 0) return null;
+/**
+ * The real hours on a finished task: the larger of the board's Completed Work
+ * and the timer's total. Completed Work alone is often worked out as "first
+ * guess minus hours left", which reads as a perfect guess even when the timer
+ * ran twice as long.
+ */
+function actualHours(w: WorkItem, logged: ReadonlyMap<number, number>): number {
+  return Math.max(w.completedWork ?? 0, (logged.get(w.id) ?? 0) / 3600);
+}
+
+function toSample(w: WorkItem, logged: ReadonlyMap<number, number>): AnchorSample | null {
+  const actual = actualHours(w, logged);
+  if (w.originalEstimate == null || w.originalEstimate <= 0 || actual <= 0) return null;
   return {
     id: w.id,
     title: w.title,
     type: w.type,
     estimate: round2(w.originalEstimate),
-    actual: round2(w.completedWork),
-    ratio: round2(w.completedWork / w.originalEstimate),
+    actual: round2(actual),
+    ratio: round2(actual / w.originalEstimate),
     closedAt: w.changedDate,
   };
 }
 
-export function computeCalibration(items: WorkItem[]): AnchorCalibration {
+export function computeCalibration(
+  items: WorkItem[],
+  logged: ReadonlyMap<number, number> = new Map(),
+): AnchorCalibration {
   const ratios: number[] = [];
   let estimateSum = 0;
   let actualSum = 0;
   for (const w of items) {
-    if (w.originalEstimate == null || w.completedWork == null) continue;
-    if (w.originalEstimate <= 0 || w.completedWork <= 0) continue;
+    const actual = actualHours(w, logged);
+    if (w.originalEstimate == null || w.originalEstimate <= 0 || actual <= 0) continue;
     estimateSum += w.originalEstimate;
-    actualSum += w.completedWork;
-    ratios.push(w.completedWork / w.originalEstimate);
+    actualSum += actual;
+    ratios.push(actual / w.originalEstimate);
   }
   if (ratios.length === 0) {
     return {

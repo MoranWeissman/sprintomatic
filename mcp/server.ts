@@ -45,6 +45,7 @@ import { ensureDashboardRunning, stopDashboard } from '../server/dashboard-proce
 import { addDaysOff, removeDaysOff, listDaysOff, listDismissedRanges, dismissRange } from '../server/days-off.js';
 import { buildEstimateAnchor } from '../server/estimate-anchor.js';
 import { checkNoSessionNudge, checkStaleLogNudge } from '../server/log-nudge.js';
+import { checkOverEstimateNudge } from '../server/over-estimate-nudge.js';
 import {
   syncManagedSkills,
   formatSyncReport,
@@ -1084,6 +1085,8 @@ function jsonResult(value: unknown, opts?: { fromBoard?: boolean }) {
   if (noSession) blocks.push({ type: 'text', text: noSession });
   const drift = checkSkillsDriftNudge();
   if (drift) blocks.push({ type: 'text', text: drift });
+  const over = checkOverEstimateNudge();
+  if (over) blocks.push({ type: 'text', text: over });
   return { content: blocks };
 }
 
@@ -1102,6 +1105,8 @@ function errorResult(message: string, opts?: { fromBoard?: boolean }) {
   if (noSession) blocks.push({ type: 'text', text: noSession });
   const drift = checkSkillsDriftNudge();
   if (drift) blocks.push({ type: 'text', text: drift });
+  const over = checkOverEstimateNudge();
+  if (over) blocks.push({ type: 'text', text: over });
   return {
     isError: true,
     content: blocks,

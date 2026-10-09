@@ -1766,6 +1766,7 @@ html, body {
 .r21-focal-current-id { font-family: var(--font-mono); font-feature-settings: "tnum" 1; font-size: 14px; color: var(--ink-3); }
 .r21-focal-current-title { font-size: 22px; line-height: 1.25; color: var(--ink-0); font-weight: 400; }
 .r21-focal-current .r21-focal-meta { margin-top: 6px; padding-bottom: 0; border-bottom: 0; }
+.r21-over { margin: 10px 0 0; font-size: 13px; color: var(--ink-2); }
 
 /* "Tasks in this story" — every sibling task under the story, with the
    live one spotlighted. */

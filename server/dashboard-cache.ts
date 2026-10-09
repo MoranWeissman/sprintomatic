@@ -136,6 +136,11 @@ async function freshBuild(key: string, opts: BuildOptions): Promise<CachedDashbo
   return { payload, cache: 'fresh', cacheAgeMs: 0, refreshError: null };
 }
 
+/** The current sprint's payload if one is already in memory. Never fetches. */
+export function peekDashboardPayload(): DashboardPayload | null {
+  return cache.get(keyFor({}))?.payload ?? null;
+}
+
 /**
  * Drop cached payloads so the next request blocks on a real Azure DevOps fetch —
  * in THIS process, and in every other one, via the shared marker.

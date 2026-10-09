@@ -50,6 +50,7 @@ import { ScheduleModal } from './ScheduleModal';
 import { SettingsModal } from './SettingsModal';
 import { WorkItemDrawer } from './WorkItemDrawer';
 import { WrapCard } from './WrapCard';
+import { overEstimate, overEstimateText } from '../../server/over-estimate';
 
 export function Dashboard() {
   const [selectedSprintName, setSelectedSprintName] = useState<string | undefined>(undefined);
@@ -1163,6 +1164,7 @@ function FocusPanel({
             </span>
           </span>
         </div>
+        <OverEstimateLine task={task} />
       </section>
 
       {/* Ask panelTasks, not story.tasks. A story can sit in the sprint while
@@ -1299,6 +1301,7 @@ function FocusTaskDrill({
           <span className={`val ${task.remainingWork == null ? 'is-missing' : ''}`}>{remaining}</span>
         </span>
       </div>
+      <OverEstimateLine task={task} />
 
       <div className="r21-feed">
         <div className="r21-feed-head">
@@ -1792,6 +1795,20 @@ function ageShort(iso: string, now: Date): string {
 // displayName arrives as **title** (#id) — render the title plain.
 function plainTitle(displayName: string): string {
   return displayName.replace(/\*\*/g, '').replace(/\s*\(#\d+\)\s*$/, '');
+}
+
+/**
+ * A quiet line when the logged time on a task has passed its estimate. No
+ * colour that shouts, no motion — just the fact, where the numbers are.
+ */
+function OverEstimateLine({ task }: { task: ApiWorkItem }) {
+  const over = overEstimate({
+    originalEstimate: task.originalEstimate,
+    completedWork: task.completedWork,
+    loggedSeconds: task.localLoggedSeconds,
+  });
+  if (!over) return null;
+  return <p className="r21-over">Past the estimate. {overEstimateText(over)}</p>;
 }
 
 /**

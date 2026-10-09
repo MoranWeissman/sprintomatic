@@ -1,4 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+vi.mock('./timers', () => ({ getLocalLoggedMap: () => new Map() }));
 import { computeCalibration, estimateHabitLine, MIN_CALIBRATION_SAMPLES } from './estimate-anchor';
 import type { WorkItem } from './ado';
 
@@ -48,6 +50,13 @@ describe('computeCalibration', () => {
     expect(cal.samples).toBe(5);
     expect(cal.medianRatio).toBe(1.5);
     expect(cal.summary).toMatch(/about 1.5x your guess/);
+  });
+
+  it('uses the timer when it ran longer than the board hours say', () => {
+    const items = [1, 2, 3, 4, 5].map(i => task(100000 + i, 2, 2));
+    const logged = new Map(items.map(w => [w.id, 4 * 3600]));
+    const cal = computeCalibration(items, logged);
+    expect(cal.medianRatio).toBe(2);
   });
 
   it('skips tasks with no estimate or no hours', () => {
