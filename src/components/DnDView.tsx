@@ -5,6 +5,7 @@ import {
   type ApiDiscoveryChild, type ApiDiscoveryMeeting, type ApiDiscoveryTag, type DndStatus,
   type DesignPayload, type ApiDesignDoc,
 } from '../lib/api';
+import type { DndPage } from '../lib/pages';
 
 const STATUS_LABEL: Record<DndStatus, string> = {
   'in-progress': 'In progress',
@@ -12,7 +13,7 @@ const STATUS_LABEL: Record<DndStatus, string> = {
   'closed': 'Done',
 };
 
-type Facet = 'overview' | 'discovery' | 'design';
+type Facet = DndPage['facets'][number];
 type DiscoverySub = 'review' | 'meetings' | 'walkthrough' | 'demo';
 type DesignSub = 'review' | 'meetings' | 'walkthrough';
 
@@ -140,15 +141,14 @@ function renderDescription(text: string): JSX.Element {
   );
 }
 
-const FACETS: Facet[] = ['overview', 'discovery', 'design'];
 const DISCOVERY_SUBS: DiscoverySub[] = ['review', 'meetings', 'walkthrough', 'demo'];
 const DESIGN_SUBS: DesignSub[] = ['review', 'meetings', 'walkthrough'];
 
 /** Read the open feature + facet + discovery/design sub-tab from the URL so a
  *  refresh restores them. Both facets share the one `?sub=` param — only one
  *  of `sub`/`designSub` is ever meaningful at a time, based on `facet`. */
-function readUrlState(): { id: number | null; facet: Facet; sub: DiscoverySub; designSub: DesignSub } {
-  if (typeof window === 'undefined') return { id: null, facet: 'discovery', sub: 'review', designSub: 'review' };
+function readUrlState(page: DndPage): { id: number | null; facet: Facet; sub: DiscoverySub; designSub: DesignSub } {
+  if (typeof window === 'undefined') return { id: null, facet: page.firstFacet, sub: 'review', designSub: 'review' };
   const p = new URL(window.location.href).searchParams;
   const rawId = Number(p.get('feature'));
   const id = Number.isInteger(rawId) && rawId > 0 ? rawId : null;
@@ -156,15 +156,15 @@ function readUrlState(): { id: number | null; facet: Facet; sub: DiscoverySub; d
   const s = p.get('sub');
   return {
     id,
-    facet: FACETS.includes(f as Facet) ? (f as Facet) : 'discovery',
+    facet: page.facets.includes(f as Facet) ? (f as Facet) : page.firstFacet,
     sub: DISCOVERY_SUBS.includes(s as DiscoverySub) ? (s as DiscoverySub) : 'review',
     designSub: DESIGN_SUBS.includes(s as DesignSub) ? (s as DesignSub) : 'review',
   };
 }
 
-export function DnDView({ onOpenItem }: { onOpenItem?: (id: string) => void }): JSX.Element {
+export function DnDView({ page, onOpenItem }: { page: DndPage; onOpenItem?: (id: string) => void }): JSX.Element {
   const [sections, setSections] = useState<ApiFeatureSection[] | null>(null);
-  const initial = readUrlState();
+  const initial = readUrlState(page);
   const [selectedId, setSelectedId] = useState<number | null>(initial.id);
   const [facet, setFacet] = useState<Facet>(initial.facet);
   const [sub, setSub] = useState<DiscoverySub>(initial.sub);
@@ -227,12 +227,12 @@ export function DnDView({ onOpenItem }: { onOpenItem?: (id: string) => void }): 
   // Back/forward should move between features too.
   useEffect(() => {
     const handler = () => {
-      const s = readUrlState();
+      const s = readUrlState(page);
       setSelectedId(s.id); setFacet(s.facet); setSub(s.sub); setDesignSub(s.designSub);
     };
     window.addEventListener('popstate', handler);
     return () => window.removeEventListener('popstate', handler);
-  }, []);
+  }, [page]);
 
   // Feature-list collapse, kept in localStorage so a refresh doesn't undo it.
   // Same key shape as the Daily page's two side panels.
@@ -246,7 +246,7 @@ export function DnDView({ onOpenItem }: { onOpenItem?: (id: string) => void }): 
 
   function selectFeature(id: number): void {
     setSelectedId(id);
-    setFacet('discovery');
+    setFacet(page.firstFacet);
     setSub('review'); // land on the data view, not a "not built yet" HTML sub-tab
     setDesignSub('review');
   }
@@ -259,6 +259,11 @@ export function DnDView({ onOpenItem }: { onOpenItem?: (id: string) => void }): 
     setFacet(f);
   }
 
+  // A switch flipped in Settings while a now-hidden tab was open.
+  useEffect(() => {
+    if (!page.facets.includes(facet)) setFacet(page.firstFacet);
+  }, [page, facet]);
+
   function goHome(): void {
     setSelectedId(null);
   }
@@ -268,7 +273,7 @@ export function DnDView({ onOpenItem }: { onOpenItem?: (id: string) => void }): 
 
   // No feature open → full-width browser so the whole page is used.
   if (selectedId == null) {
-    return <FeatureBrowser sections={sections} error={error} onSelect={selectFeature} />;
+    return <FeatureBrowser page={page} sections={sections} error={error} onSelect={selectFeature} />;
   }
 
   // A feature is open → feature list on the left, facet tabs on top of a
@@ -276,6 +281,7 @@ export function DnDView({ onOpenItem }: { onOpenItem?: (id: string) => void }): 
   return (
     <div className="dnd">
       <FeatureListRail
+        page={page}
         sections={sections}
         selectedId={selectedId}
         error={error}
@@ -285,7 +291,7 @@ export function DnDView({ onOpenItem }: { onOpenItem?: (id: string) => void }): 
         onToggleCollapsed={() => setRailCollapsed(v => !v)}
       />
       <div className="dnd-main">
-        <FeatureFacetBar facet={facet} onPick={pickFacet} />
+        <FeatureFacetBar facets={page.facets} facet={facet} onPick={pickFacet} />
         <FacetReadingArea
           facet={facet}
           sub={sub}
@@ -359,11 +365,12 @@ const STATUS_NOUN: Record<DndStatus, string> = {
 };
 
 function FeatureBrowser(props: {
+  page: DndPage;
   sections: ApiFeatureSection[] | null;
   error: string | null;
   onSelect: (id: number) => void;
 }): JSX.Element {
-  const { sections, error, onSelect } = props;
+  const { page, sections, error, onSelect } = props;
   const groups = sections?.filter(sec => sec.features.length > 0) ?? [];
   const total = groups.reduce((n, s) => n + s.features.length, 0);
   const summary = groups.map(s => `${s.features.length} ${STATUS_NOUN[s.status]}`).join(' · ');
@@ -371,11 +378,11 @@ function FeatureBrowser(props: {
   return (
     <main className="dnd-browse">
       <header className="dnd-browse-head">
-        <div className="dnd-browse-cap">Discovery &amp; Design</div>
+        <div className="dnd-browse-cap">{page.label}</div>
         <h1 className="dnd-browse-h">Your features</h1>
         {total > 0
-          ? <p className="dnd-browse-sub"><b>{summary}</b> — pick one to read its discovery, design, and demo.</p>
-          : <p className="dnd-browse-sub">Discovery, design, and demo — one place per feature.</p>}
+          ? <p className="dnd-browse-sub"><b>{summary}</b> — pick one to read its {page.reads}.</p>
+          : <p className="dnd-browse-sub">One place per feature for its {page.reads}.</p>}
       </header>
 
       {error && <div className="dnd-error">Couldn't load discoveries: {error}</div>}
@@ -406,6 +413,7 @@ function FeatureBrowser(props: {
 /* ------------------------- Level 1 — feature list ------------------------- */
 
 function FeatureListRail(props: {
+  page: DndPage;
   sections: ApiFeatureSection[] | null;
   selectedId: number | null;
   error: string | null;
@@ -414,7 +422,7 @@ function FeatureListRail(props: {
   collapsed: boolean;
   onToggleCollapsed: () => void;
 }): JSX.Element {
-  const { sections, selectedId, error, onSelect, onBack, collapsed, onToggleCollapsed } = props;
+  const { page, sections, selectedId, error, onSelect, onBack, collapsed, onToggleCollapsed } = props;
 
   // Collapsed, the rail is a 32px strip. It keeps the way BACK to the feature
   // browser — that button lives nowhere else, and hiding the only way out
@@ -463,7 +471,7 @@ function FeatureListRail(props: {
           <span className="dnd-rail-chev" aria-hidden="true" />
         </button>
       </div>
-      <div className="dnd-rail-title">Discovery &amp; Design</div>
+      <div className="dnd-rail-title">{page.label}</div>
       <div className="dnd-rail-sub">Features you've worked</div>
       {error && <div className="dnd-error">Couldn't load discoveries: {error}</div>}
       {sections && sections.length === 0 && (
@@ -489,15 +497,13 @@ function FeatureListRail(props: {
 /* ------------------------- Level 2 — facet tab bar ------------------------ */
 
 function FeatureFacetBar(props: {
+  facets: Facet[];
   facet: Facet;
   onPick: (f: Facet) => void;
 }): JSX.Element {
-  const { facet, onPick } = props;
-  const tabs: { id: Facet; label: string; hint?: string }[] = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'discovery', label: 'Discovery' },
-    { id: 'design', label: 'Design' },
-  ];
+  const { facets, facet, onPick } = props;
+  const LABEL: Record<Facet, string> = { overview: 'Overview', discovery: 'Discovery', design: 'Design' };
+  const tabs: { id: Facet; label: string; hint?: string }[] = facets.map(id => ({ id, label: LABEL[id] }));
   return (
     <nav className="dnd-tabbar" role="tablist" aria-label="This feature">
       {tabs.map(t => (
@@ -780,7 +786,7 @@ function DiscoveryFacet(props: {
       {sub === 'walkthrough' && (
         payload.hasWalkthrough
           ? <ArtifactView featureId={featureId} kind="walkthrough" title="Discovery walkthrough" />
-          : <p className="dnd-artifact-empty">No walkthrough built yet. In a Discovery &amp; Design chat, ask to build the walkthrough slideshow.</p>
+          : <p className="dnd-artifact-empty">No walkthrough built yet. In a Claude Code chat, ask to build the walkthrough slideshow.</p>
       )}
       {sub === 'demo' && (
         <DemoFacet
@@ -973,7 +979,7 @@ function DesignFacet(props: {
       {sub === 'walkthrough' && (
         payload.hasWalkthrough
           ? <ArtifactView featureId={featureId} kind="design-walkthrough" title="Design walkthrough" />
-          : <p className="dnd-artifact-empty">No design walkthrough built yet. In a Discovery &amp; Design chat, ask to build the design walkthrough.</p>
+          : <p className="dnd-artifact-empty">No design walkthrough built yet. In a Claude Code chat, ask to build the design walkthrough.</p>
       )}
     </div>
   );
@@ -988,7 +994,7 @@ function DesignReview(props: { doc: ApiDesignDoc | null; problem: string; diagra
     return (
       <div className="dnd-placeholder">
         <p className="dnd-muted">This feature has no design yet.</p>
-        <p className="dnd-muted-2">In a Discovery &amp; Design chat, say "start the design".</p>
+        <p className="dnd-muted-2">In a Claude Code chat, say "start the design".</p>
       </div>
     );
   }
@@ -1213,7 +1219,7 @@ function DemoFacet(props: {
       <h2 className="dnd-h2">The demo</h2>
       {hasDemoHtml
         ? <ArtifactView featureId={id} kind="demo" title="Concept demo" />
-        : <p className="dnd-artifact-empty">No demo built yet. In a Discovery &amp; Design chat, ask to build the concept demo.</p>}
+        : <p className="dnd-artifact-empty">No demo built yet. In a Claude Code chat, ask to build the concept demo.</p>}
 
       <h2 className="dnd-h2">Where the demo stands</h2>
       <div className="dnd-demo-controls">

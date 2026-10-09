@@ -109,3 +109,21 @@ export function tentativeLabel(weight: number = getTentativeWeight()): string {
   if (weight === 1) return 'counted in full';
   return `counted at ${Math.round(weight * 100)}%`;
 }
+
+/**
+ * Which halves of the Discovery & Design page the user works with. Not every
+ * team runs a discovery before the design, and many run neither, so both are
+ * off until the user turns them on (setup asks, Settings → Pages changes it).
+ */
+export function getPages(): { discovery: boolean; design: boolean } {
+  return {
+    discovery: configValue('SH_USE_DISCOVERY', 'use_discovery') === 'on',
+    design: configValue('SH_USE_DESIGN', 'use_design') === 'on',
+  };
+}
+
+/** The plain answer a chat tool gives when its half of the page is off. */
+export function pageOffMessage(which: 'discovery' | 'design' | 'both'): string {
+  const name = which === 'both' ? 'Discovery and Design are' : which === 'discovery' ? 'Discovery is' : 'Design is';
+  return `${name} turned off in this sprintomatic. Tell the user plainly, and that they can turn it on in the dashboard under Settings → Pages (then open a new chat). Don't do this step any other way.`;
+}

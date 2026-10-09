@@ -41,6 +41,7 @@ import { buildNotePrompt } from '../lib/notePrompt';
 import type { SprintContext } from '../lib/types';
 import { CarryForwardBanner } from './CarryForwardBanner';
 import { DnDView } from './DnDView';
+import { dndPage } from '../lib/pages';
 import { Dot } from './Dot';
 import { Mono } from './Mono';
 import { PlanView } from './PlanView';
@@ -156,6 +157,17 @@ function DashboardLive({
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const ceremonies = data.ceremonies;
+  // Older payloads have no switches; they had the whole page.
+  const pageOn = data.pages ?? { discovery: true, design: true };
+  const dnd = useMemo(() => dndPage(pageOn), [pageOn.discovery, pageOn.design]); // eslint-disable-line react-hooks/exhaustive-deps
+  const modes = useMemo(
+    () => R21_MODES.flatMap(m => (m.id !== 'dnd' ? [m] : dnd ? [{ ...m, label: dnd.label === 'Discovery & Design' ? 'D&D' : dnd.label }] : [])),
+    [dnd],
+  );
+  // The page was turned off while it was open.
+  useEffect(() => {
+    if (mode === 'dnd' && !dnd) setMode('day');
+  }, [mode, dnd, setMode]);
 
   // Every work item with a live Claude Code session, newest session first.
   const allItems = useMemo(
@@ -231,6 +243,7 @@ function DashboardLive({
   return (
     <div className={`r21-app ${isFocus ? 'is-focus' : 'is-overview'}`} data-density="generous" data-focal="whisper" data-feed="ruled">
       <R21Rail
+        modes={modes}
         active={mode}
         suggested={ceremonies.suggestedModeId}
         onPick={pickMode}
@@ -326,8 +339,8 @@ function DashboardLive({
             <PlanView onOpenItem={openItem} />
           ) : mode === 'retro' ? (
             <RetroView />
-          ) : mode === 'dnd' ? (
-            <DnDView onOpenItem={openItem} />
+          ) : mode === 'dnd' && dnd ? (
+            <DnDView page={dnd} onOpenItem={openItem} />
           ) : isFocus ? (
             <div className="r21-body is-focus">
               <R21FocusGrid
@@ -530,12 +543,14 @@ const R21_MODES: { id: ModeId; label: string; glyph: JSX.Element }[] = [
 ];
 
 function R21Rail({
+  modes,
   active,
   suggested,
   onPick,
   onOpenSchedule,
   onOpenSettings,
 }: {
+  modes: typeof R21_MODES;
   active: ModeId;
   suggested: ModeId | null;
   onPick: (m: ModeId) => void;
@@ -545,7 +560,7 @@ function R21Rail({
   return (
     <nav className="r21-rail" aria-label="Mode">
       <span className="r21-rail-cap">Mode</span>
-      {R21_MODES.map(m => (
+      {modes.map(m => (
         <button
           key={m.id}
           className={`r21-rail-tile ${active === m.id ? 'is-active' : ''} ${suggested === m.id && active !== m.id ? 'is-suggested' : ''}`}

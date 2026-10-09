@@ -140,7 +140,9 @@ import { describeEditOutcome } from '../server/edit-outcome.js';
 import { planBlock, planUnblock } from '../server/block-plan.js';
 import {
   daysOffLabel,
+  getPages,
   getWorkdayHours,
+  pageOffMessage,
   tentativeLabel,
   workdayWindowLabel,
   workingDaysLabel,
@@ -155,6 +157,16 @@ const WEEK = {
   window: workdayWindowLabel(),
   tentative: tentativeLabel(),
 };
+
+// Which halves of feature work the user turned on, read the same way.
+const PAGES = getPages();
+const PAGES_LINE = PAGES.discovery && PAGES.design
+  ? 'The user has both Discovery and Design turned on.'
+  : PAGES.design
+    ? 'The user has Discovery TURNED OFF: a handed feature goes straight to its design. Never offer or run a discovery, its meetings or its demo.'
+    : PAGES.discovery
+      ? 'The user has Design TURNED OFF: a feature ends with its discovery. Never offer a design, design_sync or design_push_stories.'
+      : 'The user has Discovery and Design BOTH TURNED OFF, so skip this whole part and the DESIGN PHASE below. Never offer feature folders, a discovery or a design. If the user asks for one, say it is turned off and can be turned on in the dashboard under Settings → Pages.';
 
 const SERVER_INSTRUCTIONS = `
 Sprintomatic keeps the user aligned with their Azure DevOps sprint while the user works
@@ -294,6 +306,7 @@ the planning home with \`planning_home_set\`; the default is
 to set it unless the user asks.
 
 WORKSPACE — their home for non-code work (discovery, design, small demos):
+${PAGES_LINE}
 A workspace is a visible folder the user opens Claude Code in. Each feature gets
 its own subfolder inside it for design docs.
   - OFFER on an empty folder: call \`workspace_status\` with your cwd. If
@@ -1812,7 +1825,11 @@ server.registerTool(
         nextCall:
           kind === 'grouping'
             ? "Nothing else to do. It's a board container — its stories show on the user's Daily view under the feature. Do NOT call workspace_feature_folder for it; there's no discovery or design here."
-            : 'To start its discovery: workspace_feature_folder with this id and your cwd, then run the discovery skill.',
+            : getPages().discovery
+              ? 'To start its discovery: workspace_feature_folder with this id and your cwd, then run the discovery skill.'
+              : getPages().design
+                ? 'To start its design: workspace_feature_folder with this id and your cwd. Discovery is turned off, so go straight to the design.'
+                : "Nothing else to do. Discovery and Design are turned off, so it lives on the board only.",
       });
     } catch (e) {
       return errorResult(e instanceof Error ? e.message : String(e));
@@ -1830,6 +1847,7 @@ server.registerTool(
   },
   async () => {
     try {
+      if (!getPages().design) return errorResult(pageOffMessage('design'));
       const active = getActiveFeature();
       if (!active) return errorResult('No active feature. Open the feature this design belongs to first.');
       const res = syncDesignMarkdown(active.folderPath, {
@@ -1859,6 +1877,7 @@ server.registerTool(
   },
   async () => {
     try {
+      if (!getPages().design) return errorResult(pageOffMessage('design'));
       const active = getActiveFeature();
       if (!active) return errorResult('No active feature. Open the feature this design belongs to first.');
       const doc = readDesignDoc(active.folderPath);
@@ -1964,6 +1983,8 @@ server.registerTool(
   },
   async ({ workItemId, docsRepoPath, confirmPush }) => {
     try {
+      const pages = getPages();
+      if (!pages.discovery && !pages.design) return errorResult(pageOffMessage('both'));
       // Which feature.
       const id = workItemId ?? getActiveFeature()?.id;
       if (!id) return errorResult('No feature given and no active feature. Say which feature to share, or open one first.');
@@ -3102,6 +3123,8 @@ server.registerTool(
   },
   async ({ workItemId, cwd, leaveSessionRunning }) => {
     try {
+      const pages = getPages();
+      if (!pages.discovery && !pages.design) return errorResult(pageOffMessage('both'));
       // A GROUPING feature has no folder and never becomes active. The folder
       // exists to hold discovery and design docs, and the active pointer exists
       // to answer "which folder do I write into" — a feature made to gather

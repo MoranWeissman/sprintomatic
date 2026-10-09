@@ -45,6 +45,7 @@ import type {
   RepoLinkStoryInput,
 } from './repo-link-view';
 import { STALE_IDLE_MINUTES } from './session-activity';
+import { getPages } from './user-config';
 import {
   getLastEventTimestampMap,
   listActiveSessions,
@@ -679,7 +680,10 @@ export async function buildOrientPacket(chatCwd: string | null = null): Promise<
 
   const planningHome = getPlanningHome();
 
-  const af = getActiveFeature();
+  // With Discovery and Design both turned off there is no feature work to
+  // anchor on, so no feature, no kind question and no discovery nudge.
+  const pages = getPages();
+  const af = pages.discovery || pages.design ? getActiveFeature() : null;
   const activeFeature = activeFeatureField(af);
 
   // A feature arrives one of two ways, and they need opposite things from
@@ -689,7 +693,7 @@ export async function buildOrientPacket(chatCwd: string | null = null): Promise<
   const featureKind = af ? getFeatureKind(af.id) : null;
 
   let discovery: OrientPacket['discovery'] = null;
-  if (af && featureKind === 'handed') {
+  if (af && featureKind === 'handed' && pages.discovery) {
     const status = discoveryStatus(af.folderPath);
     // No discovery file → no day count at all. The old code passed `af.setAt`
     // unconditionally, so a feature with no discovery still got told its

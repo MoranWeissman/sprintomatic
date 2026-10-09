@@ -1,7 +1,8 @@
 /**
  * `npm run setup` — first-time setup, one question at a time.
  *
- * Asks how to reach the board, the board details and the user's week, saves
+ * Asks how to reach the board, the board details, the user's week and which
+ * feature pages they use, saves
  * the answers through the same list the settings screen uses
  * (server/settings-registry.ts), checks the connection, reads the board's
  * state names, and prints the one line that adds sprintomatic to Claude Code.
@@ -90,6 +91,12 @@ async function main() {
   await ask('workday_end_hour', 'like 18:00');
   console.log('  Meetings you said "maybe" to: 1 = ignore them, 2 = count half, 3 = count in full');
   await ask('tentative_weight', '1, 2 or 3');
+
+  console.log('\nFeature work. Some people work out a problem first (discovery) and write a');
+  console.log('design before the stories. Turn on what you do. Both can stay off.');
+  console.log('  1 = on, 2 = off');
+  await ask('use_discovery', '1 or 2');
+  await ask('use_design', '1 or 2');
 
   console.log('\nChecking the connection…');
   invalidateAdoConfig();

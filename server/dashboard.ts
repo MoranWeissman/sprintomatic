@@ -49,7 +49,7 @@ import {
 } from './timers';
 import { getSHCreatedIdSet } from './sh-created';
 import { isSprintLevel } from './iteration-paths';
-import { getWorkingDays } from './user-config';
+import { getPages, getWorkingDays } from './user-config';
 import { getManagedFeatureIds, getActiveFeature, getWorkspaces, getFeatureKind, type ActiveFeature, type FeatureKind } from './workspace';
 
 export type { SessionEvent, SessionEventType, Session } from './sessions';
@@ -209,6 +209,8 @@ export interface DashboardPayload {
   outlookCapacity: Capacity | null;
   /** Count of local edits that haven't reached ADO yet. */
   pendingChanges: number;
+  /** Which halves of the Discovery & Design page are turned on. */
+  pages: { discovery: boolean; design: boolean };
   /** Number of live Claude Code sessions reporting in right now. */
   activeSessions: number;
   /** The assistant's read on the sprint: a living summary + a few open nudges. */
@@ -578,6 +580,7 @@ export async function buildDashboard(opts: BuildOptions = {}): Promise<Dashboard
       capacity: { remainingHours: 0, completedHours: 0, totalEstimateHours: 0 },
       outlookCapacity: null,
       pendingChanges: getPendingChangesCount(),
+      pages: getPages(),
       activeSessions: 0,
       helperNotes: getHelperNotes(),
       ceremonies: buildCeremonyBlock(null, null),
@@ -828,6 +831,7 @@ export async function buildDashboard(opts: BuildOptions = {}): Promise<Dashboard
     capacity,
     outlookCapacity,
     pendingChanges: getPendingChangesCount(),
+    pages: getPages(),
     activeSessions: activeSessions.size,
     helperNotes: getHelperNotes(),
     ceremonies: buildCeremonyBlock(

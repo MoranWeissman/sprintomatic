@@ -19,6 +19,7 @@ interface SettingsModalProps {
 const GROUPS: { id: ApiSetting['group']; title: string }[] = [
   { id: 'week', title: 'Your week' },
   { id: 'board', title: 'Your board' },
+  { id: 'pages', title: 'Pages' },
   { id: 'other', title: 'Other' },
 ];
 
@@ -236,7 +237,7 @@ export function SettingsModal({ open, onClose, onSaved }: SettingsModalProps) {
         <header className="schedule-modal-head">
           <div className="text">
             <h2 className="schedule-modal-title" id="settings-title">Settings</h2>
-            <p className="schedule-modal-sub">Your week, and how sprintomatic reaches your board.</p>
+            <p className="schedule-modal-sub">Your week, your board, and which pages you use.</p>
           </div>
           <button className="schedule-modal-close" onClick={onClose} aria-label="Close">✕</button>
         </header>

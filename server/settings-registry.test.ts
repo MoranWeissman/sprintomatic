@@ -7,10 +7,12 @@ vi.mock('./timers', () => ({
 }));
 
 import { listSettings, parseWorkingDays, saveSettings, SettingError } from './settings-registry';
+import { getPages } from './user-config';
 
 const ENV_KEYS = [
   'SH_WORKING_DAYS', 'SH_WORKDAY_HOURS', 'SH_WORKDAY_START_HOUR', 'SH_WORKDAY_END_HOUR',
   'SH_TENTATIVE_WEIGHT', 'SH_ADO_ACCESS_MODE', 'SH_ADO_ORG', 'SH_ADO_PAT', 'SH_ADO_TEAM',
+  'SH_USE_DISCOVERY', 'SH_USE_DESIGN',
 ];
 
 beforeEach(() => {
@@ -105,5 +107,22 @@ describe('saveSettings', () => {
 
   it('refuses a setting it does not know', () => {
     expect(() => saveSettings({ state_done: 'Closed' })).toThrow(/no setting called/);
+  });
+});
+
+describe('the Discovery and Design switches', () => {
+  it('are both off for a new install', () => {
+    expect(view('use_discovery').value).toBeNull();
+    expect(view('use_discovery').defaultValue).toBe('off');
+    expect(getPages()).toEqual({ discovery: false, design: false });
+  });
+
+  it('turn on one at a time', () => {
+    saveSettings({ use_design: 'On' });
+    expect(getPages()).toEqual({ discovery: false, design: true });
+  });
+
+  it('refuse anything but on or off', () => {
+    expect(() => saveSettings({ use_discovery: 'yes' })).toThrow(SettingError);
   });
 });

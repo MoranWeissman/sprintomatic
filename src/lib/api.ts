@@ -411,6 +411,8 @@ export interface ApiPayload {
   /** Outlook-calendar derived capacity, null when there's no sprint. */
   outlookCapacity: ApiOutlookCapacity | null;
   pendingChanges: number;
+  /** Which halves of the Discovery & Design page are turned on. Older payloads omit it. */
+  pages?: { discovery: boolean; design: boolean };
   /** Number of live Claude Code sessions reporting in right now. */
   activeSessions: number;
   /** The assistant's read on the sprint: a living summary + a few open nudges. */
@@ -489,7 +491,7 @@ export async function putSchedule(schedule: CeremonySchedule): Promise<CeremonyS
 export interface ApiSetting {
   key: string;
   env: string;
-  group: 'week' | 'board' | 'other';
+  group: 'week' | 'board' | 'pages' | 'other';
   label: string;
   help: string;
   kind: 'days' | 'hour' | 'number' | 'text' | 'choice' | 'secret';

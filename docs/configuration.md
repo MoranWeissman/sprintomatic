@@ -70,6 +70,17 @@ The token is the one secret. On a Mac, a token saved through Settings or
 and offers to move an old plain-text token into the Keychain.
 `SH_KEYCHAIN=off` turns the Keychain off (the tests use it).
 
+## Pages
+
+| What | Env variable | Setting | Default |
+|---|---|---|---|
+| Discovery: work out a problem before it is designed | `SH_USE_DISCOVERY` | `use_discovery` | `off` |
+| Design: write a design and turn it into stories | `SH_USE_DESIGN` | `use_design` | `off` |
+
+Each is `on` or `off`. With one on, the menu shows a page named after it,
+with only that half. With both off, the page is not in the menu, and the
+chat tools for feature work say they are turned off.
+
 ## Other
 
 | What | Env variable | Setting | Default |

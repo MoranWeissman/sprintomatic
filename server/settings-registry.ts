@@ -27,7 +27,7 @@ import {
 import { DEFAULT_MAX_PARALLEL_SESSIONS } from './session-cap';
 import { keychainAvailable, readToken, saveToken } from './secrets';
 
-export type SettingGroup = 'week' | 'board' | 'other';
+export type SettingGroup = 'week' | 'board' | 'pages' | 'other';
 export type SettingKind = 'days' | 'hour' | 'number' | 'text' | 'choice' | 'secret';
 
 interface SettingDef {
@@ -121,6 +121,12 @@ function numberBetween(key: string, raw: string, ok: (n: number) => boolean, why
   const n = Number(raw.trim());
   if (!Number.isFinite(n) || !ok(n)) throw new SettingError(key, why);
   return String(n);
+}
+
+function onOff(key: string, raw: string): string {
+  const v = raw.trim().toLowerCase();
+  if (v === 'on' || v === 'off') return v;
+  throw new SettingError(key, 'Pick on or off.');
 }
 
 const DEFS: SettingDef[] = [
@@ -236,6 +242,26 @@ const DEFS: SettingDef[] = [
     label: 'Personal access token',
     help: 'Only used when you reach the board with a token. Needs work item read and write.',
     defaultLabel: 'not saved',
+  },
+
+  // ---- pages ----
+  {
+    key: 'use_discovery', env: 'SH_USE_DISCOVERY', group: 'pages', kind: 'choice',
+    label: 'Discovery',
+    help: 'Working out a problem before anyone designs it: questions, meetings, a small demo. Turn on if your sprints have a discovery step.',
+    choices: [{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }],
+    defaultLabel: 'Off',
+    defaultValue: 'off',
+    clean: raw => onOff('use_discovery', raw),
+  },
+  {
+    key: 'use_design', env: 'SH_USE_DESIGN', group: 'pages', kind: 'choice',
+    label: 'Design',
+    help: 'Writing a design and turning it into stories on the board. Turn on if you design features before you build them.',
+    choices: [{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }],
+    defaultLabel: 'Off',
+    defaultValue: 'off',
+    clean: raw => onOff('use_design', raw),
   },
 
   // ---- other ----
