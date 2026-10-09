@@ -16,7 +16,7 @@
  * Connection is opened lazily and cached for the life of the process.
  */
 import Database, { type Database as DB } from 'better-sqlite3';
-import { mkdirSync } from 'node:fs';
+import { chmodSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { backupDatabase } from './backup';
@@ -27,9 +27,10 @@ let cached: DB | null = null;
 export function getDb(): DB {
   if (cached) return cached;
   const dir = join(homedir(), '.sprintomatic');
-  mkdirSync(dir, { recursive: true });
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
   const dbPath = join(dir, 'data.db');
   const db = new Database(dbPath);
+  lockToOwner(dir, dbPath);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   migrate(db);
@@ -50,6 +51,21 @@ export function getDb(): DB {
     logError('db.getDb.backup', err, { store: dbPath });
   }
   return db;
+}
+
+/**
+ * Only the user may open the folder or the store. Without the Keychain the
+ * token sits in the store as plain text, and the default file mode lets anyone
+ * else on the computer read it. chmod (not just the mkdir mode) so an install
+ * made before this rule gets fixed too.
+ */
+function lockToOwner(dir: string, dbPath: string): void {
+  try {
+    chmodSync(dir, 0o700);
+    chmodSync(dbPath, 0o600);
+  } catch (err) {
+    logError('db.lockToOwner', err, { store: dbPath });
+  }
 }
 
 function migrate(db: DB) {

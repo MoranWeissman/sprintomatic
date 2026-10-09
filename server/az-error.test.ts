@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { azFailureError, describeAzFailure, describeHttpFailure } from './az-error';
+import { azFailureError, describeAzFailure, describeHttpFailure, httpFailureError } from './az-error';
 
 /**
  * Every `raw` string below is a real failure text taken from the error log,
@@ -151,5 +151,13 @@ describe('describeHttpFailure', () => {
   it('keeps the board message for anything else', () => {
     const f = describeHttpFailure(400, '{"message":"VS402337: The field is not valid."}');
     expect(f.message).toBe('Azure DevOps said (400): VS402337: The field is not valid.');
+  });
+});
+
+describe('httpFailureError', () => {
+  it('carries the headline and the fix, so the dashboard can show them', () => {
+    const e = httpFailureError(404, '');
+    expect(e.azHeadline).toBe("Couldn't find your board");
+    expect(e.azFix).toContain('npm run setup');
   });
 });

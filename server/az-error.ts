@@ -247,7 +247,15 @@ export function azFailureError(
   code?: string,
   opts?: { command?: string; lead?: string },
 ): AzError {
-  const f = describeAzFailure(raw, code);
+  return failureError(describeAzFailure(raw, code), opts);
+}
+
+/** Build the Error to throw for a failed web API call (token mode). */
+export function httpFailureError(status: number, body: string): AzError {
+  return failureError(describeHttpFailure(status, body));
+}
+
+function failureError(f: AzFailure, opts?: { command?: string; lead?: string }): AzError {
   const lead = opts?.lead ? `${opts.lead} ` : '';
   const err = new Error(`${lead}${f.text}`) as AzError;
   err.azKind = f.kind;

@@ -2451,12 +2451,15 @@ function ErrorShell({
             </div>
           ) : (
             <p className="dim">
-              Nothing here says what went wrong. The full error is in{' '}
+              There's no known fix for this one. Check your settings, or run{' '}
+              <Mono>npm run setup</Mono> again. Any details that were saved are in{' '}
               <Mono>~/.sprintomatic/logs/error.log</Mono>.
             </p>
           )}
+          <button className="schedule-btn-ghost" onClick={() => setSettingsOpen(true)}>Settings</button>
         </div>
       </div>
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} onSaved={onRetry} />
     </div>
   );
 }
