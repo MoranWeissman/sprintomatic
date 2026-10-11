@@ -13,6 +13,7 @@
  * No writes — pure read + compute. The action endpoints (move-to-iteration,
  * mark-done) live separately and reuse server/writes.ts.
  */
+import { sprintDate } from './sprint-date';
 import { buildDashboardCached } from './dashboard-cache';
 import { computeCapacity } from './capacity';
 import {
@@ -317,8 +318,8 @@ export async function buildCockpitPayload(): Promise<CockpitPayload> {
   let nextSprintCapacity: CockpitCapacity | null = null;
   if (nextSprint) {
     const cap = await computeCapacity({
-      sprintStart: new Date(nextSprint.startDate),
-      sprintEnd: new Date(nextSprint.finishDate),
+      sprintStart: sprintDate(nextSprint.startDate),
+      sprintEnd: sprintDate(nextSprint.finishDate),
       plannedHours: 0,
     });
     nextSprintCapacity = {
@@ -333,8 +334,8 @@ export async function buildCockpitPayload(): Promise<CockpitPayload> {
   let currentSprintCapacity: CockpitCapacity | null = null;
   if (currentIteration) {
     const cap = await computeCapacity({
-      sprintStart: new Date(currentIteration.startDate),
-      sprintEnd: new Date(currentIteration.finishDate),
+      sprintStart: sprintDate(currentIteration.startDate),
+      sprintEnd: sprintDate(currentIteration.finishDate),
       plannedHours: 0,
     });
     currentSprintCapacity = {

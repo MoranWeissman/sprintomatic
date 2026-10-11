@@ -1,3 +1,4 @@
+import { sprintDate } from '../../server/sprint-date';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import MarkdownIt from 'markdown-it';
 import {
@@ -103,7 +104,7 @@ function DashboardLive({
   const sprintCtx: SprintContext | null = useMemo(() => {
     if (!data.sprint) return null;
     return {
-      startDate: new Date(data.sprint.startDate),
+      startDate: sprintDate(data.sprint.startDate),
       totalDays: data.sprint.totalDays,
       workingDays: data.sprint.workingDays,
     };

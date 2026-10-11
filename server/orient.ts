@@ -12,6 +12,7 @@
  * from the board live (capped, and every failure turns into a note) so the
  * greeting never repeats a stale status.
  */
+import { sprintDate } from './sprint-date';
 import { readdirSync } from 'node:fs';
 import { basename } from 'node:path';
 import { getWorkItem, getWorkItemsWithParents } from './ado';
@@ -423,8 +424,8 @@ export function sprintProgress(
   now: Date,
   workingDays: ReadonlySet<number> = getWorkingDays(),
 ): { dayOfSprint: number; totalDays: number; daysRemaining: number } {
-  const start = new Date(startISO);
-  const finish = new Date(finishISO);
+  const start = sprintDate(startISO);
+  const finish = sprintDate(finishISO);
   const calendarDays = Math.max(1, Math.round((finish.getTime() - start.getTime()) / MS_PER_DAY) + 1);
   const todayIndex = Math.floor((now.getTime() - start.getTime()) / MS_PER_DAY);
   let totalDays = 0;
@@ -774,8 +775,8 @@ export async function buildOrientPacket(chatCwd: string | null = null): Promise<
   try {
     ceremonyToday = ceremonyTodayLine(
       getCeremonySchedule(),
-      new Date(sprint.startDate),
-      new Date(sprint.finishDate),
+      sprintDate(sprint.startDate),
+      sprintDate(sprint.finishDate),
       now,
     );
   } catch {

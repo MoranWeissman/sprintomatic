@@ -8,6 +8,8 @@
  * `dashboard-cache` which is downstream of `dashboard`.
  */
 
+import { sprintDate } from './sprint-date';
+
 export type BacklogLevel = 'year' | 'quarter' | 'backlog';
 
 /**
@@ -102,5 +104,5 @@ export function classifyPastSprint(
   if (!match) return false;
   const startOfToday = new Date(now);
   startOfToday.setHours(0, 0, 0, 0);
-  return new Date(match.finishDate).getTime() < startOfToday.getTime();
+  return sprintDate(match.finishDate).getTime() < startOfToday.getTime();
 }

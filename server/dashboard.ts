@@ -5,6 +5,7 @@
  * (running/done-today/standup) is still mocked because we don't yet have
  * local persistence — that lands in slices 1.7 and 2.
  */
+import { sprintDate } from './sprint-date';
 import {
   getCurrentIteration,
   getIterationByName,
@@ -651,8 +652,8 @@ export async function buildDashboard(opts: BuildOptions = {}): Promise<Dashboard
   let outlookCapacity: Capacity | null = null;
   try {
     outlookCapacity = await computeCapacity({
-      sprintStart: new Date(iteration.startDate),
-      sprintEnd: new Date(iteration.finishDate),
+      sprintStart: sprintDate(iteration.startDate),
+      sprintEnd: sprintDate(iteration.finishDate),
       plannedHours: capacity.remainingHours,
     });
   } catch {
@@ -789,8 +790,8 @@ export async function buildDashboard(opts: BuildOptions = {}): Promise<Dashboard
     activeSessions: activeSessions.size,
     helperNotes: getHelperNotes(),
     ceremonies: buildCeremonyBlock(
-      new Date(iteration.startDate),
-      new Date(iteration.finishDate),
+      sprintDate(iteration.startDate),
+      sprintDate(iteration.finishDate),
     ),
     standup,
     carryForward,

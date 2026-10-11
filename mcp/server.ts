@@ -22,6 +22,7 @@
  *
  * Run: `npm run mcp` from the source (tsx), or `sprintomatic` once installed.
  */
+import { sprintDate } from '../server/sprint-date.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
@@ -3322,8 +3323,8 @@ server.registerTool(
       if (!payload.sprint) return errorResult('No current sprint — set a sprint first.');
       const plannedHours = payload.capacity.remainingHours;
       const cap = await computeCapacity({
-        sprintStart: new Date(payload.sprint.startDate),
-        sprintEnd: new Date(payload.sprint.finishDate),
+        sprintStart: sprintDate(payload.sprint.startDate),
+        sprintEnd: sprintDate(payload.sprint.finishDate),
         plannedHours,
       });
       return jsonResult({ sprintName: payload.sprint.name, ...cap, fitsTodaySummary: payload.fitsToday?.summary ?? null });

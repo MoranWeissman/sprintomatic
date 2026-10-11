@@ -1,4 +1,5 @@
 // src/components/PlanView.tsx — Plan v2 (header + meter + numbered steps + unified rows)
+import { sprintDate } from '../../server/sprint-date';
 import { useEffect, useMemo, useState } from 'react';
 import {
   fetchCockpit,
@@ -82,8 +83,8 @@ function defaultTarget(data: ApiCockpitPayload): PlanTarget {
   if (!data.nextSprint) return 'current';
   const cur = data.currentSprint;
   if (!cur) return 'next';
-  const start = new Date(cur.startDate).getTime();
-  const finish = new Date(cur.finishDate).getTime();
+  const start = sprintDate(cur.startDate).getTime();
+  const finish = sprintDate(cur.finishDate).getTime();
   if (Number.isFinite(start) && Number.isFinite(finish) && finish > start) {
     const mid = start + (finish - start) / 2;
     if (Date.now() < mid) return 'current';
