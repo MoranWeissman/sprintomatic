@@ -41,6 +41,19 @@ sprintomatic sits between the chat and your Azure DevOps board.
 or task states. It reads them from Azure DevOps every time. It only stores what
 the board has no place for: your notes and your time.
 
+## How it works
+
+sprintomatic is an [MCP](https://modelcontextprotocol.io) server. MCP is how
+Claude Code talks to outside tools. sprintomatic gives Claude tools like
+`session_start`, `workitem_block` and `session_end`, plus rules about when to
+use them. So when you type "starting the login task", Claude calls
+`session_start`. That moves the task to active on the board and starts the
+clock. You never have to open the board yourself.
+
+The important rules are in the code, not only in the text the AI reads. For
+example, the only way to close a task is with its hours. If the AI tries to
+close one without them, the tool says no.
+
 ## Is it for you?
 
 It probably is if:
