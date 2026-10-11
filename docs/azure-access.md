@@ -1,6 +1,6 @@
 # Reaching your Azure DevOps board
 
-sprintomatic can reach your board in one of two ways. `npm run setup` asks
+sprintomatic can reach your board in one of two ways. `npx sprintomatic setup` asks
 which one you want. You can change it later in the dashboard under Settings.
 
 | Way | What you need |
@@ -32,7 +32,7 @@ When your sign-in runs out, sprintomatic says so and asks you to run
 3. Click **New Token**. Give it a name, pick an end date, and under
    **Scopes** choose **Work Items: Read & write**. Nothing else is needed.
 4. Click **Create** and copy the token. The website shows it only once.
-5. Run `npm run setup`, pick "a personal access token", and paste it when it
+5. Run `npx sprintomatic setup`, pick "a personal access token", and paste it when it
    asks.
 
 On a Mac the token is kept in the Keychain. On other systems it is kept as
@@ -89,7 +89,7 @@ Because there's no `az` to ask in API mode, the four config values come from set
 `ado_org`, `ado_project`, `ado_team`, `ado_user` (the `SPRINTOMATIC_ADO_*` env vars win). After changing the
 mode or token, call `resetAdoClient()` + `invalidateAdoConfig()` so the next call rebuilds.
 
-You can set all of this in the dashboard under **Settings**, or with `npm run setup`.
+You can set all of this in the dashboard under **Settings**, or with `npx sprintomatic setup`.
 The full list is in `docs/configuration.md`.
 
 ### Tests

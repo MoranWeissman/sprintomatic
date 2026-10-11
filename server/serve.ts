@@ -1,6 +1,7 @@
 /**
  * The dashboard as a normal program: the data API plus the built screens from
- * `dist/`, on one port. `npm start` builds the screens and runs this.
+ * `dist/`, on one port. `npm start` builds the screens and runs this; an
+ * installed copy runs it as `sprintomatic dashboard` (scripts/cli.ts).
  *
  * Two chats may start it at the same moment. The port settles it: the second
  * copy can't bind, says so, and quits. Nothing else needs a lock.

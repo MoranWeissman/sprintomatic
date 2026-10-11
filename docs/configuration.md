@@ -20,7 +20,7 @@ There are three ways to change a setting:
 - **The Settings panel** in the dashboard (the Settings button at the bottom
   of the left rail). A value forced by an environment variable shows there as
   locked, with the variable's name, so an edit never quietly does nothing.
-- **`npm run setup`** — asks the questions one at a time, checks the
+- **`npx sprintomatic setup`** — asks the questions one at a time, checks the
   connection, reads your board's state names, and prints the line that adds
   sprintomatic to Claude Code. Safe to run again.
 - **By hand**, for anything the two above don't cover:
@@ -64,7 +64,7 @@ In `api` mode org, project, team and user must be set — there is no `az` to
 ask. Details: `docs/azure-access.md`.
 
 The token is the one secret. On a Mac, a token saved through Settings or
-`npm run setup` goes in the Keychain (service `sprintomatic`, account
+`npx sprintomatic setup` goes in the Keychain (service `sprintomatic`, account
 `ado_pat`) and not in the settings file. Elsewhere it falls back to the
 `ado_pat` setting in plain text — the Settings panel says which one it is,
 and offers to move an old plain-text token into the Keychain.
@@ -100,7 +100,7 @@ asking in a chat or through the dashboard:
 - **Days off** (`days_off`) — the AI asks when it sees all-day entries in your
   calendar, or you tell it.
 - **Board state names** (`state_waiting`, `state_going`, `state_blocked`,
-  `state_done`) — read from the board by `npm run setup` or the Settings
+  `state_done`) — read from the board by `npx sprintomatic setup` or the Settings
   panel's "Check the connection". Without that, learned the first time an
   item is moved, by trying the usual names and keeping the one the board
   accepts.

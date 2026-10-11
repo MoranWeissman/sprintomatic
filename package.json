@@ -1,9 +1,22 @@
 {
   "name": "sprintomatic",
-  "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Personal agile workspace — Azure DevOps + GitHub integration, time tracking, ceremony support.",
+  "description": "Keeps your Azure DevOps sprint up to date while you work with an AI assistant. An MCP server plus a local dashboard.",
+  "keywords": [
+    "mcp",
+    "azure-devops",
+    "sprint",
+    "claude",
+    "agile"
+  ],
+  "bin": {
+    "sprintomatic": "dist-node/cli.js"
+  },
+  "files": [
+    "dist/",
+    "dist-node/"
+  ],
   "scripts": {
     "dev": "vite",
     "start": "vite build && tsx server/serve.ts",
@@ -15,19 +28,17 @@
     "test:watch": "vitest",
     "release-scan": "tsx scripts/release-scan.ts",
     "export": "tsx scripts/export.ts",
-    "setup": "tsx scripts/setup.ts"
+    "setup": "tsx scripts/setup.ts",
+    "build:cli": "rm -rf dist-node && esbuild scripts/cli.ts --bundle --platform=node --format=esm --splitting --packages=external --target=node24 --outdir=dist-node",
+    "prepublishOnly": "npm run typecheck && npm test && vite build && npm run build:cli"
   },
   "engines": {
-    "node": ">=24.0.0 <25.0.0"
+    "node": ">=24.0.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "better-sqlite3": "^11.10.0",
-    "dompurify": "^3.4.6",
-    "markdown-it": "^14.2.0",
+    "better-sqlite3": "^12.11.1",
     "node-ical": "^0.26.1",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -37,6 +48,11 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "dompurify": "^3.4.6",
+    "esbuild": "^0.25.12",
+    "markdown-it": "^14.2.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "tsx": "^4.22.3",
     "typescript": "^5.6.3",
     "vite": "^6.4.4",

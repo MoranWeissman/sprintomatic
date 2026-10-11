@@ -59,31 +59,27 @@ Know this before you start:
 
 ## Get started
 
-You need **Node 24**, **git** and access to an Azure DevOps project.
+You need **Node 24** or newer and access to an Azure DevOps project.
 
 **1. Choose how to reach your board.** Either the Azure CLI (the `az`
 command, signed in with `az login`), or a personal access token. Both are
 explained step by step in [docs/azure-access.md](docs/azure-access.md).
 
-**2. Get it, install it and set it up.** The address to clone is under the
-green **Code** button at the top of this page.
+**2. Run the setup.**
 
 ```sh
-git clone <the address>
-cd sprintomatic
-npm install
-npm run setup
+npx sprintomatic setup
 ```
 
 Setup asks which board you use, what your work week looks like, and whether
-you want the Discovery and Design pages. Then it checks that it can reach the board. You can run it again any time, and you can
-change everything later in the dashboard's Settings.
+you want the Discovery and Design pages. Then it checks that it can reach the
+board. You can run it again any time, and you can change everything later in
+the dashboard's Settings.
 
-**3. Connect it to Claude Code.** Setup prints this line with your folder
-filled in. Run it once:
+**3. Connect it to Claude Code.** Run this once:
 
 ```sh
-claude mcp add -s user sprintomatic -- npm --prefix /path/to/sprintomatic run mcp --silent
+claude mcp add -s user sprintomatic -- npx -y sprintomatic
 ```
 
 **4. Say hi.** Open Claude Code and say good morning. sprintomatic starts the
@@ -100,11 +96,22 @@ free hours. See [docs/setup/outlook-calendar.md](docs/setup/outlook-calendar.md)
 - **On a Mac, your token goes into the Keychain.** On other systems it's kept as
   plain text in the local settings file.
 - **The dashboard starts by itself only when you open a chat.** After a computer
-  restart, either open a chat or run `npm start`.
+  restart, either open a chat or run `npx sprintomatic dashboard`.
 - **Changed your settings?** Open a new chat to see the change. A chat that's
   already open still uses the old settings.
 
 ## For developers
+
+To work on the code, run it from a clone instead of from npm:
+
+```sh
+git clone <the address>
+cd sprintomatic
+npm install
+npm run setup
+```
+
+Setup then prints a `claude mcp add` line that points at your clone.
 
 - `mcp/server.ts` is what Claude Code talks to: the tools and the instructions
   the AI reads. The list of tools is in [mcp/README.md](mcp/README.md).
@@ -122,6 +129,7 @@ Commands:
 | `npm run dev` | Live-reloading screens on port 5173 (keep `npm start` running too) |
 | `npm run setup` | Runs the guided setup again |
 | `npm test` | Runs the tests |
+| `npm run build:cli` | Builds the server code into `dist-node/`, the files npm ships |
 | `npm run typecheck` | Checks the types. Don't run bare `tsc`: it checks nothing and always passes |
 
 Contributions are welcome.

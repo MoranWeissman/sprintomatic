@@ -10,15 +10,14 @@ to behave — when to greet, when to log, what never to do.
 
 ## Register with Claude Code
 
-From any directory, run this once, replacing the path with wherever you cloned
-the repo:
+From any directory, run this once:
 
 ```sh
-claude mcp add -s user sprintomatic -- npm --prefix /path/to/sprintomatic run mcp --silent
+claude mcp add -s user sprintomatic -- npx -y sprintomatic
 ```
 
-`npm run setup` prints this line with your folder already filled in.
-`-s user` makes it work in every folder, not only this one.
+`-s user` makes it work in every folder, not only this one. Working from a
+clone instead? `npm run setup` prints the line that points at your folder.
 
 Then in any Claude Code session, the tools below are available.
 

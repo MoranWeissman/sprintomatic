@@ -1,5 +1,6 @@
 /**
- * `npm run setup` — first-time setup, one question at a time.
+ * `sprintomatic setup` (or `npm run setup` from the source) — first-time
+ * setup, one question at a time.
  *
  * Asks how to reach the board, the board details, the user's week and which
  * feature pages they use, saves
@@ -20,6 +21,8 @@ import { probeBoardStates } from '../server/state-probe';
 import { hourLabel, workingDaysLabel } from '../server/user-config';
 
 const rl = createInterface({ input: stdin, output: stdout });
+// Built files (an npm install) end in .js; the source run by tsx doesn't.
+const installed = import.meta.url.endsWith('.js');
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 function shown(s: SettingView): string {
@@ -109,12 +112,14 @@ async function main() {
     const e = err as Error & { azMessage?: string; azFix?: string | null };
     console.log(`  Couldn't reach the board: ${e.azMessage ?? e.message}`);
     if (e.azFix) console.log(`  ${e.azFix} Your answers so far are saved.`);
-    else console.log('  Fix that and run `npm run setup` again. Your answers so far are saved.');
+    else console.log('  Fix that and run setup again. Your answers so far are saved.');
   }
 
   console.log('\nTo use it from Claude Code, run this once:\n');
-  console.log(`  claude mcp add -s user sprintomatic -- npm --prefix "${repo}" run mcp --silent\n`);
-  console.log('Then `npm start` opens the dashboard on http://localhost:7777.');
+  console.log(installed
+    ? '  claude mcp add -s user sprintomatic -- npx -y sprintomatic\n'
+    : `  claude mcp add -s user sprintomatic -- npm --prefix "${repo}" run mcp --silent\n`);
+  console.log('Then say hi in a new chat. It starts the dashboard on http://localhost:7777.');
   console.log('You can change all of this later under Settings in the dashboard.\n');
 }
 

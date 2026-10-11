@@ -170,7 +170,7 @@ function notFound(): AzFailure {
     'not-found',
     "Couldn't find your board",
     "Couldn't find that organization, project or team. Check the names — they are in your board's web address.",
-    'Run `npm run setup` again to fix them.',
+    'Run `npx sprintomatic setup` again to fix them.',
   );
 }
 
@@ -194,7 +194,7 @@ export function describeHttpFailure(status: number, body: string): AzFailure {
       'signed-out',
       'Azure DevOps turned down the token',
       'Azure DevOps turned down the stored token. It may be wrong, out of date, or missing the Work Items (Read & write) permission.',
-      'Run `npm run setup` again to give it a new token.',
+      'Run `npx sprintomatic setup` again to give it a new token.',
     );
   }
 

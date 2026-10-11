@@ -2400,7 +2400,7 @@ function ErrorShell({
           <div className="ember-content">
             <div className="ember-fix">
               <p className="ember-fix-label dim-small">OR, STEP BY STEP</p>
-              <p className="ember-fix-line">{withCode('In the sprintomatic folder, run `npm run setup`. It asks a few questions and checks the connection.')}</p>
+              <p className="ember-fix-line">{withCode('In a terminal, run `npx sprintomatic setup`. It asks a few questions and checks the connection.')}</p>
               <p className="ember-fix-after dim">Then click <em>Try again</em>, or reload this page.</p>
               <button className="schedule-btn-ghost" onClick={onRetry}>Try again ↻</button>
             </div>
@@ -2453,7 +2453,7 @@ function ErrorShell({
             ) : (
               <p className="ember-fix-line">
                 There's no known fix for this one. Check your settings, or run{' '}
-                <Mono>npm run setup</Mono> again. Any details that were saved are in{' '}
+                <Mono>npx sprintomatic setup</Mono> again. Any details that were saved are in{' '}
                 <Mono>~/.sprintomatic/logs/error.log</Mono>.
               </p>
             )}

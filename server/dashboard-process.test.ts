@@ -56,7 +56,7 @@ describe('ensureDashboardRunning', () => {
     const { deps } = makeDeps({ spawnDashboard: () => null });
     const state = await ensureDashboardRunning('/repo', deps);
     expect(state.status).toBe('failed');
-    expect(state.note).toMatch(/npm start/);
+    expect(state.note).toMatch(/npx sprintomatic dashboard/);
   });
 
   it('never throws — a broken ping becomes a failed status', async () => {

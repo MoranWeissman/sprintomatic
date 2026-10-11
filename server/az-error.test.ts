@@ -124,7 +124,7 @@ describe('describeAzFailure — a name that does not match the board', () => {
     const f = describeAzFailure('ERROR: The resource cannot be found.');
     expect(f.kind).toBe('not-found');
     expect(f.message).toContain('organization, project or team');
-    expect(f.fix).toContain('npm run setup');
+    expect(f.fix).toContain('npx sprintomatic setup');
   });
 });
 
@@ -145,7 +145,7 @@ describe('describeHttpFailure', () => {
 
   it('reads 401 and 403 as a token problem', () => {
     expect(describeHttpFailure(401, '').kind).toBe('signed-out');
-    expect(describeHttpFailure(403, '').fix).toContain('npm run setup');
+    expect(describeHttpFailure(403, '').fix).toContain('npx sprintomatic setup');
   });
 
   it('keeps the board message for anything else', () => {
@@ -158,6 +158,6 @@ describe('httpFailureError', () => {
   it('carries the headline and the fix, so the dashboard can show them', () => {
     const e = httpFailureError(404, '');
     expect(e.azHeadline).toBe("Couldn't find your board");
-    expect(e.azFix).toContain('npm run setup');
+    expect(e.azFix).toContain('npx sprintomatic setup');
   });
 });

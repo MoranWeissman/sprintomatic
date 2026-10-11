@@ -18,7 +18,8 @@
 import { spawn } from 'node:child_process';
 import { mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export const DASHBOARD_PORT = 7777;
 const DASHBOARD_URL = `http://localhost:${DASHBOARD_PORT}`;
@@ -35,7 +36,7 @@ export interface DashboardState {
 
 export interface DashboardProcessDeps {
   ping: () => Promise<boolean>;
-  /** Start `npm start` detached in the repo; returns the child pid or null. */
+  /** Start the dashboard detached; returns the child pid or null. */
   spawnDashboard: (repoRoot: string) => number | null;
   readPid: () => number | null;
   writePid: (pid: number) => void;
@@ -69,13 +70,24 @@ function realSpawn(repoRoot: string): number | null {
   // The dashboard's own output goes to a file, not to the MCP's stdio —
   // stdio here is the MCP protocol channel and must stay clean.
   const out = openSync(join(logDir, 'dashboard.log'), 'a');
-  const child = spawn('npm', ['start'], {
-    cwd: repoRoot,
-    detached: true,
-    stdio: ['ignore', out, out],
-    // On Windows `npm` is a .cmd, which only a shell can start.
-    shell: process.platform === 'win32',
-  });
+  // An installed copy runs from built files in dist-node/, next to cli.js:
+  // the dashboard is that same program with one word. From the source
+  // (tsx, a git clone) it's `npm start`, which builds the screens first.
+  const here = dirname(fileURLToPath(import.meta.url));
+  const installed = import.meta.url.endsWith('.js');
+  const child = installed
+    ? spawn(process.execPath, [join(here, 'cli.js'), 'dashboard'], {
+        cwd: dirname(here),
+        detached: true,
+        stdio: ['ignore', out, out],
+      })
+    : spawn('npm', ['start'], {
+        cwd: repoRoot,
+        detached: true,
+        stdio: ['ignore', out, out],
+        // On Windows `npm` is a .cmd, which only a shell can start.
+        shell: process.platform === 'win32',
+      });
   // Let the MCP process exit without taking the dashboard with it.
   child.unref();
   return child.pid ?? null;
@@ -143,7 +155,7 @@ export async function ensureDashboardRunning(
     if (pid == null) {
       return {
         status: 'failed',
-        note: `The dashboard isn't running and starting it didn't work. Start it by hand: npm start in the sprintomatic folder, then check ${DASHBOARD_URL}.`,
+        note: `The dashboard isn't running and starting it didn't work. Start it by hand: run npx sprintomatic dashboard in a terminal, then check ${DASHBOARD_URL}.`,
       };
     }
     deps.writePid(pid);
@@ -154,7 +166,7 @@ export async function ensureDashboardRunning(
   } catch (err) {
     return {
       status: 'failed',
-      note: `The dashboard isn't running and starting it didn't work (${err instanceof Error ? err.message : String(err)}). Start it by hand: npm start in the sprintomatic folder.`,
+      note: `The dashboard isn't running and starting it didn't work (${err instanceof Error ? err.message : String(err)}). Start it by hand: run npx sprintomatic dashboard in a terminal.`,
     };
   }
 }

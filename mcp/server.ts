@@ -20,7 +20,7 @@
  * timer, session_end pauses it — or, with done=true (only after the user confirms),
  * pushes the tracked time to Azure DevOps and closes the task.
  *
- * Run: `npm run mcp`  (uses tsx so the same source ships from server/ unchanged).
+ * Run: `npm run mcp` from the source (tsx), or `sprintomatic` once installed.
  */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -883,7 +883,7 @@ DASHBOARD LIFECYCLE — the user never starts the dashboard by hand;
   - \`started\`: echo its \`note\` as one line of the greeting ("started
     your dashboard — …"). Don't dwell on it.
   - \`failed\`: echo the \`note\` — it names the manual fallback
-    (\`npm start\`). Don't retry in a loop; once per orient is enough.
+    (\`npx sprintomatic dashboard\`). Don't retry in a loop; once per orient is enough.
 The started process outlives this chat on purpose — other chats and the
 browser share it. \`dashboard_stop\` shuts it down only when the user asks
 to stop it.
@@ -1139,8 +1139,9 @@ server.registerTool(
   async ({ cwd }) => {
     // Opening a chat is what turns the system on: when the dashboard isn't
     // answering, start it in the background before building the greeting.
-    // process.cwd() is the sprintomatic repo (the MCP is launched with
-    // --prefix pointing here), which is exactly where `npm start` runs.
+    // From a clone, process.cwd() is the repo (the MCP is launched with
+    // --prefix pointing here), which is where `npm start` runs. An installed
+    // copy ignores it and finds itself (server/dashboard-process.ts).
     const dashboard = await ensureDashboardRunning(process.cwd());
     try {
       const packet = await buildOrientPacket(chatCwdKey(cwd));
