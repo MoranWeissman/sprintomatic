@@ -11,9 +11,9 @@
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { readFileSync, statSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { isSetupNeeded } from './setup-needed';
+import { dataDir } from './data-dir';
 
 type Next = (err?: unknown) => void;
 type Route = (req: IncomingMessage, res: ServerResponse, next: Next) => unknown;
@@ -132,7 +132,7 @@ export function createApi(): ApiHandler {
   // project runs on open) and never writes or warms anything.
   api.use('/api/health', (_req, res) => {
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version?: string };
-    const dbPath = join(homedir(), '.sprintomatic', 'data.db');
+    const dbPath = join(dataDir(), 'data.db');
     let db: { exists: boolean; lastWritten: string | null } = { exists: false, lastWritten: null };
     try {
       // Recent writes sit in the -wal sidecar until a checkpoint folds them

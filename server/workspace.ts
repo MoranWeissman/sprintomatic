@@ -14,6 +14,7 @@ import { existsSync, mkdirSync, cpSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { getSetting, setSetting } from './timers';
 import { writeFileAtomicSync, type AtomicWriter } from './atomic-write';
+import { dataDir } from './data-dir';
 
 export const WORKSPACE_PATHS_KEY = 'workspace_paths';
 const WORKSPACE_DECLINED_KEY = 'workspace_declined_paths';
@@ -226,7 +227,7 @@ export function createFeatureFolder(
 
 export const SEED_KEY = 'workspace_seed_path';
 /** Where the managed skills, the planning CLAUDE.md and the hook are copied from. */
-const DEFAULT_SEED = join(homedir(), '.sprintomatic', 'seed');
+const DEFAULT_SEED = join(dataDir(), 'seed');
 
 export function getSeedPath(): string {
   return getSetting(SEED_KEY) ?? DEFAULT_SEED;

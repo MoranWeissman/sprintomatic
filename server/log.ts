@@ -20,8 +20,8 @@
  *    message, the stack and the extra fields are all cleaned first.
  */
 import { appendFileSync, mkdirSync, renameSync, statSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { dataDir } from './data-dir';
 
 /**
  * Roll the file over at 1 MB. An error line is at most a couple of kilobytes
@@ -44,7 +44,7 @@ export interface LogErrorOptions {
 }
 
 function defaultLogDir(): string {
-  return join(homedir(), '.sprintomatic', 'logs');
+  return join(dataDir(), 'logs');
 }
 
 /**

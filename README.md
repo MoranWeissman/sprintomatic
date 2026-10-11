@@ -57,6 +57,26 @@ Know this before you start:
   project with User Story and Task types and a Blocked state on both. Other
   setups may work, but nobody has tried them yet.
 
+## Try it without a board
+
+Want to look around first? The demo runs on a made-up board (a small team
+building a recipe app), so you don't need Azure DevOps or any setup:
+
+```sh
+npx sprintomatic demo
+```
+
+Then open http://localhost:7778. To try the chat side too, add the demo to
+Claude Code under its own name:
+
+```sh
+claude mcp add -s user sprintomatic-demo -e SPRINTOMATIC_DEMO=1 -- npx -y sprintomatic
+```
+
+The demo keeps its data in `~/.sprintomatic-demo`, apart from your real data.
+Its board lives in memory, so a restart puts the board back the way it
+started. Remove it again with `claude mcp remove -s user sprintomatic-demo`.
+
 ## Get started
 
 You need **Node 24** or newer and access to an Azure DevOps project.
@@ -126,6 +146,7 @@ Commands:
 | Command | What it does |
 | --- | --- |
 | `npm start` | Builds and starts the dashboard on port 7777 |
+| `npm run demo` | The dashboard on a made-up board, on port 7778 |
 | `npm run dev` | Live-reloading screens on port 5173 (keep `npm start` running too) |
 | `npm run setup` | Runs the guided setup again |
 | `npm test` | Runs the tests |

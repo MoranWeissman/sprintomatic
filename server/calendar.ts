@@ -10,6 +10,7 @@
  */
 import ical from 'node-ical';
 import { getSetting, setSetting } from './timers';
+import { isDemo } from './data-dir';
 
 const URL_SETTING_KEY = 'calendar_ics_url';
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -29,6 +30,8 @@ export interface BusyInterval {
 let cache: { fetchedAt: number; ics: string; url: string } | null = null;
 
 export function getCalendarUrl(): string | null {
+  // The demo never reads a real calendar.
+  if (isDemo()) return null;
   const v = getSetting(URL_SETTING_KEY);
   return v && v.length > 0 ? v : null;
 }

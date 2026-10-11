@@ -20,6 +20,7 @@
   "scripts": {
     "dev": "vite",
     "start": "vite build && tsx server/serve.ts",
+    "demo": "vite build && SPRINTOMATIC_DEMO=1 tsx server/serve.ts",
     "mcp": "tsx mcp/server.ts",
     "build": "tsc -b && vite build",
     "preview": "vite preview",

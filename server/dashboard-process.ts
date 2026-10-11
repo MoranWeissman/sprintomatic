@@ -17,11 +17,12 @@
  */
 import { spawn } from 'node:child_process';
 import { mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { dataDir, isDemo } from './data-dir';
 
-export const DASHBOARD_PORT = 7777;
+// The demo runs on its own port, so it can run next to the real dashboard.
+export const DASHBOARD_PORT = isDemo() ? 7778 : 7777;
 const DASHBOARD_URL = `http://localhost:${DASHBOARD_PORT}`;
 
 /** How long the health ping may take before we call the dashboard down.
@@ -46,7 +47,7 @@ export interface DashboardProcessDeps {
 }
 
 function stateDir(): string {
-  return join(homedir(), '.sprintomatic');
+  return dataDir();
 }
 
 function pidFile(): string {

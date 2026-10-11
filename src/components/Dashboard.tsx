@@ -312,7 +312,7 @@ function DashboardLive({
               <span className="r21-brand-name">SPRINTOMATIC</span>
               <span className="r21-strip-meta">
                 <span className="sep">·</span>
-                <span>sprint <span className="v">{sprintLabel}</span></span>
+                <span>sprint <span className="v">{sprintLabel.replace(/^sprint\s+/i, '')}</span></span>
                 <span className="sep">·</span>
                 <span>day <span className="v">{today}/{workDays.total || '—'}</span></span>
                 <span className="sep">·</span>
@@ -682,7 +682,7 @@ function R21Sidebar({
           return (
             <div className="r21-side-week">
               <div className="r21-side-week-head">
-                <span>Sprint <span className="day"><Mono>{sprintLabel}</Mono></span></span>
+                <span>Sprint <span className="day"><Mono>{sprintLabel.replace(/^sprint\s+/i, '')}</Mono></span></span>
                 <span>day <span className="day"><Mono>{workingSoFar}/{workingTotal}</Mono></span></span>
               </div>
               <div className="r21-side-week-grid">

@@ -20,7 +20,6 @@
  * then rename), so a crash mid-write leaves either the old file or the new
  * one, never a half-written file.
  */
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { writeFileAtomic as writeAtomic } from './atomic-write';
 import { buildDashboardCached } from './dashboard-cache';
@@ -31,8 +30,9 @@ import {
   type Session,
   type SessionEvent,
 } from './sessions';
+import { dataDir } from './data-dir';
 
-const ARCHIVE_ROOT = join(homedir(), '.sprintomatic', 'archive', 'sprints');
+const ARCHIVE_ROOT = join(dataDir(), 'archive', 'sprints');
 
 /** Reserved chars + control bytes stripped from filesystem paths. */
 function safeFilename(s: string): string {

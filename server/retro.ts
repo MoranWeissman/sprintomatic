@@ -196,7 +196,9 @@ export function buildRetroDraft(inputs: RetroInputs): RetroDraft {
   if (inputs.daysOffCount > 0) {
     parts.push(`${inputs.daysOffCount} working ${inputs.daysOffCount === 1 ? 'day' : 'days'} off`);
   }
-  const sprintLine = `Sprint ${inputs.sprintName}: ${parts.join(', ')}.`;
+  // Boards often name sprints "Sprint 24" already; don't say it twice.
+  const label = /^sprint\b/i.test(inputs.sprintName) ? inputs.sprintName : `Sprint ${inputs.sprintName}`;
+  const sprintLine = `${label}: ${parts.join(', ')}.`;
 
   return { sprintLine, candidates };
 }

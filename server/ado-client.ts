@@ -26,6 +26,8 @@ import { readToken } from './secrets';
 import { SetupNeededError } from './setup-needed';
 import { logError } from './log';
 import { azFailureError, httpFailureError } from './az-error';
+import { isDemo } from './data-dir';
+import { DemoAdoClient } from './demo-board';
 
 // The Azure DevOps app id. `az rest` can't auto-derive the AAD resource for
 // dev.azure.com URLs, so it's passed explicitly to get a proper bearer token.
@@ -302,7 +304,11 @@ function tokenFingerprint(token: string | undefined): string {
  * key is checked on every call instead. A mode or token change now takes effect
  * in every process by itself.
  */
+let demoClient: DemoAdoClient | null = null;
+
 export function getAdoClient(): AdoClient {
+  // Demo mode: the made-up board in memory, one per process.
+  if (isDemo()) return (demoClient ??= new DemoAdoClient());
   const mode = getAdoAccessMode();
   const token = mode === 'api' ? getStoredToken() : undefined;
   const key = `${mode}:${tokenFingerprint(token)}`;

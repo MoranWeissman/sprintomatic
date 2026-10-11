@@ -13,6 +13,8 @@ import { promisify } from 'node:util';
 import { getAdoAccessMode } from './ado-client';
 import { configValue } from './user-config';
 import { SetupNeededError } from './setup-needed';
+import { isDemo } from './data-dir';
+import { DEMO_ORG, DEMO_PROJECT, DEMO_TEAM, DEMO_USER } from './demo-data';
 
 const exec = promisify(execFile);
 
@@ -28,6 +30,7 @@ let cached: AdoConfig | null = null;
 let cachedMode: 'cli' | 'api' | null = null;
 
 export async function loadAdoConfig(): Promise<AdoConfig> {
+  if (isDemo()) return { organization: DEMO_ORG, project: DEMO_PROJECT, team: DEMO_TEAM, user: DEMO_USER };
   // Keyed on the mode for the same reason the client is (see ado-client.ts):
   // a long-running process must not keep serving config it read through the
   // door that has since been replaced.

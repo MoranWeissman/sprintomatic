@@ -22,10 +22,11 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { getSetting, setSetting } from './timers';
 import { writeFileAtomicSync } from './atomic-write';
+import { dataDir } from './data-dir';
 
 const SETTINGS_KEY = 'planning_home_path';
 const MARKER_FILENAME = '.sprintomatic-home';
-const DEFAULT_HOME_PATH = join(homedir(), '.sprintomatic', 'home');
+const DEFAULT_HOME_PATH = join(dataDir(), 'home');
 
 export interface PlanningHomeStatus {
   /** Absolute path the user configured (or the default, if the user never set one). */

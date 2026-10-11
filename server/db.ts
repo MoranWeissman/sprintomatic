@@ -17,16 +17,17 @@
  */
 import Database, { type Database as DB } from 'better-sqlite3';
 import { chmodSync, mkdirSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { backupDatabase } from './backup';
+import { seedDemoHistory } from './demo-data';
 import { logError } from './log';
+import { dataDir, isDemo } from './data-dir';
 
 let cached: DB | null = null;
 
 export function getDb(): DB {
   if (cached) return cached;
-  const dir = join(homedir(), '.sprintomatic');
+  const dir = dataDir();
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   const dbPath = join(dir, 'data.db');
   const db = new Database(dbPath);
@@ -34,6 +35,8 @@ export function getDb(): DB {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   migrate(db);
+  // The demo store starts with a few days of made-up past work.
+  if (isDemo()) seedDemoHistory(db);
   cached = db;
   // One copy of the store per day, kept for 30 days. Wrapped so a full disk or
   // a folder we can't write never stops the tool from starting.

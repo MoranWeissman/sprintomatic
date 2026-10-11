@@ -13,8 +13,8 @@
  */
 import { type Database as DB } from 'better-sqlite3';
 import { existsSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { dataDir } from './data-dir';
 
 /** Backups older than this many days are removed. */
 const KEEP_DAYS = 30;
@@ -42,7 +42,7 @@ export type BackupResult = {
 };
 
 function defaultBackupDir() {
-  return join(homedir(), '.sprintomatic', 'backups');
+  return join(dataDir(), 'backups');
 }
 
 /**
