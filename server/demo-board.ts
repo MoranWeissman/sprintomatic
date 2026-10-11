@@ -2,15 +2,22 @@
  * A pretend Azure DevOps board for demo mode (SPRINTOMATIC_DEMO=1).
  *
  * It sits behind the same AdoClient doorway as the real board, so the rest
- * of sprintomatic can't tell the difference. It lives in memory, starts from
+ * of sprintomatic can't tell the difference. It starts from
  * the made-up recipe app in server/demo-data.ts, and every write changes it
  * the way the real board would: a state move, new Remaining hours, a new
- * task, a new parent. A restart puts the board back to how it started.
+ * task, a new parent.
+ *
+ * With a file, every change is saved there and read back before each
+ * request. The chat and the dashboard are two programs, so this is how a
+ * task the chat moves shows up on the dashboard. Delete the file (or the
+ * demo folder) to start the board over.
  *
  * It only answers the requests sprintomatic really makes. Anything else
  * fails with an error that names the request, so a missing route is easy to
  * spot instead of quietly returning nothing.
  */
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import type { AdoClient, AdoQuery, AdoRestRequest, RawWorkItem } from './ado-client';
 import {
   DEMO_ORG,
@@ -38,6 +45,12 @@ const STATE_NAMES = new Set(STATES.map(s => s.name));
 
 const ME = { displayName: DEMO_USER_NAME, uniqueName: DEMO_USER };
 
+interface SavedBoard {
+  items: DemoItem[];
+  nextId: number;
+  nextCommentId: number;
+}
+
 interface PatchOp {
   op: string;
   path: string;
@@ -50,9 +63,11 @@ export class DemoAdoClient implements AdoClient {
   private nextId: number;
   private nextCommentId = 1;
   private readonly now: () => Date;
+  private readonly file: string | null;
 
-  constructor(now: () => Date = () => new Date()) {
+  constructor(now: () => Date = () => new Date(), file: string | null = null) {
     this.now = now;
+    this.file = file;
     const start = now();
     for (const item of demoItems(start)) {
       if (item.parent) item.fields['System.Parent'] = item.parent;
@@ -63,14 +78,36 @@ export class DemoAdoClient implements AdoClient {
   }
 
   async rest<T = unknown>(req: AdoRestRequest): Promise<T> {
-    return this.route(req) as T;
+    this.load();
+    const out = this.route(req) as T;
+    if (req.method !== 'GET') this.save();
+    return out;
   }
 
   async queryWorkItems(q: AdoQuery): Promise<RawWorkItem[]> {
+    this.load();
     const where = parseWiql(q.wiql);
     const hits = [...this.items.values()].filter(item => where.every(c => c(item, this.now())));
     hits.sort((a, b) => String(b.fields['System.ChangedDate']).localeCompare(String(a.fields['System.ChangedDate'])));
     return hits.map(item => this.raw(item));
+  }
+
+  /** Read the saved board, if there is one. No await in between, so a
+   *  request reads, changes and saves in one go. */
+  private load(): void {
+    if (!this.file || !existsSync(this.file)) return;
+    const saved = JSON.parse(readFileSync(this.file, 'utf8')) as SavedBoard;
+    this.items = new Map(saved.items.map(i => [i.id, i]));
+    this.nextId = saved.nextId;
+    this.nextCommentId = saved.nextCommentId;
+  }
+
+  private save(): void {
+    if (!this.file) return;
+    mkdirSync(dirname(this.file), { recursive: true });
+    const saved: SavedBoard = { items: [...this.items.values()], nextId: this.nextId, nextCommentId: this.nextCommentId };
+    writeFileSync(`${this.file}.tmp`, JSON.stringify(saved));
+    renameSync(`${this.file}.tmp`, this.file);
   }
 
   private route(req: AdoRestRequest): unknown {

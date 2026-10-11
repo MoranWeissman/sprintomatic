@@ -26,7 +26,8 @@ import { readToken } from './secrets';
 import { SetupNeededError } from './setup-needed';
 import { logError } from './log';
 import { azFailureError, httpFailureError } from './az-error';
-import { isDemo } from './data-dir';
+import { join } from 'node:path';
+import { dataDir, isDemo } from './data-dir';
 import { DemoAdoClient } from './demo-board';
 
 // The Azure DevOps app id. `az rest` can't auto-derive the AAD resource for
@@ -307,8 +308,9 @@ function tokenFingerprint(token: string | undefined): string {
 let demoClient: DemoAdoClient | null = null;
 
 export function getAdoClient(): AdoClient {
-  // Demo mode: the made-up board in memory, one per process.
-  if (isDemo()) return (demoClient ??= new DemoAdoClient());
+  // Demo mode: the made-up board, saved in the demo folder so the chat and
+  // the dashboard see the same one.
+  if (isDemo()) return (demoClient ??= new DemoAdoClient(undefined, join(dataDir(), 'demo-board.json')));
   const mode = getAdoAccessMode();
   const token = mode === 'api' ? getStoredToken() : undefined;
   const key = `${mode}:${tokenFingerprint(token)}`;

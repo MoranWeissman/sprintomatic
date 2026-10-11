@@ -77,9 +77,8 @@ Claude Code under its own name:
 claude mcp add -s user sprintomatic-demo -e SPRINTOMATIC_DEMO=1 -- npx -y sprintomatic
 ```
 
-The demo keeps its data in `~/.sprintomatic-demo`, apart from your real data.
-Its board lives in memory, so a restart puts the board back the way it
-started. Remove it again with `claude mcp remove -s user sprintomatic-demo`.
+The demo keeps its data, made-up board included, in `~/.sprintomatic-demo`,
+apart from your real data. Delete that folder to start the demo over. Remove it again with `claude mcp remove -s user sprintomatic-demo`.
 
 ## Get started
 

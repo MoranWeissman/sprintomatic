@@ -147,3 +147,24 @@ describe('demo history', () => {
     }
   });
 });
+
+describe('demo board saved to a file', () => {
+  it('a change made by one program shows up in another', async () => {
+    const { mkdtempSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const file = join(mkdtempSync(join(tmpdir(), 'demo-board-')), 'board.json');
+    const chat = new DemoAdoClient(() => NOW, file);
+    const dashboard = new DemoAdoClient(() => NOW, file);
+    await chat.rest({
+      method: 'PATCH',
+      uri: `${base}/_apis/wit/workitems/100005?api-version=7.1`,
+      body: [{ op: 'add', path: '/fields/System.State', value: 'Active' }],
+    });
+    const item = await dashboard.rest<{ fields: Record<string, unknown> }>({
+      method: 'GET',
+      uri: `${base}/_apis/wit/workitems/100005?api-version=7.1`,
+    });
+    expect(item.fields['System.State']).toBe('Active');
+  });
+});
