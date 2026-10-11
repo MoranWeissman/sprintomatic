@@ -8,6 +8,8 @@
   tracks your time, and remembers what you did and why.
 </p>
 
+<p align="center"><img src="docs/images/demo.gif" alt="A chat on the left, the dashboard on the right: starting a task, marking one as blocked, and closing one with its hours agreed" width="900"></p>
+
 ---
 
 ## What it does
