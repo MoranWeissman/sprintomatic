@@ -9,10 +9,13 @@
 import { getDb } from './db';
 import { displayNameFor } from './display-name';
 import { isDoneState } from './states';
+import { listDaysOff } from './days-off';
+import { taskCheckup, type CheckupSession } from './task-checkup';
+import { getLocalLoggedMap } from './timers';
+import { getWorkingDays } from './user-config';
 
 const CAPACITY_NUDGE_KEY = 'capacity_nudge_state';
 const STALE_REMAINING_NUDGE_PREFIX = 'stale_remaining_nudge';
-const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 /**
  * Guard state for the capacity nudge. We remember the sprint, the direction
@@ -183,128 +186,162 @@ export function ensureCapacityNudge(opts: {
 }
 
 /**
- * One row per "going" task that's a candidate for the stale-remaining check.
+ * One row per "going" task that's a candidate for the quiet-task check.
  * Caller is responsible for filtering to Task type and 'going' state.
  */
 export interface StaleRemainingCandidate {
   workItemId: number;
   title: string;
+  originalEstimate: number | null;
   remainingWork: number | null;
 }
 
+/** The fixed end of every old-style "task going too long" note, before
+ *  server/task-checkup.ts wrote them. Lets an old copy still be found. */
+const OLD_STALE_REMAINING_TAIL = 'update Remaining or move the task off your plate.';
+
 /**
- * Scan going-state tasks for stale Remaining Work. A task is "stale" when:
- *   - no row currently has an open session on it (open session = active work,
- *     not stale by definition), AND
- *   - the most recent session_event on this task is older than `staleDays`
- *     calendar days, OR no session_event has ever been recorded.
- *
- * For each stale task we add a helper note naming it by title, deduped per
- * task per sprint via a settings key — same pattern as `ensureCapacityNudge`.
- * Returns the notes that were freshly added.
+ * Check every going task that has gone quiet and write one note per task
+ * with a real suggestion (server/task-checkup.ts decides what it says).
+ * A task that is fine again gets its note cleared, so a note never stays
+ * after it stops being true. Returns the notes that were freshly added.
  */
 export function scanStaleRemaining(opts: {
   sprintName: string;
   candidates: StaleRemainingCandidate[];
-  staleDays?: number;
+  now?: Date;
 }): HelperNote[] {
-  const staleDays = opts.staleDays ?? 2;
-  const staleMs = staleDays * MS_PER_DAY;
-  const nowMs = Date.now();
-  const db = getDb();
-
   if (opts.candidates.length === 0) return [];
-
+  const now = opts.now ?? new Date();
+  const db = getDb();
   const ids = opts.candidates.map(c => c.workItemId);
   const placeholders = ids.map(() => '?').join(',');
 
-  const openRows = db
-    .prepare(`SELECT DISTINCT work_item_id FROM sessions WHERE ended_at IS NULL AND work_item_id IN (${placeholders})`)
-    .all(...ids) as { work_item_id: number }[];
-  const openIds = new Set(openRows.map(r => r.work_item_id));
-
-  const lastRows = db
+  const sessionRows = db
     .prepare(
-      `SELECT work_item_id, MAX(created_at) AS last_at
-         FROM session_events
-        WHERE work_item_id IN (${placeholders})
-        GROUP BY work_item_id`,
+      `SELECT id, work_item_id, started_at, ended_at, waiting_note FROM sessions WHERE work_item_id IN (${placeholders})`,
     )
-    .all(...ids) as { work_item_id: number; last_at: string | null }[];
-  const lastByItem = new Map<number, string>();
-  for (const r of lastRows) {
-    if (r.last_at) lastByItem.set(r.work_item_id, r.last_at);
+    .all(...ids) as { id: string; work_item_id: number; started_at: string; ended_at: string | null; waiting_note: string | null }[];
+  const eventRows = db
+    .prepare(`SELECT session_id, type, created_at FROM session_events WHERE work_item_id IN (${placeholders})`)
+    .all(...ids) as { session_id: string; type: string; created_at: string }[];
+  const eventsBySession = new Map<string, { type: string; at: Date }[]>();
+  for (const e of eventRows) {
+    const list = eventsBySession.get(e.session_id) ?? [];
+    list.push({ type: e.type, at: new Date(e.created_at) });
+    eventsBySession.set(e.session_id, list);
   }
+  const sessionsByItem = new Map<number, CheckupSession[]>();
+  for (const r of sessionRows) {
+    const events = eventsBySession.get(r.id) ?? [];
+    const list = sessionsByItem.get(r.work_item_id) ?? [];
+    list.push({
+      start: new Date(r.started_at),
+      end: r.ended_at ? new Date(r.ended_at) : null,
+      activity: events.map(e => e.at),
+      stuck: r.waiting_note != null || events.some(e => e.type === 'blocker'),
+    });
+    sessionsByItem.set(r.work_item_id, list);
+  }
+
+  const logged = getLocalLoggedMap();
+  const workingDays = getWorkingDays();
+  const daysOff = new Set(listDaysOff());
 
   const created: HelperNote[] = [];
   for (const c of opts.candidates) {
-    if (openIds.has(c.workItemId)) continue;
-    const lastAt = lastByItem.get(c.workItemId);
-    let daysSince: number | null = null;
-    if (lastAt) {
-      const ageMs = nowMs - Date.parse(lastAt);
-      if (ageMs < staleMs) continue;
-      daysSince = Math.floor(ageMs / MS_PER_DAY);
-    }
-
-    const note = ensureStaleRemainingNudge({
-      sprintName: opts.sprintName,
+    const body = taskCheckup({
+      now,
       workItemId: c.workItemId,
       title: c.title,
-      remainingWork: c.remainingWork,
-      daysSince,
+      estimate: c.originalEstimate,
+      remaining: c.remainingWork,
+      workedHours: (logged.get(c.workItemId) ?? 0) / 3600,
+      sessions: sessionsByItem.get(c.workItemId) ?? [],
+      workingDays,
+      daysOff,
     });
-    if (note) created.push(note);
+    if (body) {
+      const note = ensureStaleRemainingNudge({ sprintName: opts.sprintName, workItemId: c.workItemId, body });
+      if (note) created.push(note);
+    } else {
+      clearStaleRemainingNudge(c.workItemId);
+    }
   }
   return created;
 }
 
-/** The fixed end of every "task going too long" note. Used to find the older copy. */
-const STALE_REMAINING_TAIL = 'update Remaining or move the task off your plate.';
+/** The settings key that says "this task already has its note this sprint". */
+function staleKey(sprintName: string, workItemId: number): string {
+  return `${STALE_REMAINING_NUDGE_PREFIX}_${sprintName}_${workItemId}`;
+}
 
-/** Exported for tests. */
+/**
+ * Write the quiet-task note, once per task per sprint. The mark's value is
+ * the note's id, so the note can be found again and cleared when it stops
+ * being true. Exported for tests.
+ */
 export function ensureStaleRemainingNudge(opts: {
   sprintName: string;
   workItemId: number;
-  title: string;
-  remainingWork: number | null;
-  daysSince: number | null;
+  body: string;
 }): HelperNote | null {
-  const key = `${STALE_REMAINING_NUDGE_PREFIX}_${opts.sprintName}_${opts.workItemId}`;
+  const key = staleKey(opts.sprintName, opts.workItemId);
   const db = getDb();
   const row = db.prepare(`SELECT value FROM settings WHERE key = ?`).get(key) as
     | { value: string }
     | undefined;
   if (row) return null;
 
-  const displayName = displayNameFor(opts.workItemId, opts.title);
-  const remPart =
-    opts.remainingWork != null
-      ? `Remaining still shows ${Math.round(opts.remainingWork)}h`
-      : "Remaining hasn't been touched";
-  const lead =
-    opts.daysSince != null && opts.daysSince > 0
-      ? `${displayName} has been going for ${opts.daysSince} days but ${remPart}`
-      : `${displayName} has been going with no activity yet and ${remPart}`;
-  const body = `${lead} — ${STALE_REMAINING_TAIL}`;
-
   // A task carried into a new sprint gets a fresh note; the old sprint's copy
   // of the same note goes, so the user never sees it twice. Kept notes stay.
-  db.prepare(
-    `UPDATE helper_notes SET dismissed_at = ?
-      WHERE work_item_id = ? AND dismissed_at IS NULL AND pinned_at IS NULL AND body LIKE ?`,
-  ).run(new Date().toISOString(), opts.workItemId, `%${STALE_REMAINING_TAIL}`);
-  const note = addNote(body, opts.workItemId);
+  dismissOpenStaleNotes(opts.workItemId);
+  const note = addNote(opts.body, opts.workItemId);
   db.prepare(
     `INSERT INTO settings (key, value) VALUES (?, ?)
      ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-  ).run(key, new Date().toISOString());
+  ).run(key, String(note.id));
   // Marks from earlier sprints can never match again; drop them.
   const sprintPrefix = `${STALE_REMAINING_NUDGE_PREFIX}_${opts.sprintName}_`;
   db.prepare(
     `DELETE FROM settings WHERE key LIKE '${STALE_REMAINING_NUDGE_PREFIX}%' AND substr(key, 1, ?) != ?`,
   ).run(sprintPrefix.length, sprintPrefix);
   return note;
+}
+
+/**
+ * The task is fine again: clear its quiet-task note (unless the user kept
+ * it) and drop the mark, so the note can come back if the task goes quiet
+ * again later. Exported for tests.
+ */
+export function clearStaleRemainingNudge(workItemId: number): void {
+  dismissOpenStaleNotes(workItemId);
+  const del = getDb().prepare(`DELETE FROM settings WHERE key = ?`);
+  for (const m of staleMarks(workItemId)) del.run(m.key);
+}
+
+/** This task's marks, from any sprint. Matched in code: in LIKE, `_` is a
+ *  wildcard, so task 100001 would also catch task 1100001. */
+function staleMarks(workItemId: number): { key: string; value: string }[] {
+  const rows = getDb()
+    .prepare(`SELECT key, value FROM settings WHERE substr(key, 1, ?) = ?`)
+    .all(STALE_REMAINING_NUDGE_PREFIX.length + 1, `${STALE_REMAINING_NUDGE_PREFIX}_`) as {
+    key: string;
+    value: string;
+  }[];
+  return rows.filter(r => r.key.endsWith(`_${workItemId}`));
+}
+
+/** Dismiss this task's open, not-kept quiet-task notes, old style or new. */
+function dismissOpenStaleNotes(workItemId: number): void {
+  const db = getDb();
+  const noteIds = staleMarks(workItemId).map(m => Number(m.value)).filter(n => Number.isInteger(n) && n > 0);
+  const at = new Date().toISOString();
+  db.prepare(
+    `UPDATE helper_notes SET dismissed_at = ?
+      WHERE work_item_id = ? AND dismissed_at IS NULL AND pinned_at IS NULL
+        AND (body LIKE ? OR id IN (${noteIds.map(() => '?').join(',') || 'NULL'}))`,
+  ).run(at, workItemId, `%${OLD_STALE_REMAINING_TAIL}`, ...noteIds);
 }
 
 /* ============================================================ */

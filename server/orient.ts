@@ -651,13 +651,15 @@ export async function buildOrientPacket(chatCwd: string | null = null): Promise<
     });
   }
 
-  // Stale-Remaining scan: tasks in 'going' state with no session activity in
-  // 2+ days get a helper note naming the task. Deduped per task per sprint.
+  // Quiet-task check: a going task with nothing happening for 2+ work days
+  // gets one note with a real suggestion (server/task-checkup.ts). A task
+  // that's fine again gets its note cleared.
   const staleCandidates = payload.workItems.inProgress
     .filter(w => w.type.toLowerCase() === 'task')
     .map(w => ({
       workItemId: Number(w.id),
       title: w.title,
+      originalEstimate: w.originalEstimate ?? null,
       remainingWork: w.remainingWork ?? null,
     }));
   scanStaleRemaining({ sprintName: sprint.name, candidates: staleCandidates });

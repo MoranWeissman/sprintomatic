@@ -16,6 +16,7 @@ import {
   reviewNotesAgainstBoard,
   clearedNotesLine,
   ensureStaleRemainingNudge,
+  clearStaleRemainingNudge,
 } from './helper-notes';
 
 function makeDb() {
@@ -213,7 +214,7 @@ describe('clearedNotesLine', () => {
 });
 
 describe('ensureStaleRemainingNudge — one note per task', () => {
-  const base = { workItemId: 100001, title: 'Example task', remainingWork: 3, daysSince: 4 };
+  const base = { workItemId: 100001, body: 'Nothing has happened on **Example task** (#100001) for 2 work days.' };
 
   it('a new sprint replaces the old sprint\'s copy of the note', () => {
     ensureStaleRemainingNudge({ ...base, sprintName: 'S1' });
@@ -233,5 +234,32 @@ describe('ensureStaleRemainingNudge — one note per task', () => {
     addNote('A note the user wrote about this task.', 100001);
     ensureStaleRemainingNudge({ ...base, sprintName: 'S1' });
     expect(listNotes(10).filter(n => n.workItemId === 100001)).toHaveLength(2);
+  });
+});
+
+describe('clearStaleRemainingNudge — the task is fine again', () => {
+  const base = { workItemId: 100001, body: 'Nothing has happened on **Example task** (#100001) for 2 work days.' };
+
+  it('clears the note and lets it come back later', () => {
+    ensureStaleRemainingNudge({ ...base, sprintName: 'S1' });
+    clearStaleRemainingNudge(100001);
+    expect(listNotes(10).filter(n => n.workItemId === 100001)).toHaveLength(0);
+    expect(ensureStaleRemainingNudge({ ...base, sprintName: 'S1' })).not.toBeNull();
+  });
+
+  it('clears an old-style note too', () => {
+    addNote('Old wording, update Remaining or move the task off your plate.', 100001);
+    clearStaleRemainingNudge(100001);
+    expect(listNotes(10).filter(n => n.workItemId === 100001)).toHaveLength(0);
+  });
+
+  it('leaves a kept note, notes the user wrote, and other tasks alone', () => {
+    const kept = ensureStaleRemainingNudge({ ...base, sprintName: 'S1' });
+    pinNote(kept!.id);
+    addNote('A note the user wrote about this task.', 100001);
+    ensureStaleRemainingNudge({ sprintName: 'S1', workItemId: 1100001, body: 'Another task.' });
+    clearStaleRemainingNudge(100001);
+    expect(listNotes(10).filter(n => n.workItemId === 100001)).toHaveLength(2);
+    expect(listNotes(10).filter(n => n.workItemId === 1100001)).toHaveLength(1);
   });
 });
