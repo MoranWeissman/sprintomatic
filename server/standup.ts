@@ -10,6 +10,7 @@
  */
 import { getDb } from './db';
 import { displayNameFor } from './display-name';
+import { getRunningStartsMap } from './timers';
 import { getWorkingDays } from './user-config';
 
 export interface StandupTask {
@@ -276,9 +277,12 @@ function entriesForWindow(
   );
   const progressByItem = latestProgressByItem(allItemIds, startISO, endISO);
 
+  // "Live" means a clock is really running. A blocked task keeps its session
+  // open with the clock stopped, so an open session alone isn't enough.
+  const running = getRunningStartsMap();
   const entries: StandupEntry[] = [];
   for (const bucket of buckets.values()) {
-    const hasOpen = bucket.sessions.some(r => r.ended_at == null);
+    const hasOpen = bucket.sessions.some(r => r.ended_at == null && running.has(r.work_item_id));
     const allClosed = bucket.sessions.every(r => r.ended_at != null);
     const state: StandupEntry['state'] = hasOpen ? 'live' : allClosed ? 'closed' : 'paused';
     const minutes = hasOpen ? null : minutesInWindow(bucket.sessions, startISO, endISO, nowMs);

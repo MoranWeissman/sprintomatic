@@ -1977,6 +1977,12 @@ html, body {
   color: var(--accent);
 }
 
+.r21-mark.is-stuck {
+  background: var(--blocked-bg);
+  border: 1px solid var(--blocked-line);
+  color: var(--blocked-ink);
+}
+
 .r21-mark.is-stale {
   background: var(--surface-3);
   border: 1px solid var(--line-soft);

@@ -888,7 +888,10 @@ function priorColumnLabel(yesterdayISO: string, todayISO: string): string {
  * State mark: text label for working/waiting/stale. Never glyph/color alone
  * (accessibility + functional-color rule).
  */
-function StateMark({ state }: { state?: 'working' | 'waiting' | 'stale' }) {
+function StateMark({ state, stuck }: { state?: 'working' | 'waiting' | 'stale'; stuck?: boolean }) {
+  // A blocked task keeps its session open (the blocker log lives there), but
+  // its clock is stopped. "Working" would say the opposite.
+  if (stuck) return <span className="r21-mark is-stuck">stuck</span>;
   if (state === 'waiting') {
     return <span className="r21-mark is-waiting">waiting for you</span>;
   }
@@ -975,7 +978,7 @@ function R21FocusGrid({
                         : 'Show as a panel'
                   }
                 >
-                  <StateMark state={w.activeSession?.state} />
+                  <StateMark state={w.activeSession?.state} stuck={boardStateClass(w.state) === 'blocked'} />
                   <span className="r21-splitchip-title">{w.title}</span>
                 </button>
               );
@@ -1065,6 +1068,7 @@ function FocusPanel({
 
   const storyDominant = story ? storyDominantState(story) : null;
   const taskIdStr = String(task.id);
+  const liveStuck = boardStateClass(task.state) === 'blocked';
 
   return (
     <div className="r21-focuspanel">
@@ -1080,7 +1084,7 @@ function FocusPanel({
       )}
 
       <div className="r21-focuspanel-mark">
-        <StateMark state={state} />
+        <StateMark state={state} stuck={liveStuck} />
       </div>
 
       {story ? (
@@ -1116,8 +1120,8 @@ function FocusPanel({
 
       <section className="r21-focal-current">
         <div className="r21-focal-current-head">
-          <span className="r21-focal-current-label">Currently running</span>
-          <span className="r21-live-pill">timer running</span>
+          <span className="r21-focal-current-label">{liveStuck ? 'Stuck' : 'Currently running'}</span>
+          {liveStuck ? <span className="r21-blocked-pill">clock stopped</span> : <span className="r21-live-pill">timer running</span>}
           {startedAt && (
             <span className="r21-since">
               started <span className="v">{startedAt}</span>
@@ -1194,7 +1198,7 @@ function FocusPanel({
                   >
                     <span className={`r21-focal-task-state state-${stateClass}`}>{t.state}</span>
                     <span className="r21-focal-task-title">{t.title}</span>
-                    {isLive && <span className="r21-focal-task-live">timer running</span>}
+                    {isLive && !liveStuck && <span className="r21-focal-task-live">timer running</span>}
                     <span className="r21-grow" />
                     <span className="r21-num is-compact">
                       <span className="cap">EST</span>
@@ -1264,7 +1268,7 @@ function FocusTaskDrill({
       <div className="r21-focal-story-meta">
         <span className={`r21-focal-task-state state-${stateClass}`}>{task.state}</span>
         <Mono className="r21-focal-story-id">#{task.id}</Mono>
-        {isLive && <span className="r21-live-pill">timer running</span>}
+        {isLive && !taskBlocked && <span className="r21-live-pill">timer running</span>}
       </div>
       <h1 className="r21-focal-title">
         <button type="button" onClick={() => onOpenItem(task.id)} title="Open task details">
