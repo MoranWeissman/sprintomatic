@@ -44,11 +44,13 @@ function adoDate(d: Date): string {
 }
 
 /**
- * The current sprint starts on the Monday of the week that holds "3 days
- * ago", so it's always a few days in. Two weeks, Monday to Friday.
+ * The current sprint starts on the Monday of the week that holds "4 days
+ * ago", so it's always a few days in: at least 4 work days have passed,
+ * enough for the quiet task below to have gone quiet. Two weeks, Monday to
+ * Friday.
  */
 export function demoSprintStart(now: Date): Date {
-  const back = dayFrom(now, -3);
+  const back = dayFrom(now, -4);
   const sinceMonday = (back.getDay() + 6) % 7;
   return dayFrom(back, -sinceMonday);
 }
@@ -155,8 +157,10 @@ const SEEDS: Seed[] = [
   { id: 100007, type: 'Task', title: 'Share links that run out after 30 days', state: 'Blocked', parent: 100006, sprint: 24, estimate: 3, remaining: 2, completed: 1, changed: 3 },
   { id: 100008, type: 'Task', title: 'Preview card for shared links', state: 'New', parent: 100006, sprint: 24, estimate: 2, remaining: 2, changed: 0 },
 
-  { id: 100009, type: 'User Story', title: 'Shopping list from a recipe', state: 'New', parent: 100001, sprint: 24, points: 1, effort: 5, changed: 0 },
-  { id: 100010, type: 'Task', title: 'Add up the same ingredients', state: 'New', parent: 100009, sprint: 24, estimate: 3, remaining: 3, changed: 0 },
+  { id: 100009, type: 'User Story', title: 'Shopping list from a recipe', state: 'Active', parent: 100001, sprint: 24, points: 1, effort: 5, changed: 0 },
+  // Gone quiet: started on day 0, timer left on overnight, nothing since.
+  // The quiet-task note (server/task-checkup.ts) picks it up.
+  { id: 100010, type: 'Task', title: 'Add up the same ingredients', state: 'Active', parent: 100009, sprint: 24, estimate: 4, remaining: 4, changed: 0 },
   { id: 100011, type: 'Task', title: 'Tick items off on the phone', state: 'New', parent: 100009, sprint: 24, estimate: 2, remaining: 2, changed: 0 },
 
   // Waiting in the backlog for a later sprint.
@@ -210,6 +214,10 @@ interface PastSession {
   day: number;
   from: [number, number];
   to: [number, number];
+  /** The session ended this many work days after it started (a timer left on). */
+  endsLater?: number;
+  /** When the timer's counted time ran out, if not at `to`. */
+  countedTo?: [number, number];
   summary: string;
   events: PastEvent[];
 }
@@ -290,6 +298,21 @@ const PAST: PastSession[] = [
       { type: 'progress', hour: 13, minute: 55, text: 'Clicking Save puts the recipe in the box. Next: a clear success message.', standup: 'Saving from the browser works. Next is the message that says it worked.' },
     ],
   },
+  {
+    workItemId: 100010,
+    day: 0,
+    from: [14, 0],
+    to: [9, 40],
+    endsLater: 1,
+    // What the timer really counts: 1h 10m of work, then 2h at most for the
+    // quiet stretch after it (server/timers.ts).
+    countedTo: [17, 10],
+    summary: 'Same ingredients add up when the units match.',
+    events: [
+      { type: 'focus', hour: 14, minute: 5, text: 'Adding up the same ingredients across recipes.' },
+      { type: 'progress', hour: 15, minute: 10, text: 'Same ingredients add up when the units match. Cups and grams are next.', standup: 'Started the shopping list. Same ingredients add up when the units match.' },
+    ],
+  },
 ];
 
 /**
@@ -312,12 +335,12 @@ export function seedDemoHistory(db: BetterSqlite3.Database, now = new Date()): v
     PAST.forEach((s, i) => {
       const id = `demo-session-${i + 1}`;
       const from = at(now, s.day, ...s.from);
-      const to = at(now, s.day, ...s.to);
+      const to = at(now, s.day + (s.endsLater ?? 0), ...s.to);
       addSession.run(id, s.workItemId, from, to, s.summary);
       for (const e of s.events) {
         addEvent.run(id, s.workItemId, e.type, e.text, at(now, s.day, e.hour, e.minute ?? 0), e.standup ?? null);
       }
-      addTime.run(s.workItemId, from, to);
+      addTime.run(s.workItemId, from, s.countedTo ? at(now, s.day, ...s.countedTo) : to);
     });
   })();
 }

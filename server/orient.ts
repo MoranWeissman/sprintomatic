@@ -45,7 +45,7 @@ import type {
   RepoLinkStoryInput,
 } from './repo-link-view';
 import { STALE_IDLE_MINUTES } from './session-activity';
-import { getPages } from './user-config';
+import { getPages, getWorkingDays } from './user-config';
 import {
   getLastEventTimestampMap,
   listActiveSessions,
@@ -413,16 +413,31 @@ function greetingFor(d: Date): string {
   return 'Good evening';
 }
 
-function sprintProgress(
+/**
+ * Where today sits in the sprint, counting work days only, so the greeting
+ * says the same "day 6 of 10" the Day page shows (src/lib/time.ts).
+ */
+export function sprintProgress(
   startISO: string,
   finishISO: string,
   now: Date,
+  workingDays: ReadonlySet<number> = getWorkingDays(),
 ): { dayOfSprint: number; totalDays: number; daysRemaining: number } {
   const start = new Date(startISO);
   const finish = new Date(finishISO);
-  const totalDays = Math.max(1, Math.round((finish.getTime() - start.getTime()) / MS_PER_DAY) + 1);
-  const raw = Math.floor((now.getTime() - start.getTime()) / MS_PER_DAY) + 1;
-  const dayOfSprint = Math.max(1, Math.min(totalDays, raw));
+  const calendarDays = Math.max(1, Math.round((finish.getTime() - start.getTime()) / MS_PER_DAY) + 1);
+  const todayIndex = Math.floor((now.getTime() - start.getTime()) / MS_PER_DAY);
+  let totalDays = 0;
+  let soFar = 0;
+  for (let i = 0; i < calendarDays; i++) {
+    const d = new Date(start);
+    d.setDate(d.getDate() + i);
+    if (!workingDays.has(d.getDay())) continue;
+    totalDays++;
+    if (i <= todayIndex) soFar++;
+  }
+  totalDays = Math.max(1, totalDays);
+  const dayOfSprint = Math.max(1, Math.min(totalDays, soFar));
   const daysRemaining = Math.max(0, totalDays - dayOfSprint);
   return { dayOfSprint, totalDays, daysRemaining };
 }

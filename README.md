@@ -20,6 +20,10 @@ sprintomatic sits between the chat and your Azure DevOps board.
   moves to blocked, with the reason written down.
 - **It tracks your time.** A clock runs while you work on a task. When you're
   done, it asks you to agree the hours before anything goes on the board.
+- **It notices what you forget.** A task with nothing done on it for two work
+  days, or a timer left on overnight, gets a short note with one suggestion.
+  Weekends and days off don't count, and a timer left running with nothing
+  happening counts 2 hours at most.
 - **It remembers.** Why a task got stuck, what you decided halfway, where you
   stopped yesterday. Tomorrow's chat picks up where today's ended.
 - **It shows your day on one screen.** A small dashboard in your browser shows

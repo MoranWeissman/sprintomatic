@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import Database from 'better-sqlite3';
 import { DemoAdoClient } from './demo-board';
 import { DEMO_ORG, demoIterations, demoPastWorkDays, seedDemoHistory } from './demo-data';
+import { taskCheckup } from './task-checkup';
 
 // A Sunday, so the sprint is a week in and the history has five work days.
 const NOW = new Date(2026, 9, 11, 10, 0);
@@ -91,20 +92,58 @@ describe('demo board', () => {
 });
 
 describe('demo history', () => {
-  it('fills an empty store once, on past work days', () => {
+  const store = () => {
     const db = new Database(':memory:');
     db.exec(`
       CREATE TABLE sessions (id TEXT PRIMARY KEY, work_item_id INTEGER, started_at TEXT, ended_at TEXT, client TEXT, summary TEXT);
       CREATE TABLE session_events (id INTEGER PRIMARY KEY, session_id TEXT, work_item_id INTEGER, type TEXT, text TEXT, created_at TEXT, standup_summary TEXT);
       CREATE TABLE time_entries (id INTEGER PRIMARY KEY, work_item_id INTEGER, started_at TEXT, ended_at TEXT, synced_to_ado INTEGER);
     `);
+    return db;
+  };
+
+  it('fills an empty store once, on past work days', () => {
+    const db = store();
     seedDemoHistory(db, NOW);
     seedDemoHistory(db, NOW);
     const n = (t: string) => (db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get() as { n: number }).n;
-    expect(n('sessions')).toBe(7);
-    expect(n('time_entries')).toBe(7);
+    expect(n('sessions')).toBe(8);
+    expect(n('time_entries')).toBe(8);
     expect(demoPastWorkDays(NOW).map(d => d.getDay())).toEqual([1, 2, 3, 4, 5]);
     const latest = db.prepare(`SELECT MAX(ended_at) AS t FROM sessions`).get() as { t: string };
     expect(new Date(latest.t) < NOW).toBe(true);
+  });
+
+  // The video and the README show this note, so it must be there whatever
+  // day the demo is opened.
+  it('has a quiet task with a timer left on overnight, on every day of the week', () => {
+    for (let day = 11; day <= 17; day++) {
+      const now = new Date(2026, 9, day, 10, 0);
+      const db = store();
+      seedDemoHistory(db, now);
+      const s = db.prepare(`SELECT id, started_at, ended_at FROM sessions WHERE work_item_id = 100010`).get() as {
+        id: string;
+        started_at: string;
+        ended_at: string;
+      };
+      const events = db.prepare(`SELECT created_at FROM session_events WHERE session_id = ?`).all(s.id) as { created_at: string }[];
+      const t = db.prepare(`SELECT started_at, ended_at FROM time_entries WHERE work_item_id = 100010`).get() as {
+        started_at: string;
+        ended_at: string;
+      };
+      const note = taskCheckup({
+        now,
+        workItemId: 100010,
+        title: 'Add up the same ingredients',
+        estimate: 4,
+        remaining: 4,
+        workedHours: (Date.parse(t.ended_at) - Date.parse(t.started_at)) / 3_600_000,
+        sessions: [{ start: new Date(s.started_at), end: new Date(s.ended_at), activity: events.map(e => new Date(e.created_at)), stuck: false }],
+        workingDays: new Set([1, 2, 3, 4, 5, now.getDay()]),
+        daysOff: new Set(),
+        usual: null,
+      });
+      expect(note, now.toDateString()).toMatch(/One timer stayed on from Mon 15:10 to Tue 09:40/);
+    }
   });
 });

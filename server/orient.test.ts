@@ -322,3 +322,29 @@ describe('plainCapacitySummary — days off clause', () => {
     expect(plainCapacitySummary(cap({ hasUrl: false, daysOff: 2 }))).toBeNull();
   });
 });
+
+import { sprintProgress } from './orient';
+
+describe('sprintProgress', () => {
+  const monFri = new Set([1, 2, 3, 4, 5]);
+  // Two weeks, Mon 2026-10-05 to Fri 2026-10-16: 10 work days.
+  const start = '2026-10-05T00:00:00Z';
+  const finish = '2026-10-16T00:00:00Z';
+
+  it('counts work days only, like the Day page', () => {
+    expect(sprintProgress(start, finish, new Date(2026, 9, 12, 10), monFri)).toEqual({ dayOfSprint: 6, totalDays: 10, daysRemaining: 4 });
+  });
+
+  it('a weekend day stays on the last work day before it', () => {
+    expect(sprintProgress(start, finish, new Date(2026, 9, 11, 10), monFri).dayOfSprint).toBe(5);
+  });
+
+  it('a Sun-Thu week counts its own days', () => {
+    const sunThu = new Set([0, 1, 2, 3, 4]);
+    expect(sprintProgress('2026-10-04T00:00:00Z', '2026-10-15T00:00:00Z', new Date(2026, 9, 4, 10), sunThu)).toEqual({
+      dayOfSprint: 1,
+      totalDays: 10,
+      daysRemaining: 9,
+    });
+  });
+});

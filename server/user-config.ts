@@ -9,6 +9,7 @@
  * the settings screen changes them. Every knob is listed in
  * docs/configuration.md.
  */
+import { isDemo } from './data-dir';
 import { getSetting } from './timers';
 
 export const DEFAULT_WORKING_DAYS: ReadonlySet<number> = new Set([1, 2, 3, 4, 5]); // Mon-Fri
@@ -45,6 +46,14 @@ function configNumber(envKey: string, settingKey: string, fallback: number, ok: 
  * rather than leaving a week with no workdays in it.
  */
 export function getWorkingDays(): Set<number> {
+  const days = readWorkingDays();
+  // The demo always counts today as a work day, so trying it on a weekend
+  // doesn't open on "today is not one of your working days".
+  if (isDemo()) days.add(new Date().getDay());
+  return days;
+}
+
+function readWorkingDays(): Set<number> {
   const raw = configValue('SPRINTOMATIC_WORKING_DAYS', 'working_days');
   if (raw == null) return new Set(DEFAULT_WORKING_DAYS);
   const days = raw
