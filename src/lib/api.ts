@@ -240,17 +240,6 @@ export interface ApiStandupBlock {
   today: ApiStandupEntry[];
 }
 
-export interface ApiDiscovery {
-  activeFeature: { id: number; displayName: string; folderPath: string } | null;
-  /** Managed features other than the active one — the active feature has its
-   *  own "On now" spot on the card. */
-  managed: { id: number; displayName: string }[];
-  /** Total managed features (active one included). Optional: a dev server
-   *  started before this field existed still serves the old payload shape. */
-  managedCount?: number;
-  hasWorkspace: boolean;
-}
-
 export type DndStatus = 'in-progress' | 'not-started' | 'closed';
 
 export interface ApiFeatureListEntry {
@@ -455,7 +444,6 @@ export interface ApiPayload {
   /** Live sessions on items outside the current sprint (Discovery & Design work). Optional. */
   liveOutsideSprint?: ApiWorkItem[];
   /** Discovery & Design rail card data. Optional (older payloads omit it). */
-  discovery?: ApiDiscovery;
   fetchedAt: string;
 }
 

@@ -51,7 +51,6 @@ import {
 import { getSHCreatedIdSet } from './sh-created';
 import { isSprintLevel } from './iteration-paths';
 import { getPages, getWorkingDays } from './user-config';
-import { getManagedFeatureIds, getActiveFeature, getWorkspaces, getFeatureKind, type ActiveFeature, type FeatureKind } from './workspace';
 
 export type { SessionEvent, SessionEventType, Session } from './sessions';
 
@@ -248,8 +247,6 @@ export interface DashboardPayload {
    *  feature being worked in Discovery & Design). Surfaced so Focus shows them
    *  beside sprint work. NOT part of sprint capacity/counts/grouping. */
   liveOutsideSprint: DashboardWorkItem[];
-  /** Discovery & Design rail card: active feature, managed features, workspace flag. */
-  discovery: DiscoveryBlock;
   fetchedAt: string;
 }
 
@@ -292,54 +289,6 @@ export interface CarryForwardSummary {
   /** Where they came from, ready to read after "N unfinished tasks from ":
    *  "26_16, last sprint". A bare sprint code says nothing on its own. */
   fromLabel: string;
-}
-
-export interface DiscoveryBlock {
-  activeFeature: { id: number; displayName: string; folderPath: string } | null;
-  /** Managed features OTHER than the active one, grouping features dropped.
-   *  The card shows the active feature in its own "On now" block, so listing
-   *  it here too would put the same feature on the card twice. */
-  managed: { id: number; displayName: string }[];
-  /** Managed features that belong on this card (active one included, grouping
-   *  features excluded) — feeds the "managing N" label on the card head. */
-  managedCount: number;
-  hasWorkspace: boolean;
-}
-
-/** Pure: the "Discovery & Design" rail-card payload. Active feature + the
- *  other managed features (names before numbers) + whether a workspace is
- *  set. Two filters shape the list:
- *  - a 'grouping' feature is board-only — it has no discovery or design, so
- *    it never appears on a Discovery & Design surface, this card included;
- *  - the active feature is kept out of `managed` — it already has its own
- *    "On now" spot on the card.
- *  `managedCount` counts what the card stands for: every managed feature
- *  that isn't grouping, the active one included. */
-export function buildDiscoveryBlock(args: {
-  activeFeature: ActiveFeature | null;
-  managedIds: number[];
-  fetched: { id: number; title: string }[];
-  hasWorkspace: boolean;
-  /** The feature's kind, or null when the user hasn't said (see getFeatureKind). */
-  kindOf: (id: number) => FeatureKind | null;
-}): DiscoveryBlock {
-  const { activeFeature, managedIds, fetched, hasWorkspace, kindOf } = args;
-  const titleById = new Map(fetched.map(w => [w.id, w.title]));
-  const dndIds = managedIds.filter(id => kindOf(id) !== 'grouping');
-  const managed = dndIds
-    .filter(id => id !== activeFeature?.id)
-    .map(id => {
-      const title = titleById.get(id);
-      return { id, displayName: displayNameFor(id, title) };
-    });
-  return {
-    activeFeature: activeFeature
-      ? { id: activeFeature.id, displayName: displayNameFor(activeFeature.id, activeFeature.title), folderPath: activeFeature.folderPath }
-      : null,
-    managed,
-    managedCount: dndIds.length,
-    hasWorkspace,
-  };
 }
 
 /**
@@ -598,7 +547,6 @@ export async function buildDashboard(opts: BuildOptions = {}): Promise<Dashboard
         firstMove: null,
       },
       liveOutsideSprint: [],
-      discovery: { activeFeature: null, managed: [], managedCount: 0, hasWorkspace: getWorkspaces().paths.length > 0 },
       fetchedAt: new Date().toISOString(),
     };
   }
@@ -696,22 +644,6 @@ export async function buildDashboard(opts: BuildOptions = {}): Promise<Dashboard
   } catch {
     liveOutsideSprint = [];
   }
-
-  // Discovery & Design card. Managed-feature titles fetched best-effort.
-  let discovery: DiscoveryBlock = { activeFeature: null, managed: [], managedCount: 0, hasWorkspace: false };
-  try {
-    const activeFeature = getActiveFeature();
-    const managedIds = getManagedFeatureIds();
-    const hasWorkspace = getWorkspaces().paths.length > 0;
-    let fetchedForTitles: { id: number; title: string }[] = [];
-    if (managedIds.length > 0) {
-      fetchedForTitles = await getWorkItemsWithParents(managedIds, { errorPolicy: 'omit' });
-    }
-    discovery = buildDiscoveryBlock({ activeFeature, managedIds, fetched: fetchedForTitles, hasWorkspace, kindOf: getFeatureKind });
-  } catch {
-    discovery = { activeFeature: null, managed: [], managedCount: 0, hasWorkspace: getWorkspaces().paths.length > 0 };
-  }
-
 
   // Outlook capacity is best-effort: never break the dashboard if the calendar
   // fetch hiccups. computeCapacity catches its own fetch errors and surfaces
@@ -865,7 +797,6 @@ export async function buildDashboard(opts: BuildOptions = {}): Promise<Dashboard
     needsYou,
     wrap,
     liveOutsideSprint,
-    discovery,
     fetchedAt: new Date().toISOString(),
   };
 }

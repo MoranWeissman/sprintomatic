@@ -6,7 +6,6 @@ import {
   unpinHelperNote,
   nameFromEmail,
   useDashboardData,
-  type ApiDiscovery,
   type ApiHelperNote,
   type ApiHelperNotes,
   type ApiNeedsYou,
@@ -1464,11 +1463,6 @@ function DailyView({
         <CarryForwardBanner info={carryForward} onOpenItem={onOpenItem} onDone={onRefresh} />
       )}
 
-      {/* Discovery & Design — the feature you're thinking through, its folder,
-          and the features you're driving. In the main column (not the rail the user
-          keeps closed) so it's always in view. */}
-      <RailDiscovery discovery={data.discovery} />
-
       {stories.length === 0 ? (
         <p className="r21-daily-empty">No stories in this sprint yet.</p>
       ) : (
@@ -1884,51 +1878,6 @@ function RailNeedsYou({ needsYou, now }: { needsYou: ApiNeedsYou | undefined; no
           </li>
         ))}
       </ul>
-    </section>
-  );
-}
-
-/** Last path segment of a folder path, for compact display. */
-function folderBase(p: string): string {
-  const parts = p.split('/').filter(Boolean);
-  return parts[parts.length - 1] ?? p;
-}
-
-function RailDiscovery({ discovery }: { discovery: ApiDiscovery | undefined }) {
-  // Version-skew guard: old payloads omit this → render nothing.
-  if (!discovery) return null;
-  // Only show once the user has a Discovery & Design workspace set.
-  if (!discovery.hasWorkspace) return null;
-  const { activeFeature, managed } = discovery;
-  // Older server payloads have no managedCount — fall back to the list length.
-  // Belt-and-suspenders: an old server also still lists the active feature in
-  // `managed`, so drop it here too rather than show the same feature twice.
-  const otherManaged = managed.filter(m => m.id !== activeFeature?.id);
-  const managedCount = discovery.managedCount ?? managed.length;
-  return (
-    <section className="r22-rail-card r22-rail-discovery" aria-label="Discovery and Design">
-      <div className="r22-rail-card-head">
-        <span className="r22-rail-card-label">Discovery &amp; Design</span>
-        {managedCount > 0 && (
-          <span className="r22-rail-card-meta">managing {managedCount}</span>
-        )}
-      </div>
-      {activeFeature ? (
-        <div className="disc-active">
-          <span className="disc-on">On now</span>
-          <span className="disc-title">{plainTitle(activeFeature.displayName)}</span>
-          <span className="disc-folder">📁 {folderBase(activeFeature.folderPath)}</span>
-        </div>
-      ) : (
-        <p className="empty">No feature open yet — name one in a chat to start.</p>
-      )}
-      {otherManaged.length > 0 && (
-        <ul className="disc-managed">
-          {otherManaged.map(m => (
-            <li key={m.id} className="disc-managed-row">{plainTitle(m.displayName)}</li>
-          ))}
-        </ul>
-      )}
     </section>
   );
 }
