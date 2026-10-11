@@ -13,6 +13,7 @@ import { listDaysOff } from './days-off';
 import { taskCheckup, type CheckupSession } from './task-checkup';
 import { getLocalLoggedMap } from './timers';
 import { getWorkingDays } from './user-config';
+import { getUsualHours } from './work-hours';
 
 const CAPACITY_NUDGE_KEY = 'capacity_nudge_state';
 const STALE_REMAINING_NUDGE_PREFIX = 'stale_remaining_nudge';
@@ -127,10 +128,6 @@ export function ensureCapacityNudge(opts: {
   thresholdHours?: number;
 }): HelperNote | null {
   const threshold = opts.thresholdHours ?? 8;
-  if (Math.abs(opts.difference) < threshold) return null;
-  const direction: 'over' | 'under' = opts.difference > 0 ? 'over' : 'under';
-  const gap = Math.round(Math.abs(opts.difference));
-
   const db = getDb();
   const row = db.prepare(`SELECT value FROM settings WHERE key = ?`).get(CAPACITY_NUDGE_KEY) as
     | { value: string }
@@ -144,6 +141,19 @@ export function ensureCapacityNudge(opts: {
       /* corrupt state — treat as no prior nudge */
     }
   }
+
+  if (Math.abs(opts.difference) < threshold) {
+    // The hours are fine now (or it's a new sprint that fits). The old note
+    // is no longer true, so it goes, unless the user kept it.
+    if (prev?.noteId != null) {
+      db.prepare(`UPDATE helper_notes SET dismissed_at = ? WHERE id = ? AND dismissed_at IS NULL AND pinned_at IS NULL`)
+        .run(new Date().toISOString(), prev.noteId);
+    }
+    if (row) db.prepare(`DELETE FROM settings WHERE key = ?`).run(CAPACITY_NUDGE_KEY);
+    return null;
+  }
+  const direction: 'over' | 'under' = opts.difference > 0 ? 'over' : 'under';
+  const gap = Math.round(Math.abs(opts.difference));
 
   if (prev && prev.sprintName === opts.sprintName && prev.direction === direction) {
     // Same sprint, same direction. Only act if the numbers have drifted enough
@@ -211,9 +221,27 @@ export function scanStaleRemaining(opts: {
   candidates: StaleRemainingCandidate[];
   now?: Date;
 }): HelperNote[] {
-  if (opts.candidates.length === 0) return [];
   const now = opts.now ?? new Date();
   const db = getDb();
+
+  // A task that's no longer going in this sprint (moved back, moved out,
+  // finished) is never checked again, so its note would stay forever.
+  // Clear those first.
+  const going = new Set(opts.candidates.map(c => c.workItemId));
+  const noted = new Set<number>();
+  for (const r of db
+    .prepare(`SELECT key FROM settings WHERE substr(key, 1, ?) = ?`)
+    .all(STALE_REMAINING_NUDGE_PREFIX.length + 1, `${STALE_REMAINING_NUDGE_PREFIX}_`) as { key: string }[]) {
+    noted.add(Number(r.key.slice(r.key.lastIndexOf('_') + 1)));
+  }
+  for (const r of db
+    .prepare(`SELECT work_item_id FROM helper_notes WHERE dismissed_at IS NULL AND work_item_id IS NOT NULL AND body LIKE ?`)
+    .all(`%${OLD_STALE_REMAINING_TAIL}`) as { work_item_id: number }[]) {
+    noted.add(r.work_item_id);
+  }
+  for (const id of noted) if (!going.has(id)) clearStaleRemainingNudge(id);
+
+  if (opts.candidates.length === 0) return [];
   const ids = opts.candidates.map(c => c.workItemId);
   const placeholders = ids.map(() => '?').join(',');
 
@@ -247,6 +275,7 @@ export function scanStaleRemaining(opts: {
   const logged = getLocalLoggedMap();
   const workingDays = getWorkingDays();
   const daysOff = new Set(listDaysOff());
+  const usual = getUsualHours(now);
 
   const created: HelperNote[] = [];
   for (const c of opts.candidates) {
@@ -260,6 +289,7 @@ export function scanStaleRemaining(opts: {
       sessions: sessionsByItem.get(c.workItemId) ?? [],
       workingDays,
       daysOff,
+      usual,
     });
     if (body) {
       const note = ensureStaleRemainingNudge({ sprintName: opts.sprintName, workItemId: c.workItemId, body });

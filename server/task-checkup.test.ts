@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import type { UsualHours } from './work-hours';
 import { hoursText, quietWorkDays, taskCheckup, type CheckupInput, type CheckupSession } from './task-checkup';
 
 // Sun–Thu work week, Fri + Sat off. Local dates on purpose: the check counts
@@ -21,6 +22,7 @@ function input(over: Partial<CheckupInput>): CheckupInput {
     sessions: [session(at(6, 9), at(6, 11))], // Tue the week before
     workingDays: SUN_THU,
     daysOff: new Set(),
+    usual: null,
     ...over,
   };
 }
@@ -86,6 +88,12 @@ describe('taskCheckup', () => {
     const text = taskCheckup(input({ sessions: [session(at(6, 23, 43), at(7, 7, 45))], now: at(12, 10) }));
     expect(text).toContain('One timer stayed on from Tue 23:43 to Wed 07:45');
     expect(text).toContain('only 2h of that counts');
+  });
+
+  it('a timer left on outside usual hours counts nothing', () => {
+    const usual: UsualHours = { hours: new Set([9, 10, 11, 12, 13, 14, 15, 16]), workingDays: SUN_THU, daysOff: new Set() };
+    const text = taskCheckup(input({ usual, sessions: [session(at(6, 23, 43), at(7, 7, 45))], now: at(12, 10) }));
+    expect(text).toContain("That's outside your usual hours (09:00–17:00), so none of it counts.");
   });
 
   it('counts the quiet days in work days', () => {

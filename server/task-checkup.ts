@@ -16,6 +16,7 @@
 import { toIsoDate } from './days-off';
 import { displayNameFor } from './display-name';
 import { STALE_IDLE_MINUTES } from './session-activity';
+import { quietCountMs, usualHoursText, type UsualHours } from './work-hours';
 
 /** How many full work days of nothing before the note is worth writing. */
 export const QUIET_WORK_DAYS = 2;
@@ -53,6 +54,8 @@ export interface CheckupInput {
   workingDays: ReadonlySet<number>;
   /** Confirmed days off, as yyyy-mm-dd. */
   daysOff: ReadonlySet<string>;
+  /** The user's usual hours (server/work-hours.ts), or null when not known yet. */
+  usual: UsualHours | null;
 }
 
 /** Hours as people say them: 45m, 2h, 2h 30m. Rounded to 5 minutes. */
@@ -167,9 +170,15 @@ export function taskCheckup(input: CheckupInput): string | null {
   }
 
   const stretch = longestForgottenStretch(sessions, now);
-  const timer = stretch
-    ? ` One timer stayed on from ${whenText(stretch.from)} to ${whenText(stretch.to)} with nothing logged, so only ${hoursText(MAX_QUIET_MS / 3_600_000)} of that counts.`
-    : '';
+  let timer = '';
+  if (stretch) {
+    const counted = quietCountMs(stretch.from.getTime(), stretch.to.getTime(), MAX_QUIET_MS, input.usual);
+    const left = ` One timer stayed on from ${whenText(stretch.from)} to ${whenText(stretch.to)} with nothing logged`;
+    timer =
+      input.usual && counted === 0
+        ? `${left}. That's outside your usual hours (${usualHoursText(input.usual.hours)}), so none of it counts.`
+        : `${left}, so only ${hoursText(counted / 3_600_000)} of that counts.`;
+  }
 
   return `${since}. ${hours}${timer}`;
 }

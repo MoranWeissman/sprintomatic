@@ -7,6 +7,7 @@
  */
 import { getDb } from './db';
 import { STALE_IDLE_MINUTES } from './session-activity';
+import { getUsualHours, quietCountMs, type UsualHours } from './work-hours';
 
 /** The longest quiet stretch a timer counts in full. Past this, the chat went
  * quiet (same line orient uses), so the rest of the stretch is not counted. */
@@ -102,16 +103,27 @@ export function pauseTimer(workItemId: number): TimeEntryRow | null {
 
 /**
  * Time between start and end, where any quiet stretch (no logged activity in
- * between) counts as {@link MAX_QUIET_MS} at most. Pure.
+ * between) counts as {@link MAX_QUIET_MS} at most. When the user's usual hours
+ * are known (server/work-hours.ts), a quiet stretch past that counts only its
+ * part inside those hours, so a timer left on overnight counts nothing. Pure.
  *
  * Why: a session opened on 1 day and forgotten until 5 days later used to
  * count all 5 days. Every warning about it needs someone to answer; this does
  * not. The cost: real work done silently for more than 2 hours counts short.
  */
-export function countedMs(startMs: number, activityMs: number[], endMs: number, maxQuietMs = MAX_QUIET_MS): number {
+export function countedMs(
+  startMs: number,
+  activityMs: number[],
+  endMs: number,
+  maxQuietMs = MAX_QUIET_MS,
+  usual: UsualHours | null = null,
+): number {
   const points = [startMs, ...activityMs.filter(t => t > startMs && t < endMs).sort((a, b) => a - b), endMs];
   let total = 0;
-  for (let i = 1; i < points.length; i++) total += Math.min(Math.max(0, points[i] - points[i - 1]), maxQuietMs);
+  for (let i = 1; i < points.length; i++) {
+    const gap = Math.max(0, points[i] - points[i - 1]);
+    total += gap <= maxQuietMs ? gap : quietCountMs(points[i - 1], points[i], maxQuietMs, usual);
+  }
   return total;
 }
 
@@ -129,7 +141,7 @@ function activitySince(workItemId: number, startedAt: string): number[] {
 function entryMs(e: { work_item_id: number; started_at: string; ended_at: string | null }, now: number): number {
   const start = new Date(e.started_at).getTime();
   if (e.ended_at) return Math.max(0, new Date(e.ended_at).getTime() - start);
-  return countedMs(start, activitySince(e.work_item_id, e.started_at), now);
+  return countedMs(start, activitySince(e.work_item_id, e.started_at), now, MAX_QUIET_MS, getUsualHours());
 }
 
 function entrySeconds(e: { work_item_id: number; started_at: string; ended_at: string | null }, now: number): number {

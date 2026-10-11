@@ -26,6 +26,7 @@ const OTHER_TASK_ID = 100002;
 function makeDb() {
   const db = new Database(':memory:');
   db.exec(`
+    CREATE TABLE sessions ( id TEXT PRIMARY KEY, work_item_id INTEGER, started_at TEXT NOT NULL );
     CREATE TABLE time_entries (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
       work_item_id  INTEGER NOT NULL,

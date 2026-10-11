@@ -17,6 +17,7 @@ import {
   clearedNotesLine,
   ensureStaleRemainingNudge,
   clearStaleRemainingNudge,
+  scanStaleRemaining,
 } from './helper-notes';
 
 function makeDb() {
@@ -78,6 +79,19 @@ describe('pinNote / unpinNote', () => {
 });
 
 describe('ensureCapacityNudge — refresh behaviour', () => {
+  it('takes the note back once the hours are fine again', () => {
+    ensureCapacityNudge({ sprintName: '26_13', difference: 11, availableHours: 33, plannedHours: 44 });
+    expect(ensureCapacityNudge({ sprintName: '26_14', difference: 2, availableHours: 40, plannedHours: 42 })).toBeNull();
+    expect(listNotes()).toHaveLength(0);
+  });
+
+  it('a kept capacity note stays even when the hours are fine', () => {
+    const note = ensureCapacityNudge({ sprintName: '26_13', difference: 11, availableHours: 33, plannedHours: 44 });
+    pinNote(note!.id);
+    ensureCapacityNudge({ sprintName: '26_13', difference: 2, availableHours: 40, plannedHours: 42 });
+    expect(listNotes()).toHaveLength(1);
+  });
+
   it('fires once when the gap clears the threshold', () => {
     const note = ensureCapacityNudge({ sprintName: '26_13', difference: -60, availableHours: 73, plannedHours: 13 });
     expect(note).not.toBeNull();
@@ -261,5 +275,14 @@ describe('clearStaleRemainingNudge — the task is fine again', () => {
     clearStaleRemainingNudge(100001);
     expect(listNotes(10).filter(n => n.workItemId === 100001)).toHaveLength(2);
     expect(listNotes(10).filter(n => n.workItemId === 1100001)).toHaveLength(1);
+  });
+});
+
+describe('scanStaleRemaining — a task that left the sprint', () => {
+  it('clears the note of a task that is no longer going', () => {
+    ensureStaleRemainingNudge({ sprintName: 'S1', workItemId: 100001, body: 'A quiet task.' });
+    addNote('**Example task** (#100002) has been going for 3 days — update Remaining or move the task off your plate.', 100002);
+    scanStaleRemaining({ sprintName: 'S1', candidates: [] });
+    expect(listNotes(10)).toHaveLength(0);
   });
 });
