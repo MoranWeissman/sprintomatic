@@ -227,6 +227,9 @@ function DashboardLive({
   const panelTasks = panelIds.map(id => liveItems.find(w => w.id === id)).filter(Boolean) as ApiWorkItem[];
   // Backwards-compatible single-task focal view for isFocus check.
   const focalTask = panelTasks[0] ?? null;
+  // The rail names the task whose clock is really running. A blocked task
+  // keeps its session open, but its clock is stopped.
+  const timerTask = liveItems.find(w => boardStateClass(w.state) !== 'blocked') ?? null;
   // Generalized story resolver: given a task, find its parent story (if any).
   const storyFor = (task: ApiWorkItem | null) => {
     if (!task) return null;
@@ -369,8 +372,8 @@ function DashboardLive({
               standup={data.standup}
               today={today}
               totalDays={workDays.total}
-              live={liveItems.length > 0}
-              focalTitle={focalTask?.title}
+              live={!!timerTask}
+              focalTitle={timerTask?.title}
               onRefresh={onRefresh}
               railCollapsed={railCollapsed}
               onToggleRailCollapsed={() => setRailCollapsed(v => !v)}
@@ -1931,7 +1934,7 @@ function DailyStoryCard({
 }) {
   const sp = story.storyPoints != null ? `${fmtNum(story.storyPoints)}d` : '—';
   const eff = story.effort != null ? `${fmtNum(story.effort)}h` : '—';
-  const taskCount = story.counts.inProgress + story.counts.upNext + story.counts.done;
+  const taskCount = story.counts.inProgress + story.counts.upNext + story.counts.blocked + story.counts.done;
   const dominant = storyDominantState(story);
 
   return (
@@ -1987,6 +1990,9 @@ function DailyStoryCard({
           )}
           {story.counts.upNext > 0 && (
             <span className="c-waiting"><span className="dot" /> {story.counts.upNext} waiting</span>
+          )}
+          {story.counts.blocked > 0 && (
+            <span className="c-stuck"><span className="dot" /> {story.counts.blocked} stuck</span>
           )}
           {story.counts.done > 0 && (
             <span className="c-done"><span className="dot" /> {story.counts.done} done</span>
@@ -2087,7 +2093,8 @@ function storyDominantState(s: ApiUserStoryGroup): StoryState {
   if (ownState === 'going') return 'going';
   // Otherwise fall back to child task counts.
   if (s.counts.inProgress > 0) return 'going';
-  if (s.counts.done > 0 && s.counts.upNext === 0) return 'done';
+  if (s.counts.done > 0 && s.counts.upNext === 0 && s.counts.blocked === 0) return 'done';
+  if (s.counts.blocked > 0) return 'blocked';
   if (s.counts.upNext > 0) return 'waiting';
   return 'empty';
 }

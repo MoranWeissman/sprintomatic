@@ -310,11 +310,13 @@ export async function mirrorSprintSummary(): Promise<{
     } else {
       for (const g of payload.userStories) {
         const counts = g.counts;
-        const total = counts.inProgress + counts.upNext + counts.done;
+        // Older saved sprints have no blocked count.
+        const blocked = counts.blocked ?? 0;
+        const total = counts.inProgress + counts.upNext + blocked + counts.done;
         const countNote =
           total === 0
             ? ''
-            : ` — ${counts.done}/${total} tasks done${counts.inProgress ? `, ${counts.inProgress} going` : ''}${counts.upNext ? `, ${counts.upNext} waiting` : ''}`;
+            : ` — ${counts.done}/${total} tasks done${counts.inProgress ? `, ${counts.inProgress} going` : ''}${counts.upNext ? `, ${counts.upNext} waiting` : ''}${blocked ? `, ${blocked} stuck` : ''}`;
         lines.push(`- ${displayNameFor(g.id, g.title)} · ${g.state}${countNote}`);
       }
     }

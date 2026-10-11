@@ -40,7 +40,7 @@ import {
   type SessionEvent,
 } from './sessions';
 import { sessionActivityState, type SessionActivityState } from './session-activity';
-import { isActiveState, isDoneState, isWaitingState } from './states';
+import { isActiveState, isBlockedState, isDoneState, isWaitingState } from './states';
 import { buildNeedsYou, RECENTLY_FINISHED_HOURS, type NeedsYouBlock } from './needs-you';
 import { buildWrap, todayActivityRows, isWorkingDayFor, type WrapBlock } from './wrap';
 import {
@@ -154,7 +154,7 @@ export interface UserStoryGroup {
   completedHours: number;
   remainingHours: number;
   /** Counts for quick glance. */
-  counts: { inProgress: number; upNext: number; done: number };
+  counts: { inProgress: number; upNext: number; blocked: number; done: number };
   /**
    * Newest-first session events rolled up across the story's tasks. Capped at
    * 5 — full history is on individual tasks.
@@ -945,7 +945,9 @@ export function groupByParent(rawItems: WorkItem[], projected: DashboardWorkItem
     );
     const counts = {
       inProgress: tasks.filter(t => isActiveState(t.state)).length,
-      upNext: tasks.filter(t => !isActiveState(t.state) && !isDoneState(t.state)).length,
+      upNext: tasks.filter(t => !isActiveState(t.state) && !isDoneState(t.state) && !isBlockedState(t.state)).length,
+      // Blocked tasks get their own count, so a stuck story reads stuck, not "waiting".
+      blocked: tasks.filter(t => isBlockedState(t.state)).length,
       done: tasks.filter(t => isDoneState(t.state)).length,
     };
     // Session + activity also reflect work logged on the story itself (the

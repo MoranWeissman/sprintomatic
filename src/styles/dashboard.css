@@ -2891,6 +2891,8 @@ html, body {
 .r21-daily-counts .c-going .dot { background: var(--st-going); box-shadow: 0 0 0 3px var(--st-going-bg); }
 .r21-daily-counts .c-waiting { color: var(--st-waiting); }
 .r21-daily-counts .c-waiting .dot { background: var(--st-waiting); }
+.r21-daily-counts .c-stuck { color: var(--blocked-ink); }
+.r21-daily-counts .c-stuck .dot { background: var(--blocked-ink); }
 .r21-daily-counts .c-done { color: var(--st-done); }
 .r21-daily-counts .c-done .dot { background: var(--st-done); }
 .r21-daily-counts .c-empty { color: var(--ink-4); font-style: italic; }

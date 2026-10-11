@@ -297,7 +297,7 @@ export async function buildCockpitPayload(): Promise<CockpitPayload> {
           }
         : undefined,
       doneTaskCount: g.counts.done,
-      totalTaskCount: g.counts.inProgress + g.counts.upNext + g.counts.done,
+      totalTaskCount: g.counts.inProgress + g.counts.upNext + g.counts.blocked + g.counts.done,
       openTasks,
     });
   }

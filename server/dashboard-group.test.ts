@@ -80,7 +80,13 @@ describe('groupByParent — stories vs tasks vs features', () => {
     const groups = groupByParent(items, proj);
     const g = groups[0];
     expect(g.tasks.map(t => t.id)).toEqual(['300']); // only the task — not the story (#200) itself
-    expect(g.counts).toEqual({ inProgress: 1, upNext: 0, done: 0 });
+    expect(g.counts).toEqual({ inProgress: 1, upNext: 0, blocked: 0, done: 0 });
+  });
+
+  it('counts a blocked task as stuck, not as waiting', () => {
+    const stuck = raw({ ...task, id: 301, title: 'Wait for the card design', state: 'Blocked' });
+    const groups = groupByParent([story, task, stuck], [...proj, projected(301, 'Task', 'Blocked')]);
+    expect(groups[0].counts).toEqual({ inProgress: 1, upNext: 0, blocked: 1, done: 0 });
   });
 
   it('marks the story live when the session is on the story itself, not a child task', () => {

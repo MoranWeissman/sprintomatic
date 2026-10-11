@@ -188,7 +188,7 @@ export interface ApiUserStoryGroup {
   totalEstimateHours: number;
   completedHours: number;
   remainingHours: number;
-  counts: { inProgress: number; upNext: number; done: number };
+  counts: { inProgress: number; upNext: number; blocked: number; done: number };
   /** Newest-first session events rolled up across child tasks. Capped at 5. */
   recentActivity: ApiSessionEvent[];
   /** True if any child task has a live Claude Code session right now. */
