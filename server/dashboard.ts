@@ -267,6 +267,8 @@ export interface TaskMetaEntry {
 export interface CarryForwardTask {
   id: number;
   title: string;
+  /** Hours left on the board. Null when nobody filled it in. */
+  remainingHours: number | null;
 }
 
 export interface CarryForwardStoryGroup {
@@ -276,6 +278,8 @@ export interface CarryForwardStoryGroup {
    *  story's title couldn't be read, and is null when there is no story. */
   storyDisplayName: string | null;
   tasks: CarryForwardTask[];
+  /** Hours left across the tasks that have a number. */
+  remainingHours: number;
 }
 
 export interface CarryForwardSummary {
@@ -290,6 +294,11 @@ export interface CarryForwardSummary {
   /** Where they came from, ready to read after "N unfinished tasks from ":
    *  "26_16, last sprint". A bare sprint code says nothing on its own. */
   fromLabel: string;
+  /** Hours left across every task that has a number, so the user sees how
+   *  much they are pulling in before they pull it. */
+  remainingHours: number;
+  /** How many of the tasks have no hours left filled in. */
+  noHoursCount: number;
 }
 
 /**
@@ -377,11 +386,14 @@ export function summarizeCarryForward(
         storyDisplayName:
           storyId == null ? null : displayNameFor(storyId, title),
         tasks: [],
+        remainingHours: 0,
       };
       byStory.set(storyId, group);
       groups.push(group);
     }
-    group.tasks.push({ id: t.id, title: t.title });
+    const remainingHours = t.remainingWork ?? null;
+    group.tasks.push({ id: t.id, title: t.title, remainingHours });
+    group.remainingHours += remainingHours ?? 0;
   }
 
   return {
@@ -389,6 +401,8 @@ export function summarizeCarryForward(
     groups,
     count: stranded.length,
     fromLabel: carryForwardFromLabel(stranded.map(t => t.iterationPath), pastSprintPaths),
+    remainingHours: groups.reduce((sum, g) => sum + g.remainingHours, 0),
+    noHoursCount: stranded.filter(t => t.remainingWork == null).length,
   };
 }
 

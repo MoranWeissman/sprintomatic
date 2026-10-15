@@ -427,11 +427,17 @@ export interface ApiPayload {
       storyId: number | null;
       /** Ready to show. Null when the task hangs under no story. */
       storyDisplayName: string | null;
-      tasks: { id: number; title: string }[];
+      /** remainingHours is null when nobody filled it in. */
+      tasks: { id: number; title: string; remainingHours: number | null }[];
+      remainingHours: number;
     }[];
     count: number;
     /** Reads straight after "N unfinished tasks from ": "26_16, last sprint". */
     fromLabel: string;
+    /** Hours left across the tasks that have a number. */
+    remainingHours: number;
+    /** How many tasks have no hours left filled in. */
+    noHoursCount: number;
   } | null;
   needsYou: ApiNeedsYou;
   /** End-of-day wrap facts; absent on older server payloads. */

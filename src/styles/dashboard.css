@@ -3835,49 +3835,51 @@ button.r21-standup-item-head.is-toggle:hover .r21-standup-item-title { color: va
 .r21-carryforward-text strong { color: var(--ink-1); font-size: 15px; }
 .r21-carryforward-text span { color: var(--ink-2); font-size: 13px; }
 .r21-carryforward-error { color: var(--blocked-line-strong) !important; font-size: 13px; }
+/* An outline, not a filled button: this block is a side job, and a filled
+   accent button was the loudest thing on the Day page. */
 .r21-carryforward-btn {
-  flex: none; padding: 9px 16px; border-radius: 6px;
-  background: var(--accent); color: var(--accent-ink, #fff);
-  border: none; font-weight: 600; font-size: 13px; cursor: pointer;
-  transition: opacity 140ms ease;
+  flex: none; padding: 8px 14px; border-radius: 6px;
+  background: transparent; color: var(--accent);
+  border: 1px solid var(--accent); font-weight: 600; font-size: 13px; cursor: pointer;
+  transition: background 140ms ease;
 }
-.r21-carryforward-btn:hover { opacity: 0.9; }
+.r21-carryforward-btn:hover { background: var(--bg-3, var(--bg-1)); }
 .r21-carryforward-btn:disabled { opacity: 0.5; cursor: default; }
 .r21-carryforward-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* One block per story: the story name, then its tasks indented under it.
-   Tasks live under their story everywhere else in the dashboard; a flat list
-   here made the user work out the grouping themselves, every time. */
-.r21-carryforward-group {
-  border-top: 1px solid var(--line-soft); padding-top: 10px;
-  display: flex; flex-direction: column; gap: 4px;
+/* One closed line per story; open it to see its tasks. */
+.r21-carryforward-groups {
+  display: flex; flex-direction: column;
+  margin: 0; padding: 0; list-style: none;
+  border-top: 1px solid var(--line-soft);
 }
-.r21-carryforward-story { display: flex; min-width: 0; }
+.r21-carryforward-group { border-bottom: 1px solid var(--line-soft); }
+.r21-carryforward-group:last-child { border-bottom: none; }
 .r21-carryforward-story-btn {
-  display: flex; align-items: baseline; gap: 8px; min-width: 0;
-  padding: 2px 8px; border-radius: 5px;
+  display: flex; align-items: baseline; gap: 10px; width: 100%; min-width: 0;
+  padding: 9px 8px; border-radius: 5px;
   background: none; border: none; cursor: pointer; text-align: left;
   transition: background 120ms ease;
 }
 .r21-carryforward-story-btn:hover { background: var(--bg-3, var(--bg-1)); }
 .r21-carryforward-story-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.r21-carryforward-chev { color: var(--ink-2); font-size: 12px; width: 12px; flex: none; }
 .r21-carryforward-story-title {
-  color: var(--ink-0); font-size: 14px; font-weight: 600;
+  color: var(--ink-0); font-size: 14px; font-weight: 600; flex: 1;
   min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.r21-carryforward-story-id { color: var(--ink-3); font-size: 12px; flex: none; }
-/* Never small AND faint: a task with no story still has to be readable. */
-.r21-carryforward-story-none {
-  color: var(--ink-2); font-size: 14px; font-style: italic; padding: 2px 8px;
+/* Sizes sit right next to what they size — readable, never small AND faint. */
+.r21-carryforward-size {
+  color: var(--ink-2); font-size: 13px; flex: none;
+  font-variant-numeric: tabular-nums;
 }
 
-/* The task names being offered — so the pull is never blind. */
 .r21-carryforward-list {
   display: flex; flex-direction: column; gap: 2px;
-  margin: 0 0 0 12px; padding: 0; list-style: none;
+  margin: 0 0 8px 22px; padding: 0; list-style: none;
 }
 .r21-carryforward-task {
-  display: flex; align-items: center; gap: 10px; width: 100%;
+  display: flex; align-items: baseline; gap: 10px; width: 100%;
   padding: 5px 8px; border-radius: 5px;
   background: none; border: none; cursor: pointer; text-align: left;
   transition: background 120ms ease;
@@ -3888,7 +3890,7 @@ button.r21-standup-item-head.is-toggle:hover .r21-standup-item-title { color: va
   color: var(--ink-1); font-size: 13px; flex: 1; min-width: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.r21-carryforward-task-id { color: var(--ink-3); font-size: 12px; flex: none; }
+.r21-carryforward-open-story { color: var(--accent); font-size: 13px; }
 
 /* --- End-of-day wrap card ------------------------------------------- */
 .wrap-card {

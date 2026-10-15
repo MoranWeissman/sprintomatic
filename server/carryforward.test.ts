@@ -7,9 +7,10 @@ function task(
   iterationPath: string,
   title = `Task ${id}`,
   parentId?: number,
+  remainingWork?: number,
 ): WorkItem {
   return {
-    id, rev: 1, type: 'Task', title, state: 'New', parentId,
+    id, rev: 1, type: 'Task', title, state: 'New', parentId, remainingWork,
     assignedTo: 'me', iterationPath, areaPath: 'A',
     changedDate: '2026-06-23T00:00:00Z',
     url: `https://x/_apis/wit/workItems/${id}`,
@@ -47,7 +48,7 @@ describe('summarizeCarryForward', () => {
     expect(r!.taskIds.sort()).toEqual([1, 2]);
     expect(r!.fromLabel).toBe('26_12, last sprint');
     // The summary carries names so the banner can list what it moves.
-    expect(allTasks(r!)).toContainEqual({ id: 1, title: 'Fix the thing' });
+    expect(allTasks(r!)).toContainEqual(expect.objectContaining({ id: 1, title: 'Fix the thing' }));
     expect(allTasks(r!)).toHaveLength(2);
   });
 
@@ -137,5 +138,26 @@ describe('summarizeCarryForward grouping', () => {
     const r = summarizeCarryForward(tasks, PAST, new Map([[900, 'S']]));
     expect(allTasks(r!).map(t => t.id).sort()).toEqual(r!.taskIds.sort());
     expect(allTasks(r!)).toHaveLength(4);
+  });
+});
+
+describe('summarizeCarryForward — hours left', () => {
+  const SPRINT = 'MyProject\\2026\\Q2\\26_12';
+
+  it('adds up hours per story and for the whole list', () => {
+    const r = summarizeCarryForward(
+      [task(100001, SPRINT, 'A', 900, 3), task(100002, SPRINT, 'B', 900, 2.5), task(100003, SPRINT, 'C', 901, 4)],
+      PAST,
+    )!;
+    expect(r.groups.map(g => g.remainingHours)).toEqual([5.5, 4]);
+    expect(r.remainingHours).toBe(9.5);
+    expect(r.noHoursCount).toBe(0);
+  });
+
+  it('counts the tasks with no hours instead of treating them as zero', () => {
+    const r = summarizeCarryForward([task(100001, SPRINT, 'A', 900, 3), task(100002, SPRINT, 'B', 900)], PAST)!;
+    expect(r.groups[0].tasks[1].remainingHours).toBeNull();
+    expect(r.remainingHours).toBe(3);
+    expect(r.noHoursCount).toBe(1);
   });
 });
