@@ -13,7 +13,7 @@ import { classifyPastSprint, backlogPathForNewFeature } from './iteration-paths'
 import { deleteSetting, getSetting, setSetting } from './timers';
 import { deriveStoryPoints } from './story-points';
 import { getWorkdayHours } from './user-config';
-import { isBlockedState } from './states';
+import { isBlockedState, isNeverStartedState } from './states';
 
 /**
  * State buckets the UI exposes (waiting / going / done) → ordered list of
@@ -962,41 +962,24 @@ function escapeHtml(s: string): string {
 }
 
 /**
- * States that mean a story-level item has NOT been started yet. Only these may
- * have their sprint iteration changed wholesale. Mirrors the ADO "Proposed"
- * state category across the work-item types in the user's tenant (User Story adds
- * Approved / Ready For Dev; Bug adds Accepted).
- */
-const NEVER_STARTED_STATES_LOWER = new Set([
-  'new', 'to do', 'proposed', 'approved', 'ready for dev', 'accepted',
-]);
-
-/**
  * Move a work item to a different iteration (e.g. from sprint 26_11 to the
  * 2026 year-level node). `iterationPath` is the full ADO path string
  * (backslash-separated), like 'MyProject\\2026' or 'MyProject\\2026\\Q2\\26_11'.
  *
- * Planning rule (the user, 2026-06-08, relaxed 2026-06-25): the guard exists to
- * keep a FINISHED sprint's planned-vs-completed record honest. So this refuses
- * to move a story-level item ONLY when it's started AND currently sitting in a
- * past (already-ended) sprint — moving it would silently drop it from that
- * sprint's numbers. A started story in the backlog / current / a future sprint
- * moves freely, as does a never-started (New) story from anywhere, and any
- * task. See [[carryover-convention]].
+ * Planning rule (the user, 2026-10-18): a started story never changes sprint
+ * — only its open tasks do. So any story-level item that is past New (or the
+ * other never-started states) is refused, wherever it sits now. A never-started
+ * story moves freely, and so does any task. See [[carryover-convention]].
  */
 export async function setIterationPath(workItemId: number, iterationPath: string): Promise<void> {
-  const f = await readFields(workItemId, ['System.WorkItemType', 'System.State', 'System.Title', 'System.IterationPath']);
+  const f = await readFields(workItemId, ['System.WorkItemType', 'System.State', 'System.Title']);
   const type = String(f['System.WorkItemType'] ?? '').toLowerCase();
   const state = String(f['System.State'] ?? '');
-  if (STORY_LEVEL_TYPES.has(type) && !NEVER_STARTED_STATES_LOWER.has(state.toLowerCase())) {
-    const currentPath = String(f['System.IterationPath'] ?? '');
-    const iterations = await listAllIterations().catch(() => []);
-    if (classifyPastSprint(iterations, currentPath, new Date())) {
-      const title = String(f['System.Title'] ?? `#${workItemId}`);
-      throw new Error(
-        `Won't move "${title}" out of a finished sprint — that would drop it from that sprint's record. A started story stays in the sprint it ran in; only its open tasks carry forward. Move the tasks instead, or close the story.`,
-      );
-    }
+  if (STORY_LEVEL_TYPES.has(type) && !isNeverStartedState(state)) {
+    const title = String(f['System.Title'] ?? `#${workItemId}`);
+    throw new Error(
+      `Won't move "${title}" to another sprint — it's already started (${state}). A started story stays in the sprint it started in; only its open tasks move. Move the tasks instead, or close the story.`,
+    );
   }
   await patchWorkItem(workItemId, [
     { op: 'add', path: '/fields/System.IterationPath', value: iterationPath },

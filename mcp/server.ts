@@ -90,7 +90,9 @@ import {
   recordFailedSync,
 } from '../server/timers.js';
 import * as timerService from '../server/timer-service.js';
-import { getWorkItem, getWorkItemsWithParents, addWorkItemComment } from '../server/ado.js';
+import { getWorkItem, getWorkItemsWithParents, addWorkItemComment, getCurrentIteration, listAllIterations } from '../server/ado.js';
+import { iterationShortName, resolveIterationInput, sameIterationPath } from '../server/iteration-paths.js';
+import { outsideSprintRefusal } from '../server/outside-sprint.js';
 import { markSHCreated } from '../server/sh-created.js';
 import {
   registerWorkspace,
@@ -1277,7 +1279,7 @@ server.registerTool(
       effort: z.number().min(0).optional().describe('Story field, in hours. Total hours the user thinks the story is. StoryPoints is derived from this automatically (1 point = 1 workday) and written in the same patch — do not try to set points separately.'),
       addTags: z.array(z.string().min(1)).optional().describe('Tag names to add to this item (e.g. ["Blocked"]). Case-insensitive dedup against existing tags.'),
       removeTags: z.array(z.string().min(1)).optional().describe('Tag names to remove from this item.'),
-      iterationPath: z.string().min(1).optional().describe('Full ADO iteration path, backslash-separated (e.g. "MyProject\\\\2026" for the year-level, or "MyProject\\\\2026\\\\Q2\\\\26_11" for a specific sprint). Use this to move an item to a different sprint or to a parent iteration node. PLANNING RULE (enforced server-side): only ONE move is refused — a started story (any state other than New / To Do / Proposed / Approved / Ready For Dev / Accepted) that is sitting in a sprint that has already ended. Taking it out would drop it from that finished sprint\'s planned-vs-done record. Move its open TASKS to the new sprint instead, or close the story. Everything else moves freely: a started story in the backlog, in the current sprint or in a future one; a never-started story from anywhere; and any task, always.'),
+      iterationPath: z.string().min(1).optional().describe('Where to move the item: a sprint name exactly as the board shows it (e.g. "26_21"), or a full ADO iteration path, backslash-separated (e.g. "MyProject\\\\2026\\\\Q4" for a quarter or "MyProject\\\\2026\\\\Q4\\\\26_21" for a sprint). A bare name is looked up among the team\'s sprints. PLANNING RULE (enforced server-side): a started story (any state other than New / To Do / Proposed / Approved / Ready For Dev / Accepted) never changes sprint — move its open TASKS instead, or close the story. A never-started story and any task move freely.'),
     },
   },
   async ({ workItemId, title, description, state, remainingWork, completedWork, originalEstimate, effort, addTags, removeTags, iterationPath }) => {
@@ -1316,6 +1318,14 @@ server.registerTool(
     if (effort != null) requested.push('effort');
     if ((addTags && addTags.length > 0) || (removeTags && removeTags.length > 0)) requested.push('tags');
     if (iterationPath != null) requested.push('iterationPath');
+    // Turn a bare sprint name into its full path before anything is written,
+    // so a name the board doesn't know never leaves the edit half done.
+    let targetPath: string | null = null;
+    if (iterationPath != null) {
+      const resolved = resolveIterationInput(iterationPath, await listAllIterations().catch(() => []));
+      if ('error' in resolved) return errorResult(resolved.error);
+      targetPath = resolved.path;
+    }
     try {
       if (title != null) applied.title = await setTitle(workItemId, title);
       if (description != null) applied.description = await setDescription(workItemId, stripToolCallJunk(description));
@@ -1341,9 +1351,9 @@ server.registerTool(
       if ((addTags && addTags.length > 0) || (removeTags && removeTags.length > 0)) {
         applied.tags = await updateTags(workItemId, { add: addTags, remove: removeTags });
       }
-      if (iterationPath != null) {
-        await setIterationPath(workItemId, iterationPath);
-        applied.iterationPath = iterationPath;
+      if (targetPath != null) {
+        await setIterationPath(workItemId, targetPath);
+        applied.iterationPath = targetPath;
       }
       invalidateDashboardCache();
       return jsonResult({ applied });
@@ -1490,7 +1500,7 @@ server.registerTool(
   {
     title: 'Read a single work item',
     description:
-      "Fetch one work item by id from Azure DevOps (fields, parent, children, effort, url). Use this instead of shelling out to 'az boards work-item show' so everything stays coordinated with sprintomatic's caches.",
+      "Fetch one work item by id from Azure DevOps (fields, parent, children, effort, url). `iteration` is the short sprint name, `iterationPath` the full path, and `inCurrentSprint` says whether it sits in the current sprint — each child carries the same three plus its remainingWork. Use this instead of shelling out to 'az boards work-item show' so everything stays coordinated with sprintomatic's caches.",
     inputSchema: {
       workItemId: workItemIdSchema,
     },
@@ -1502,7 +1512,10 @@ server.registerTool(
         .split(';')
         .map(t => t.trim())
         .filter(t => t.length > 0);
-      const iteration = d.iterationPath.split('\\').pop() ?? d.iterationPath;
+      const sprint = await getCurrentIteration().catch(() => null);
+      // Left out when the current sprint can't be read — never guess it.
+      const inSprint = (path: string) =>
+        sprint ? { inCurrentSprint: sameIterationPath(path, sprint.path) } : {};
       return jsonResult({
         id: d.id,
         type: d.type,
@@ -1511,7 +1524,9 @@ server.registerTool(
         state: d.state,
         tags,
         assignedTo: d.assignedTo,
-        iteration,
+        iteration: iterationShortName(d.iterationPath),
+        iterationPath: d.iterationPath,
+        ...inSprint(d.iterationPath),
         parent: d.parent
           ? {
               id: d.parent.id,
@@ -1527,6 +1542,10 @@ server.registerTool(
           displayName: displayNameFor(c.id, c.title),
           type: c.type,
           state: c.state,
+          iteration: iterationShortName(c.iterationPath),
+          iterationPath: c.iterationPath,
+          ...inSprint(c.iterationPath),
+          remainingWork: c.remainingWork,
         })),
         originalEstimate: d.originalEstimate,
         remainingWork: d.remainingWork,
@@ -2216,9 +2235,13 @@ server.registerTool(
   {
     title: 'Start a Claude Code session',
     description:
-      "Open a session against a TASK (or a Bug) — never a container. Passing a User Story / Feature / Epic REFUSES and returns its open tasks; pick one (or ask the user which) and call again with that id. Returns a sessionId for later session_log / session_end calls, and is idempotent: an already-open session comes back as-is. AUTO-FLIPS the item from a waiting state (New / To Do / Proposed) to going (Active / In Progress), and flips its parent Story too when the item is a Task. Silent, no prompt. Reports `stateFlip` and `parentStoryFlip` so you can mention it casually.",
+      "Open a session against a TASK (or a Bug) — never a container. Passing a User Story / Feature / Epic REFUSES and returns its open tasks; pick one (or ask the user which) and call again with that id. Returns a sessionId for later session_log / session_end calls, and is idempotent: an already-open session comes back as-is. AUTO-FLIPS the item from a waiting state (New / To Do / Proposed) to going (Active / In Progress), and flips its parent Story too when the item is a Task. Silent, no prompt. Reports `stateFlip` and `parentStoryFlip` so you can mention it casually. REFUSES a task that is not in the current sprint (an old sprint, a quarter, the backlog) — work on it would land where no sprint board shows it. Ask the user: move it in first, or pass outsideSprintOk: true to work on it where it is.",
     inputSchema: {
       workItemId: workItemIdSchema,
+      outsideSprintOk: z
+        .boolean()
+        .optional()
+        .describe('Pass true only after the user said to work on this task where it is, even though it is not in the current sprint.'),
       client: z
         .string()
         .optional()
@@ -2229,7 +2252,7 @@ server.registerTool(
         .describe("This chat's current working directory (absolute path), read from your environment — the same value you pass to story_match. Binds the session to this chat's folder so other chats can tell whose session it is. Omit only if genuinely unknown."),
     },
   },
-  async ({ workItemId, client, cwd }) => {
+  async ({ workItemId, client, cwd, outsideSprintOk }) => {
     // Guard: a session attaches to a workable unit (Task/Bug), never to a
     // container story. Read the item; if it's a container, refuse and hand back
     // its open tasks so the assistant picks one instead of landing on the story.
@@ -2254,6 +2277,18 @@ server.registerTool(
         `${storyName} is a ${detail.type}, not a unit of work — open the session on a task under it (that's why a session on a story leaves Focus with nothing to show). Pick one of its open tasks, or ask the user which, then call session_start again with that task's id:\n${list}`,
         { fromBoard: true },
       );
+    }
+
+    // Guard: a task outside the current sprint. Skipped when the board read
+    // failed above or the current sprint can't be read — never block on that.
+    if (detail && !outsideSprintOk) {
+      const refusal = outsideSprintRefusal({
+        displayName: displayNameFor(detail.id, detail.title),
+        itemPath: detail.iterationPath,
+        sprint: await getCurrentIteration().catch(() => null),
+        action: 'start',
+      });
+      if (refusal) return errorResult(refusal, { fromBoard: true });
     }
 
     // Cap parallel work. Refuse a genuinely NEW session past the limit and
@@ -2479,7 +2514,7 @@ server.registerTool(
   {
     title: 'End a Claude Code session',
     description:
-      'Close a session with a one-line summary. done=true ONLY after the user confirms the task is finished AND confirms the Completed hours — it pushes CompletedWork, sets RemainingWork=0 and moves the state to Done. Omit done when the user is just stopping: the timer pauses, nothing reaches Azure DevOps. Azure DevOps is written first and the session closes only if that all goes through, so a failed push leaves the session open and re-calling with the same numbers is safe.',
+      'Close a session with a one-line summary. done=true ONLY after the user confirms the task is finished AND confirms the Completed hours — it pushes CompletedWork, sets RemainingWork=0 and moves the state to Done. Omit done when the user is just stopping: the timer pauses, nothing reaches Azure DevOps. Azure DevOps is written first and the session closes only if that all goes through, so a failed push leaves the session open and re-calling with the same numbers is safe. With done=true it REFUSES a task that is not in the current sprint — ask the user: move it in first, or pass outsideSprintOk: true to close it where it is.',
     inputSchema: {
       sessionId: z.string(),
       summary: z.string().optional(),
@@ -2492,6 +2527,10 @@ server.registerTool(
         .gt(0)
         .optional()
         .describe('REQUIRED when done=true. The CompletedWork hours to push, from OriginalEstimate − new RemainingWork (adjusted for an overrun), matching the number the user confirmed in chat.'),
+      outsideSprintOk: z
+        .boolean()
+        .optional()
+        .describe('Only with done=true. Pass true only after the user said to close this task where it is, even though it is not in the current sprint.'),
       remainingHoursAfter: z
         .number()
         .gt(0)
@@ -2503,7 +2542,7 @@ server.registerTool(
         .describe("This chat's current working directory (absolute path), read from your environment. Lets sprintomatic warn you if you're closing a session another chat (a different repo) started. Omit only if unknown."),
     },
   },
-  async ({ sessionId, summary, done, completedHoursAfter, remainingHoursAfter, cwd }) => {
+  async ({ sessionId, summary, done, completedHoursAfter, remainingHoursAfter, cwd, outsideSprintOk }) => {
     if (done && completedHoursAfter === undefined) {
       return errorResult(
         'completedHoursAfter is required when done=true. Propose the number using the formula (CompletedWork = OriginalEstimate − new RemainingWork, adjusted for overrun), confirm with the user in chat, then pass it as completedHoursAfter. Closing a task without an explicit Completed value leaves CompletedWork at its historical value on Azure DevOps — usually 0 — which is the wrong signal for the delivery manager.',
@@ -2554,6 +2593,21 @@ server.registerTool(
         return errorResult(
           "You logged progress this session but never updated the remaining hours, so Azure DevOps still shows the old estimate. Pass `remainingHoursAfter` with the current honest number of hours left (or the same value if it genuinely hasn't moved) and call session_end again. If the task is actually finished, use done=true with completedHoursAfter instead.",
         );
+      }
+
+      // Rule 3 (close inside the sprint): the hours a close pushes count in
+      // the sprint the task sits in. Best-effort — a failed read never blocks.
+      if (done && !outsideSprintOk) {
+        const task = await getWorkItem(openSession.workItemId).catch(() => null);
+        if (task) {
+          const refusal = outsideSprintRefusal({
+            displayName: displayNameFor(task.id, task.title),
+            itemPath: task.iterationPath,
+            sprint: await getCurrentIteration().catch(() => null),
+            action: 'close',
+          });
+          if (refusal) return errorResult(refusal, { fromBoard: true });
+        }
       }
     }
 

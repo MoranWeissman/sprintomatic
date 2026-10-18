@@ -60,52 +60,41 @@ describe('groupTopUp', () => {
     expect(r[1].openTasks).toHaveLength(0);
   });
 
-  it('canPullStory: New story in a past sprint CAN be pulled; started one CANNOT', () => {
+  it('canPullStory: only a never-started story moves whole, wherever it sits', () => {
     const past = 'MyProject\\2026\\Q2\\26_11';
     const stories = [
-      wi({ id: 7, type: 'User Story', state: 'New', iterationPath: past }),    // never started
-      wi({ id: 8, type: 'User Story', state: 'Active', iterationPath: past }), // started, in past sprint
+      wi({ id: 7, type: 'User Story', state: 'New', iterationPath: past }),
+      wi({ id: 8, type: 'User Story', state: 'Active', iterationPath: past }),
+      wi({ id: 9, type: 'User Story', state: 'Active', iterationPath: 'MyProject\\Backlog' }),
     ];
-    // pastSprintOf returns true only for the past path.
-    const r = groupTopUp(stories, [], (p) => p === past);
-    const byId = Object.fromEntries(r.map(s => [s.id, s.canPullStory]));
-    expect(byId[7]).toBe(true);  // New always pullable
-    expect(byId[8]).toBe(false); // started + past sprint → tasks only
-  });
-
-  it('canPullStory: started story NOT in a past sprint can be pulled whole', () => {
-    const r = groupTopUp(
-      [wi({ id: 9, type: 'User Story', state: 'Active', iterationPath: 'MyProject\\Backlog' })],
-      [],
-      () => false, // not a past sprint
-    );
-    expect(r[0].canPullStory).toBe(true);
+    const byId = Object.fromEntries(groupTopUp(stories, []).map(s => [s.id, s.canPullStory]));
+    expect(byId[7]).toBe(true);
+    expect(byId[8]).toBe(false); // started → only its tasks move
+    expect(byId[9]).toBe(false); // started, even in the backlog
   });
 });
 
 describe('backlog rows carry canPull (the single truth the Plan page reads)', () => {
-  it('a genuine backlog story can always be pulled whole', () => {
-    const r = groupBacklog(
-      [wi({ id: 100001, type: 'User Story', state: 'Active', title: 'Backlog story', iterationPath: 'MyProject\\Backlog' })],
-      () => false,
-    );
+  it('a never-started backlog story can be pulled whole', () => {
+    const r = groupBacklog([
+      wi({ id: 100001, type: 'User Story', state: 'New', title: 'Backlog story', iterationPath: 'MyProject\\Backlog' }),
+    ]);
     expect(r).toHaveLength(1);
     expect(r[0].id).toBe(100001);
     expect(r[0].canPull).toBe(true);
   });
 
-  it('a New story can be pulled even off a path claimed to be a finished sprint', () => {
-    const r = groupBacklog(
-      [wi({ id: 100002, type: 'User Story', state: 'New', iterationPath: 'MyProject\\Backlog' })],
-      () => true, // even then: never-started stories always move whole
-    );
-    expect(r[0].canPull).toBe(true);
+  it('a started backlog story cannot be pulled whole', () => {
+    const r = groupBacklog([
+      wi({ id: 100002, type: 'User Story', state: 'Active', iterationPath: 'MyProject\\Backlog' }),
+    ]);
+    expect(r[0].canPull).toBe(false);
   });
 
   it('canPullWholeStory mirrors the one real move guard', () => {
-    // The only "no": a started story sitting in a finished sprint.
-    expect(canPullWholeStory('Active', 'MyProject\\2026\\Q2\\26_11', () => true)).toBe(false);
-    expect(canPullWholeStory('New', 'MyProject\\2026\\Q2\\26_11', () => true)).toBe(true);
-    expect(canPullWholeStory('Active', 'MyProject\\Backlog', () => false)).toBe(true);
+    expect(canPullWholeStory('New')).toBe(true);
+    expect(canPullWholeStory('Ready For Dev')).toBe(true);
+    expect(canPullWholeStory('Active')).toBe(false);
+    expect(canPullWholeStory('Blocked')).toBe(false);
   });
 });
