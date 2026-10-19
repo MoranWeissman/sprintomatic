@@ -22,7 +22,9 @@ function makeDb() {
       started_at TEXT NOT NULL,
       ended_at TEXT,
       client TEXT NOT NULL DEFAULT 'claude-code',
-      summary TEXT
+      summary TEXT,
+      waiting_note TEXT,
+      waiting_since TEXT
     );
     CREATE TABLE session_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -69,6 +71,19 @@ describe('checkStaleLogNudge', () => {
   it('returns null when no sessions are open', () => {
     vi.setSystemTime(at(0));
     expect(checkStaleLogNudge()).toBeNull();
+  });
+
+  it('stays quiet for a session flagged as waiting on the user', () => {
+    addSession('s1', 100, T0);
+    h.db.value!.prepare(`UPDATE sessions SET waiting_note = 'Which name?', waiting_since = ? WHERE id = 's1'`).run(T0);
+    vi.setSystemTime(at(120));
+    expect(checkStaleLogNudge()).toBeNull();
+  });
+
+  it('tells a task that only waits on someone else to pause', () => {
+    addSession('s1', 100, T0);
+    vi.setSystemTime(at(60));
+    expect(checkStaleLogNudge()).toMatch(/only waits on someone else.*pause/);
   });
 
   it('does not nudge a session that had activity within the last 45 minutes', () => {

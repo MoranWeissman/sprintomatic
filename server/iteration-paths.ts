@@ -55,7 +55,7 @@ export function isSprintLevel(path: string): boolean {
  * Where a NEW Feature goes: the backlog level sitting above the current sprint.
  *
  * A Feature spans sprints, so pinning it to one is misleading — and moving it
- * out later is awkward, because a started item can't leave a finished sprint.
+ * out later is awkward, because a started story never changes sprint.
  * Read off the real board on 2026-08-11: of the 15 most recently changed
  * Features, 11 sit at quarter, year, or project-root level and only 4 are in a
  * named sprint. So climbing one level from the sprint (`...\2026\Q3\26_16` →
@@ -90,9 +90,8 @@ export interface IterationLite {
  * false (they aren't a finished sprint). Pure — the caller supplies the
  * iteration list, so this is testable without ADO.
  *
- * Used to protect a finished sprint's planned-vs-completed record: a started
- * story can't be moved OUT of a past sprint (only its tasks carry forward),
- * but it can move freely out of the backlog, the current, or a future sprint.
+ * Used when a new task is placed under its story: a story stuck in a past
+ * sprint sends the new task to the current sprint instead.
  */
 export function classifyPastSprint(
   iterations: IterationLite[],
@@ -105,4 +104,39 @@ export function classifyPastSprint(
   const startOfToday = new Date(now);
   startOfToday.setHours(0, 0, 0, 0);
   return sprintDate(match.finishDate).getTime() < startOfToday.getTime();
+}
+
+/** The last part of an iteration path — the short name the board shows ("26_21", "Q3"). */
+export function iterationShortName(path: string): string {
+  return path.split('\\').filter(Boolean).pop() ?? path;
+}
+
+/** Same iteration? The board treats paths without caring about case. */
+export function sameIterationPath(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+/**
+ * Turn what the caller passed as a sprint into a full iteration path. A value
+ * with a backslash is already a full path and goes through as it is. A bare
+ * name ("26_21") is looked up among the team's iterations, so the caller does
+ * not have to guess which quarter it sits under. Pure — the caller supplies
+ * the iteration list.
+ */
+export function resolveIterationInput(
+  input: string,
+  iterations: Array<{ name: string; path: string }>,
+): { path: string } | { error: string } {
+  const typed = input.trim();
+  if (typed.includes('\\')) return { path: typed };
+  const matches = iterations.filter(it => it.name.trim().toLowerCase() === typed.toLowerCase());
+  if (matches.length === 1) return { path: matches[0].path };
+  if (matches.length > 1) {
+    return {
+      error: `More than one sprint is called "${typed}": ${matches.map(m => m.path).join(', ')}. Pass the full path of the one you mean.`,
+    };
+  }
+  return {
+    error: `No sprint called "${typed}" on the team's board. Pass the full iteration path (backslash-separated), or a sprint name exactly as the board shows it.`,
+  };
 }

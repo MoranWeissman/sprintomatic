@@ -25,7 +25,7 @@ import {
   type WorkItem,
 } from './ado';
 import { displayNameFor } from './display-name';
-import { isDeadState, isDoneState } from './states';
+import { isDeadState, isDoneState, isNeverStartedState } from './states';
 
 // Features / Epics aren't "stories to close out" — they're containers. Skip them.
 const FEATURE_LIKE_TYPES = new Set(['feature', 'epic']);
@@ -73,7 +73,7 @@ export {
   isSprintLevel,
   type BacklogLevel,
 } from './iteration-paths';
-import { classifyIterationLevel, classifyPastSprint, isSprintLevel } from './iteration-paths';
+import { classifyIterationLevel, isSprintLevel } from './iteration-paths';
 import type { BacklogLevel } from './iteration-paths';
 
 export interface CockpitBacklogStory {
@@ -91,10 +91,8 @@ export interface CockpitBacklogStory {
   feature?: { id: number; title: string; displayName: string };
   /**
    * True when the whole story may be pulled into the sprint being planned —
-   * same rule as `canPullStory` on the top-up rows: false only for a started
-   * story sitting in a finished sprint. For genuine backlog paths (year /
-   * quarter / Backlog) this is effectively always true, and that's correct —
-   * the server flag is the single truth the Plan page reads.
+   * same rule as `canPullStory` on the top-up rows: only a never-started
+   * story moves whole. The server flag is the single truth the Plan page reads.
    */
   canPull: boolean;
 }
@@ -121,33 +119,22 @@ export interface CockpitTopUpStory {
   pullableHours: number;
   /**
    * True when the whole story (not just its tasks) may be pulled into the
-   * current sprint: a New story, or a started story NOT sitting in a finished
-   * sprint. False for a started story still in a past sprint (only its tasks
-   * carry forward) — mirrors the setIterationPath guard so the UI agrees.
+   * current sprint: only a never-started story. A started story stays where
+   * it is and only its tasks move — mirrors the setIterationPath guard so the
+   * UI agrees.
    */
   canPullStory: boolean;
   openTasks: CockpitTopUpTask[];
 }
 
-// Never-started states — a story in any of these can always be moved whole.
-// Mirrors NEVER_STARTED_STATES_LOWER in writes.ts (kept in sync by hand; both
-// reflect the same ADO Proposed-category states for this tenant).
-const NEVER_STARTED = new Set(['new', 'to do', 'proposed', 'approved', 'ready for dev', 'accepted']);
-
 /**
  * Whether a whole story (not just its tasks) may be moved into the sprint
- * being planned: yes unless the story is already started AND sits in a
- * finished sprint. Mirrors the one real move guard (setIterationPath in
- * writes.ts). Shared by the top-up rows and the backlog rows so the two
- * lists never disagree.
+ * being planned: only when nobody has started it. Mirrors the one real move
+ * guard (setIterationPath in writes.ts). Shared by the top-up rows and the
+ * backlog rows so the two lists never disagree.
  */
-export function canPullWholeStory(
-  state: string,
-  iterationPath: string,
-  pastSprintOf: (iterationPath: string) => boolean,
-): boolean {
-  const neverStarted = NEVER_STARTED.has(state.trim().toLowerCase());
-  return neverStarted || !pastSprintOf(iterationPath);
+export function canPullWholeStory(state: string): boolean {
+  return isNeverStartedState(state);
 }
 
 /**
@@ -162,7 +149,6 @@ export function canPullWholeStory(
 export function groupTopUp(
   stories: WorkItem[],
   tasks: WorkItem[],
-  pastSprintOf: (iterationPath: string) => boolean = () => false,
 ): CockpitTopUpStory[] {
   const liveStories = stories.filter(s => !isDeadState(s.state));
   const byParent = new Map<number, WorkItem[]>();
@@ -188,7 +174,7 @@ export function groupTopUp(
     const pullableHours = Math.round(
       openTasks.reduce((sum, t) => sum + (t.remainingWork ?? t.originalEstimate ?? 0), 0),
     );
-    const canPullStory = canPullWholeStory(s.state, s.iterationPath, pastSprintOf);
+    const canPullStory = canPullWholeStory(s.state);
     return {
       id: s.id,
       title: s.title,
@@ -307,11 +293,11 @@ export async function buildCockpitPayload(): Promise<CockpitPayload> {
   // backlog conventions: year-level, quarter-level, or Backlog literal.
   // Use an iterationPath wildcard at the team-area level if possible;
   // otherwise loop iterations.
-  const backlogStories: CockpitBacklogStory[] = await collectBacklogStories(currentIteration, allIterations);
+  const backlogStories: CockpitBacklogStory[] = await collectBacklogStories(currentIteration);
 
   // Top-up — every open out-of-sprint story with its open tasks, so the user can
   // pull task hours into the CURRENT (running) sprint any time.
-  const topUpStories: CockpitTopUpStory[] = await collectTopUpStories(currentIteration, allIterations);
+  const topUpStories: CockpitTopUpStory[] = await collectTopUpStories(currentIteration);
 
   // Real desk time for the next sprint, after Outlook meetings — so the Plan
   // meter measures against hours the user actually has, not raw working hours.
@@ -370,23 +356,16 @@ export async function buildCockpitPayload(): Promise<CockpitPayload> {
 /**
  * Open stories assigned to the user that aren't in the current sprint, each with
  * its open tasks — for the "top up this sprint" section. Best-effort: a fetch
- * failure returns [] so the rest of the Plan page still renders. Iterations
- * come from the caller — buildCockpitPayload already fetched them, so we
- * don't read the board a second time for the same list.
+ * failure returns [] so the rest of the Plan page still renders.
  */
-async function collectTopUpStories(
-  currentIteration: Iteration | null,
-  allIterations: Iteration[],
-): Promise<CockpitTopUpStory[]> {
+async function collectTopUpStories(currentIteration: Iteration | null): Promise<CockpitTopUpStory[]> {
   if (!currentIteration) return [];
   try {
     const [stories, tasks] = await Promise.all([
       listMyOpenStoriesNotInSprint(currentIteration.path),
       listMyOpenTasksNotInSprint(currentIteration.path),
     ]);
-    const now = new Date();
-    const pastSprintOf = (path: string) => classifyPastSprint(allIterations, path, now);
-    return groupTopUp(stories, tasks, pastSprintOf);
+    return groupTopUp(stories, tasks);
   } catch {
     return [];
   }
@@ -422,27 +401,20 @@ function pickNextSprint(current: Iteration | null, all: Iteration[]): CockpitIte
   return toCockpitIteration(after[0]);
 }
 
-async function collectBacklogStories(
-  currentIteration: Iteration | null,
-  allIterations: Iteration[],
-): Promise<CockpitBacklogStory[]> {
+async function collectBacklogStories(currentIteration: Iteration | null): Promise<CockpitBacklogStory[]> {
   // One WIQL query: every open User Story assigned to @Me that isn't in the
   // current sprint. Classification of year / quarter / backlog / other-sprint
   // happens here in TS based on the iteration path each item carries back.
   if (!currentIteration) return [];
   const items: WorkItem[] = await listMyOpenStoriesNotInSprint(currentIteration.path);
-  const now = new Date();
-  return groupBacklog(items, path => classifyPastSprint(allIterations, path, now));
+  return groupBacklog(items);
 }
 
 /**
  * Classify + shape the backlog rows. Pure — the caller supplies the fetched
- * stories and the past-sprint check, so this is testable with no ADO.
+ * stories, so this is testable with no ADO.
  */
-export function groupBacklog(
-  items: WorkItem[],
-  pastSprintOf: (iterationPath: string) => boolean,
-): CockpitBacklogStory[] {
+export function groupBacklog(items: WorkItem[]): CockpitBacklogStory[] {
   const out: CockpitBacklogStory[] = [];
   for (const w of items) {
     // Skip stories that are done / canceled — you can't pull a dead story.
@@ -459,7 +431,7 @@ export function groupBacklog(
       state: w.state,
       iterationPath: w.iterationPath,
       level,
-      canPull: canPullWholeStory(w.state, w.iterationPath, pastSprintOf),
+      canPull: canPullWholeStory(w.state),
       storyPoints: w.storyPoints,
       effort: w.effort,
       originalEstimate: w.originalEstimate,

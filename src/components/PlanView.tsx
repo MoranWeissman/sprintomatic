@@ -799,7 +799,7 @@ function PullBacklogRow({
           {stateClass !== 'waiting' && (
             <span
               className="plan2-act-blocked"
-              title="This story is already started — pulling moves it, open tasks and all."
+              title="This story is already started, so it stays where it is. Only its open tasks can move."
             >
               underway
             </span>

@@ -45,7 +45,9 @@ export function checkStaleLogNudge(): string | null {
 
   const openSessions = db
     .prepare<[], OpenSession>(
-      `SELECT id, work_item_id, started_at FROM sessions WHERE ended_at IS NULL`,
+      // A session flagged with session_waiting is quiet on purpose: it is
+      // waiting for the user's answer, so silence is not drift.
+      `SELECT id, work_item_id, started_at FROM sessions WHERE ended_at IS NULL AND waiting_since IS NULL`,
     )
     .all();
   if (openSessions.length === 0) return null;
@@ -103,7 +105,7 @@ function formatNudge(stale: StaleSession[]): string {
         s.staleMinutes +
         ' minutes.',
       'If you have been working (including dispatching sub-agents): log a `progress` entry now, naming what got done.',
-      'If you have drifted off the task: call `session_end` to close it cleanly.',
+      'If you have drifted off the task, or it only waits on someone else (a review, a merge): call `session_end` without done to pause it — the clock stops and the task stays open.',
       'Said again every 45 minutes while the session stays silent — logging or closing it stops that.',
     ].join('\n');
   }
@@ -115,7 +117,7 @@ function formatNudge(stale: StaleSession[]): string {
     '',
     '⏰ STALE SESSIONS — multiple open sessions have had no session_log activity:',
     ...lines,
-    'Log a `progress` entry on each (or call `session_end` on the ones that have drifted).',
+    'Log a `progress` entry on each, or pause with `session_end` (without done) the ones that drifted or only wait on someone else.',
     'Said again every 45 minutes per session while they stay silent.',
   ].join('\n');
 }

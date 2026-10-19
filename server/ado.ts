@@ -180,11 +180,22 @@ export interface WorkItemDetail {
   originalEstimate?: number;
   remainingWork?: number;
   completedWork?: number;
-  parent?: { id: number; title: string; type: string; state: string; url: string };
-  children: Array<{ id: number; title: string; type: string; state: string; url: string }>;
-  related: Array<{ id: number; title: string; type: string; state: string; url: string; rel: string }>;
+  parent?: WorkItemRef;
+  children: WorkItemRef[];
+  related: Array<WorkItemRef & { rel: string }>;
   url: string;
   webUrl: string;
+}
+
+/** A linked item (parent, child or related) as getWorkItem returns it. */
+export interface WorkItemRef {
+  id: number;
+  title: string;
+  type: string;
+  state: string;
+  url: string;
+  iterationPath: string;
+  remainingWork?: number;
 }
 
 export interface WorkItemComment {
@@ -299,13 +310,15 @@ export async function addWorkItemComment(id: number, text: string): Promise<void
   await getAdoClient().rest({ method: 'POST', uri, body: { text }, contentKind: 'json' });
 }
 
-function mapRef(w: WorkItem) {
+function mapRef(w: WorkItem): WorkItemRef {
   return {
     id: w.id,
     title: w.title,
     type: w.type,
     state: w.state,
     url: humanWorkItemUrl(w.url, w.id),
+    iterationPath: w.iterationPath,
+    remainingWork: w.remainingWork,
   };
 }
 

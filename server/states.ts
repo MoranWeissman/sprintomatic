@@ -73,3 +73,14 @@ export function isDeadState(state: string | null | undefined): boolean {
   const s = normalize(state);
   return DONE.has(s) || CANCELLED.has(s);
 }
+
+/**
+ * Nobody has started it yet: the ADO "Proposed" group of states across the
+ * types in the user's tenant (User Story adds Approved / Ready For Dev; Bug
+ * adds Accepted). Only a story in one of these may change sprint.
+ */
+const NEVER_STARTED = new Set(['new', 'to do', 'proposed', 'approved', 'ready for dev', 'accepted']);
+
+export function isNeverStartedState(state: string | null | undefined): boolean {
+  return NEVER_STARTED.has(normalize(state));
+}

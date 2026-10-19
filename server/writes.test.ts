@@ -342,31 +342,29 @@ describe('setEffortWithDerivedPoints — Effort and StoryPoints land together', 
   });
 });
 
-describe('setIterationPath — blocks a started story only out of a FINISHED sprint', () => {
-  // Fake board: 26_11 is PAST (finished 2020), 26_13 is FUTURE (finishes 2099).
+describe('setIterationPath — a started story never changes sprint', () => {
   const PAST = 'Proj\\2026\\Q2\\26_11';
   const FUTURE = 'Proj\\2026\\Q2\\26_13';
   const TARGET = 'Proj\\2026\\Q2\\26_99';
 
   it('refuses a started story leaving a finished sprint', async () => {
     seed(10, { [F.type]: 'User Story', [F.state]: 'Active', [F.title]: 'Past underway', [F.iteration]: PAST });
-    await expect(setIterationPath(10, TARGET)).rejects.toThrow(/finished sprint/i);
+    await expect(setIterationPath(10, TARGET)).rejects.toThrow(/already started/i);
     expect(fieldsOf(10)[F.iteration]).toBe(PAST); // unchanged
   });
 
-  it('moves a started story out of a current/future sprint', async () => {
+  it('refuses a started story in a current or future sprint too', async () => {
     seed(11, { [F.type]: 'User Story', [F.state]: 'Active', [F.title]: 'Future underway', [F.iteration]: FUTURE });
-    await setIterationPath(11, TARGET);
-    expect(fieldsOf(11)[F.iteration]).toBe(TARGET);
+    await expect(setIterationPath(11, TARGET)).rejects.toThrow(/only its open tasks move/i);
+    expect(fieldsOf(11)[F.iteration]).toBe(FUTURE);
   });
 
-  it('moves a started story out of the backlog', async () => {
+  it('refuses a started story in the backlog', async () => {
     seed(16, { [F.type]: 'User Story', [F.state]: 'Active', [F.title]: 'Backlog underway', [F.iteration]: 'Proj\\Backlog' });
-    await setIterationPath(16, TARGET);
-    expect(fieldsOf(16)[F.iteration]).toBe(TARGET);
+    await expect(setIterationPath(16, TARGET)).rejects.toThrow(/already started/i);
   });
 
-  it('moves a never-started (New) story even out of a finished sprint', async () => {
+  it('moves a never-started (New) story from anywhere', async () => {
     seed(12, { [F.type]: 'User Story', [F.state]: 'New', [F.title]: 'Fresh story', [F.iteration]: PAST });
     await setIterationPath(12, TARGET);
     expect(fieldsOf(12)[F.iteration]).toBe(TARGET);
