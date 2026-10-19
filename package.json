@@ -1,6 +1,6 @@
 {
   "name": "sprintomatic",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "Keeps your Azure DevOps sprint up to date while you work with an AI assistant. An MCP server plus a local dashboard.",
   "keywords": [

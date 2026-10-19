@@ -721,7 +721,7 @@ function StandupCard({ standup }: { standup: ApiPayload['standup'] }) {
     return (
       <div className="r21-standup is-empty">
         <span className="r21-standup-empty">
-          No sessions logged yet — open one with Claude Code to start populating this card.
+          Nothing here yet. Start a task in the chat, and what you did shows up here for the next daily meeting.
         </span>
       </div>
     );

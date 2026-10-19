@@ -1007,7 +1007,9 @@ called tool.
 const server = new McpServer(
   {
     name: 'sprintomatic',
-    version: '0.1.0',
+    // Read from package.json, so it never drifts from the published number.
+    // One folder up works both from mcp/ and from the bundled dist-node/.
+    version: (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version,
   },
   {
     instructions: SERVER_INSTRUCTIONS,
