@@ -959,12 +959,13 @@ function R21FocusGrid({
         <div className="r21-focusgrid-head">
           <span className="r21-focusgrid-label">Focus</span>
           <span className="r21-focusgrid-count">
-            showing {count} of {allLive.length} running — tap to split
+            {count} on screen · {allLive.length} running
           </span>
           <div className="r21-splitbar">
             {allLive.map(w => {
               const on = shownIds.has(w.id);
               const full = !on && tasks.length >= maxPanels;
+              const story = storyFor(w);
               return (
                 <button
                   key={w.id}
@@ -982,8 +983,12 @@ function R21FocusGrid({
                         : 'Show as a panel'
                   }
                 >
-                  <StateMark state={w.activeSession?.state} stuck={boardStateClass(w.state) === 'blocked'} />
-                  <span className="r21-splitchip-title">{w.title}</span>
+                  <span className="r21-splitchip-top">
+                    <span className="r21-splitchip-check" aria-hidden="true">{on ? '✓' : ''}</span>
+                    <StateMark state={w.activeSession?.state} stuck={boardStateClass(w.state) === 'blocked'} />
+                  </span>
+                  {story && <span className="r21-splitchip-story">{story.title}</span>}
+                  <span className="r21-splitchip-title" title={w.title}>{w.title}</span>
                 </button>
               );
             })}
