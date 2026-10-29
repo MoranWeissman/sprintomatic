@@ -499,6 +499,61 @@ export async function listMyOpenStoriesNotInSprint(currentSprintPath: string): P
 }
 
 /**
+ * Every open User Story and Bug assigned to @Me, wherever it sits — any
+ * sprint, quarter, year or the backlog — with the child ids of each, so the
+ * caller can count its tasks. For tidying the board: the sprint queries only
+ * ever show one sprint.
+ */
+export async function listMyOpenStoriesEverywhere(): Promise<Array<WorkItem & { childIds: number[] }>> {
+  const cfg = await loadAdoConfig();
+  const fieldList = WORK_ITEM_FIELDS.map(f => `[${f}]`).join(', ');
+  const wiql = [
+    `SELECT ${fieldList} FROM WorkItems`,
+    `WHERE [System.AssignedTo] = @Me`,
+    `  AND [System.WorkItemType] IN ('User Story', 'Bug')`,
+    `  AND [System.State] NOT IN ('Done', 'Closed', 'Resolved', 'Completed', 'Removed', 'Canceled', 'Cancelled', 'Cut')`,
+    'ORDER BY [System.IterationPath], [System.ChangedDate] DESC',
+  ].join(' ');
+  const raw = await getAdoClient().queryWorkItems({
+    wiql,
+    fields: WORK_ITEM_FIELDS,
+    organization: cfg.organization,
+    project: cfg.project,
+  });
+  const stories = raw.map(w => mapWorkItem(w));
+  if (stories.length === 0) return [];
+  // The batch can't take a field list and the relations together, so this
+  // second read asks for relations only.
+  const childIdsById = new Map<number, number[]>();
+  const uri = `${cfg.organization}/${encodeURIComponent(cfg.project)}/_apis/wit/workitemsbatch?api-version=7.1`;
+  for (let i = 0; i < stories.length; i += 200) {
+    const ids = stories.slice(i, i + 200).map(s => s.id);
+    const parsed = await getAdoClient().rest<{
+      value: Array<{ id: number; relations?: Array<{ rel: string; url: string }> }>;
+    }>({ method: 'POST', uri, body: { ids, $expand: 'Relations', errorPolicy: 'omit' }, contentKind: 'json' });
+    for (const w of parsed.value ?? []) {
+      if (!w) continue;
+      const kids: number[] = [];
+      for (const rel of w.relations ?? []) {
+        const m = rel.url.match(/\/workItems\/(\d+)$/i);
+        if (m && rel.rel === 'System.LinkTypes.Hierarchy-Forward') kids.push(Number(m[1]));
+      }
+      childIdsById.set(w.id, kids);
+    }
+  }
+  return stories.map(s => ({ ...s, childIds: childIdsById.get(s.id) ?? [] }));
+}
+
+/** Work items by id, in batches of 200; ids that can't be read are left out. */
+export async function getWorkItemsByIds(ids: number[]): Promise<WorkItem[]> {
+  const out: WorkItem[] = [];
+  for (let i = 0; i < ids.length; i += 200) {
+    out.push(...(await getWorkItemBatch(ids.slice(i, i + 200), { errorPolicy: 'omit' })));
+  }
+  return out;
+}
+
+/**
  * All open Tasks assigned to @Me that are NOT in the given sprint iteration
  * path. Used by the Daily carry-forward banner to find tasks left behind in a
  * previous sprint. Mirrors listMyOpenStoriesNotInSprint but for Task type.

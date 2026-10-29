@@ -71,6 +71,7 @@ import {
 import {
   chatCwdKey,
   endSession,
+  getActiveSessionMap,
   getSession,
   isSessionEventType,
   listActiveSessions,
@@ -90,7 +91,9 @@ import {
   recordFailedSync,
 } from '../server/timers.js';
 import * as timerService from '../server/timer-service.js';
-import { getWorkItem, getWorkItemsWithParents, addWorkItemComment, getCurrentIteration, listAllIterations } from '../server/ado.js';
+import { getWorkItem, getWorkItemsWithParents, addWorkItemComment, getCurrentIteration, listAllIterations, listMyOpenStoriesEverywhere, getWorkItemsByIds } from '../server/ado.js';
+import { countTasks, openTasks, removalComment, removalRefusal } from '../server/item-removal.js';
+import { htmlPreview } from '../server/html-preview.js';
 import { iterationShortName, resolveIterationInput, sameIterationPath } from '../server/iteration-paths.js';
 import { outsideSprintRefusal } from '../server/outside-sprint.js';
 import { markSHCreated } from '../server/sh-created.js';
@@ -134,6 +137,7 @@ import {
   backfillEstimateIfBlank,
   setRemaining,
   setStateBucket,
+  removeWorkItem,
   setTitle,
   transitionFromBlocked,
   transitionToBlocked,
@@ -625,6 +629,17 @@ tasks; pick one (or ask which) and open the session on that.
     session_end closes the story's LAST open task, the response carries
     \`storyCloseSuggestion\` — surface it ("that was the last task under
     <displayName> — close the story too?") and call \`story_close\` on yes.
+  - WORK THAT WON'T HAPPEN is not closed — it is removed. Closing claims
+    the hours were spent. If the user says a story is done but some tasks
+    under it were never worked (or stopped halfway on purpose), read the
+    open tasks back by their displayName, and after a clear yes call
+    \`story_close({ workItemId, dropOpenTasks: true, dropReason })\`: the
+    open tasks go to Removed with no hours left, hours already spent stay,
+    then the story closes. For a story or task that will never happen at
+    all, ask, then call \`workitem_remove\` — it takes a story's open
+    tasks with it. Never set fake completed hours to make a close look
+    right. \`my_open_stories\` lists every open story the user has, in
+    any sprint or the backlog, for tidying the board.
   - When focus shifts between tasks inside a session, optionally drop a
     \`session_log\` 'focus' event so their activity feed shows the movement.
 
@@ -1420,11 +1435,18 @@ server.registerTool(
       "Close a User Story or Bug (move it to the team's Done/Closed state) once its work is finished. STORIES ONLY — close Tasks via session_end({done:true, completedHoursAfter}), which captures the hours; a story has no hours of its own (they live on its tasks), so it closes directly here. Guards (all enforced server-side): refuses Tasks, Features and Epics; refuses to close a story that still has open (not-done) child tasks — close or move those first. Works for a story in ANY sprint, including leftovers from a previous iteration — closing a finished story is always allowed. Use this to close out a story whose tasks are all done.",
     inputSchema: {
       workItemId: workItemIdSchema,
+      dropOpenTasks: z
+        .boolean()
+        .optional()
+        .describe(
+          "Only after the user said yes to dropping them by name: move the story's open tasks to Removed with no hours left (hours already spent stay), then close the story. For tasks that were never worked or stopped on purpose — never to hide real work.",
+        ),
+      dropReason: z.string().optional().describe('Why the open tasks are dropped, in the user\'s words. Written as a comment on each one.'),
     },
   },
-  async ({ workItemId }) => {
+  async ({ workItemId, dropOpenTasks, dropReason }) => {
     try {
-      const d = await getWorkItem(workItemId);
+      let d = await getWorkItem(workItemId);
       const typeLower = d.type.toLowerCase();
       if (typeLower === 'task') {
         return errorResult(
@@ -1434,12 +1456,27 @@ server.registerTool(
       if (typeLower === 'feature' || typeLower === 'epic') {
         return errorResult(`#${workItemId} is a ${d.type}. story_close is for User Stories / Bugs, not containers.`);
       }
-      // Don't close over unfinished work.
+      // Don't close over unfinished work — unless the user said to drop it.
+      const dropped: Array<{ id: number; displayName: string; toState: string }> = [];
+      if (dropOpenTasks) {
+        const toDrop = openTasks(d.children);
+        const live = [...getActiveSessionMap().keys()];
+        for (const c of toDrop) {
+          const refusal = removalRefusal({ id: c.id, type: c.type, state: c.state, openSessionIds: live });
+          if (refusal) return errorResult(`${refusal} Nothing was changed on ${displayNameFor(d.id, d.title)}.`);
+        }
+        for (const c of toDrop) {
+          const toState = await removeWorkItem(c.id);
+          await addWorkItemComment(c.id, removalComment(dropReason ?? '')).catch(() => undefined);
+          dropped.push({ id: c.id, displayName: displayNameFor(c.id, c.title), toState });
+        }
+        if (dropped.length > 0) d = await getWorkItem(workItemId);
+      }
       const openChildren = d.children.filter(c => !isDoneState(c.state));
       if (openChildren.length > 0) {
         const names = openChildren.map(c => displayNameFor(c.id, c.title)).join(', ');
         return errorResult(
-          `#${workItemId} still has open tasks: ${names}. Close or move those to the next sprint first, then close the story.`,
+          `#${workItemId} still has open tasks: ${names}. Close or move those to the next sprint first, then close the story. If some were never worked and won't be, ask the user, then call story_close again with dropOpenTasks: true.`,
         );
       }
       // Discovery stories must have a finished discovery doc before they close.
@@ -1476,7 +1513,102 @@ server.registerTool(
       const toState = await setStateBucket(workItemId, 'done');
       invalidateDashboardCache();
       void mirrorSprintSummary();
-      return jsonResult({ closed: { id: d.id, displayName: displayNameFor(d.id, d.title), toState } }, { fromBoard: true });
+      return jsonResult(
+        {
+          closed: { id: d.id, displayName: displayNameFor(d.id, d.title), toState },
+          ...(dropped.length > 0 ? { droppedTasks: dropped } : {}),
+        },
+        { fromBoard: true },
+      );
+    } catch (e) {
+      return errorResult(e instanceof Error ? e.message : String(e));
+    }
+  },
+);
+
+server.registerTool(
+  'workitem_remove',
+  {
+    title: 'Remove a story or task that will not happen',
+    description:
+      "Take a Task, User Story or Bug off the board WITHOUT saying it was done: state Removed (or the board's own word for it), no hours left, hours already spent kept as they were, and a comment with the reason. For a story, its open tasks are removed with it. This is not a delete — the item stays findable. Refuses Features and Epics, items already done or removed, and anything with a session open. ASK FIRST: read the item (and for a story, its open tasks) back to the user by displayName and call this only after a clear yes, with userConfirmed: true.",
+    inputSchema: {
+      workItemId: workItemIdSchema,
+      reason: z.string().min(1).describe("Why it won't happen, in the user's words. Written as a comment on each item."),
+      userConfirmed: z.literal(true).describe('Set only after the user said yes to removing it.'),
+    },
+  },
+  async ({ workItemId, reason }) => {
+    try {
+      const d = await getWorkItem(workItemId);
+      const live = [...getActiveSessionMap().keys()];
+      const refusal = removalRefusal({ id: d.id, type: d.type, state: d.state, openSessionIds: live });
+      if (refusal) return errorResult(refusal);
+      const kids = d.type.toLowerCase() === 'task' ? [] : openTasks(d.children);
+      for (const c of kids) {
+        const r = removalRefusal({ id: c.id, type: c.type, state: c.state, openSessionIds: live });
+        if (r) return errorResult(`${r} Nothing was changed.`);
+      }
+      const removed: Array<{ id: number; displayName: string; toState: string }> = [];
+      for (const c of kids) {
+        const toState = await removeWorkItem(c.id);
+        await addWorkItemComment(c.id, removalComment(reason)).catch(() => undefined);
+        removed.push({ id: c.id, displayName: displayNameFor(c.id, c.title), toState });
+      }
+      const toState = await removeWorkItem(d.id);
+      await addWorkItemComment(d.id, removalComment(reason)).catch(() => undefined);
+      invalidateDashboardCache();
+      void mirrorSprintSummary();
+      return jsonResult(
+        {
+          removed: { id: d.id, displayName: displayNameFor(d.id, d.title), toState },
+          ...(removed.length > 0 ? { removedTasks: removed } : {}),
+        },
+        { fromBoard: true },
+      );
+    } catch (e) {
+      return errorResult(e instanceof Error ? e.message : String(e));
+    }
+  },
+);
+
+server.registerTool(
+  'my_open_stories',
+  {
+    title: 'Every open story of mine, anywhere',
+    description:
+      "List every open User Story and Bug assigned to the user, in ANY sprint, quarter or the backlog — not just the current sprint. Each carries displayName, type, state, iteration, iterationPath, inCurrentSprint, its task counts (open, done, removed), the hours left on its open tasks, and when it last changed. For tidying the board: finding old stories to close, move or remove. Read-only.",
+    inputSchema: {},
+  },
+  async () => {
+    try {
+      const stories = await listMyOpenStoriesEverywhere();
+      const kids = await getWorkItemsByIds([...new Set(stories.flatMap(s => s.childIds))]);
+      const byId = new Map(kids.map(k => [k.id, k]));
+      const sprint = await getCurrentIteration().catch(() => null);
+      return jsonResult(
+        {
+          count: stories.length,
+          stories: stories.map(s => {
+            const children = s.childIds.flatMap(id => {
+              const k = byId.get(id);
+              return k ? [{ id: k.id, type: k.type, state: k.state, remainingWork: k.remainingWork }] : [];
+            });
+            return {
+              id: s.id,
+              displayName: displayNameFor(s.id, s.title),
+              type: s.type,
+              state: s.state,
+              iteration: iterationShortName(s.iterationPath),
+              iterationPath: s.iterationPath,
+              ...(sprint ? { inCurrentSprint: sameIterationPath(s.iterationPath, sprint.path) } : {}),
+              tasks: countTasks(children),
+              changedDate: s.changedDate,
+            };
+          }),
+        },
+        { fromBoard: true },
+      );
     } catch (e) {
       return errorResult(e instanceof Error ? e.message : String(e));
     }
@@ -1517,7 +1649,7 @@ server.registerTool(
   {
     title: 'Read a single work item',
     description:
-      "Fetch one work item by id from Azure DevOps (fields, parent, children, effort, url). `iteration` is the short sprint name, `iterationPath` the full path, and `inCurrentSprint` says whether it sits in the current sprint — each child carries the same three plus its remainingWork. Use this instead of shelling out to 'az boards work-item show' so everything stays coordinated with sprintomatic's caches.",
+      "Fetch one work item by id from Azure DevOps (fields, who created it and when, a short plain-text descriptionPreview, parent, children, effort, url). `iteration` is the short sprint name, `iterationPath` the full path, and `inCurrentSprint` says whether it sits in the current sprint — each child carries the same three plus its remainingWork. Use this instead of shelling out to 'az boards work-item show' so everything stays coordinated with sprintomatic's caches.",
     inputSchema: {
       workItemId: workItemIdSchema,
     },
@@ -1541,6 +1673,11 @@ server.registerTool(
         state: d.state,
         tags,
         assignedTo: d.assignedTo,
+        createdBy: d.createdBy,
+        createdDate: d.createdDate,
+        changedBy: d.changedBy,
+        changedDate: d.changedDate,
+        descriptionPreview: htmlPreview(d.description),
         iteration: iterationShortName(d.iterationPath),
         iterationPath: d.iterationPath,
         ...inSprint(d.iterationPath),

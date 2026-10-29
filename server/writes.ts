@@ -508,6 +508,44 @@ export async function backfillEstimateIfBlank(workItemId: number, hours: number)
   await setEstimate(workItemId, hours);
 }
 
+/** The names a board may use for "taken off the board, never done". */
+export const REMOVED_STATE_CHAIN = ['Removed', 'Cut', 'Canceled', 'Cancelled'] as const;
+
+/**
+ * Take an item off the board without saying it was finished: state Removed
+ * (or the board's own word for it), and no hours left. CompletedWork is not
+ * touched — hours really spent stay, and nothing claims hours that weren't.
+ * That is the difference from closing, which fills in CompletedWork.
+ * Returns the state it landed in.
+ */
+export async function removeWorkItem(workItemId: number): Promise<string> {
+  const settingKey = 'state_removed';
+  const preferred = getSetting(settingKey);
+  const chain: string[] = preferred
+    ? [preferred, ...REMOVED_STATE_CHAIN.filter(s => s !== preferred)]
+    : [...REMOVED_STATE_CHAIN];
+  let lastErr: Error | null = null;
+  for (const state of chain) {
+    try {
+      await patchWorkItem(workItemId, [{ op: 'add', path: '/fields/System.State', value: state }]);
+      if (state !== preferred) setSetting(settingKey, state);
+      try {
+        await setRemaining(workItemId, 0);
+      } catch {
+        // The state is what matters; a removed item's hours don't count anyway.
+      }
+      return state;
+    } catch (err) {
+      lastErr = err instanceof Error ? err : new Error(String(err));
+      const msg = lastErr.message.toLowerCase();
+      if (!msg.includes('valid state') && !msg.includes('transition') && !msg.includes('not allowed') && !msg.includes('invalid')) {
+        throw lastErr;
+      }
+    }
+  }
+  throw lastErr ?? new Error('This board has no state for taking an item off the board.');
+}
+
 export async function setRemaining(workItemId: number, hours: number): Promise<void> {
   await patchWorkItem(workItemId, [
     { op: 'add', path: '/fields/Microsoft.VSTS.Scheduling.RemainingWork', value: round2(hours) },
