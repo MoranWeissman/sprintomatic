@@ -110,6 +110,7 @@ import {
   setFeatureKind,
   type OrientWorkspaceOffer,
 } from '../server/workspace.js';
+import { addGuardSkip, setGuardFolder } from '../server/session-guard-store.js';
 import { isDiscoveryStoryTitle, discoveryCloseBlockMessage, discoveryFinishedCheck } from '../server/discovery.js';
 import { listTouchedFeatureFolders } from '../server/discovery-list.js';
 import { runFeatureShare, ShareRefused, type ShareDeps } from '../server/feature-share-run.js';
@@ -234,6 +235,9 @@ no bullets, no sub-headers, no horizontal rules:
     work is closed on the board;
   - if \`sessionReminder\` is set, surface it: no session is open, so remind
     them to call session_start on the task before working;
+  - if \`oldSprintLine\` is set, echo it verbatim as one sentence — tasks
+    left open in a sprint that ended are where work goes missing from the
+    board;
   - if \`ceremonyToday\` is set, echo it verbatim as one sentence — it's the
     only reminder the user gets that a ceremony (planning, demo, retro) falls
     today, and the Plan page depends on being mentioned at the right
@@ -486,6 +490,17 @@ or update a session. Two things to do, every time:
 Two reminders arrive inside tool responses when either half slips: NO
 SESSION OPEN and STALE SESSION. They are for you. Act on them in the same
 turn you read them; never pass them on to them as a question.
+
+THE SESSION GUARD — when the user has installed it (\`sprintomatic guard
+install\`), a Claude Code hook stops every file edit in a git repo while no
+session is open for that repo, and adds a "sprintomatic:" line to the user's
+messages while none is open or the open one has gone quiet. A stopped edit
+wrote nothing. Do what the message says, in order: open a session on the
+right task; if the story has no tasks, suggest a task name and hours, create
+it with \`task_create\` only after the user says yes, then start the session.
+Only when the USER says the work has no story, call \`session_skip\` with the
+chatId from the message — never decide that yourself. Only when the user says
+a folder is not work, call \`guard_folder_set\` with work: false.
 
 SESSION LIMIT — the user caps how many tasks run at once (default 4). If
 \`session_start\` is refused because the limit is reached, DO NOT work
@@ -2270,7 +2285,7 @@ server.registerTool(
       const openTasks = detail.children.filter(c => !isDoneState(c.state));
       if (openTasks.length === 0) {
         return errorResult(
-          `${storyName} is a ${detail.type} — a session attaches to a task, not a story, and this one has no open tasks under it. Create a task first (task_create) before starting work. (If this is planning rather than doing, you don't need a session at all.)`,
+          `${storyName} is a ${detail.type} — a session attaches to a task, not a story, and this one has no open tasks under it. Suggest a task name and hours for the work to the user. When they say yes, create it with task_create under this story, then call session_start on the new task. (If this is planning rather than doing, you don't need a session at all.)`,
           { fromBoard: true },
         );
       }
@@ -3118,6 +3133,49 @@ server.registerTool(
     try {
       declineWorkspace(cwd);
       return jsonResult({ declined: cwd });
+    } catch (e) {
+      return errorResult(e instanceof Error ? e.message : String(e));
+    }
+  },
+);
+
+server.registerTool(
+  'session_skip',
+  {
+    title: 'Let this chat work with no session',
+    description:
+      "Tell the session guard to let THIS chat change files with no session open, for a quick fix the user said has no story. Call ONLY after the user says so — never decide it yourself. The chatId is in the guard's message. Lasts until the chat ends, and is written down with the reason so the retro can see it.",
+    inputSchema: {
+      chatId: z.string().min(1).describe("The chat id the guard's message gave you."),
+      cwd: z.string().min(1).describe("This chat's working directory, from your environment."),
+      reason: z.string().min(1).describe('A few plain words on what the quick fix is, from what the user said.'),
+    },
+  },
+  async ({ chatId, cwd, reason }) => {
+    try {
+      const skip = addGuardSkip({ chatId, cwd, reason });
+      return jsonResult({ skipped: skip, note: 'This chat can change files with no session until it ends.' });
+    } catch (e) {
+      return errorResult(e instanceof Error ? e.message : String(e));
+    }
+  },
+);
+
+server.registerTool(
+  'guard_folder_set',
+  {
+    title: 'Mark a folder as work or not work for the session guard',
+    description:
+      "work: false — the session guard leaves this folder (its whole git repo) alone from now on. work: true — watch it again. Call ONLY after the user says the folder is or isn't work.",
+    inputSchema: {
+      cwd: z.string().min(1).describe("The folder, usually this chat's working directory."),
+      work: z.boolean().describe('false = not work, leave it alone; true = watch it again.'),
+    },
+  },
+  async ({ cwd, work }) => {
+    try {
+      const folder = setGuardFolder(cwd, work);
+      return jsonResult({ folder, watched: work });
     } catch (e) {
       return errorResult(e instanceof Error ? e.message : String(e));
     }

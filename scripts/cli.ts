@@ -6,6 +6,7 @@
  *   sprintomatic setup      first-time setup, one question at a time
  *   sprintomatic dashboard  the dashboard on http://localhost:7777
  *   sprintomatic demo       the dashboard on a made-up board, http://localhost:7778
+ *   sprintomatic guard ...  the session guard hook, and `guard install` to add it
  *
  * No word means the MCP server, so `npx -y sprintomatic` is the whole line
  * an MCP client needs. Each part loads only when asked for: the server and
@@ -23,13 +24,16 @@ switch (command) {
   case 'dashboard':
     await import('../server/serve');
     break;
+  case 'guard':
+    await import('./guard');
+    break;
   case 'demo':
     // Set before the import, so every part reads demo mode from the start.
     process.env.SPRINTOMATIC_DEMO = '1';
     await import('../server/serve');
     break;
   default:
-    console.error(`Unknown command: ${command}. Use one of: setup, dashboard, demo (or nothing for the MCP server).`);
+    console.error(`Unknown command: ${command}. Use one of: setup, dashboard, demo, guard (or nothing for the MCP server).`);
     process.exitCode = 1;
 }
 

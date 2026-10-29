@@ -21,6 +21,7 @@ import { candidateDayOffRanges, listDaysOff, toIsoDate } from './days-off';
 import type { Capacity } from './capacity';
 import { ceremonyTodayLine, getCeremonySchedule } from './ceremony';
 import { buildDashboardCached } from './dashboard-cache';
+import type { CarryForwardSummary } from './dashboard';
 import { readDesignDoc } from './design-store';
 import { displayNameFor } from './display-name';
 import { getDb } from './db';
@@ -144,6 +145,13 @@ export interface OrientPacket {
    * OPENING GREETING.
    */
   sessionReminder: string | null;
+  /**
+   * One plain sentence naming the stories that still have open tasks in a
+   * sprint that already ended, or null when there are none. Work done on
+   * those tasks lands where no current board shows it, so the greeting says
+   * so every morning until they are moved or closed.
+   */
+  oldSprintLine: string | null;
   lastSession: OrientLastSession | null;
   helperNotes: {
     /**
@@ -374,6 +382,15 @@ async function buildDaysOffQuestion(
  * (possibly deferred) tool. Returns null when a session is already open —
  * don't nag. See SERVER_INSTRUCTIONS → OPENING GREETING.
  */
+export function oldSprintLineFor(cf: CarryForwardSummary | null | undefined): string | null {
+  if (!cf || cf.count === 0) return null;
+  const names = cf.groups.map(g => g.storyDisplayName ?? 'a task with no story');
+  const list =
+    names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  const tasks = cf.count === 1 ? '1 open task' : `${cf.count} open tasks`;
+  return `You still have ${tasks} in a sprint that already ended (${cf.fromLabel}), under ${list}. Move them into this sprint or close them, so the board shows where the work really is.`;
+}
+
 export function sessionReminderFor(liveSessionCount: number): string | null {
   if (liveSessionCount > 0) return null;
   return "You don't have a work session open. When you start working a task, call session_start on it so your progress gets recorded.";
@@ -803,6 +820,7 @@ export async function buildOrientPacket(chatCwd: string | null = null): Promise<
     },
     liveNow,
     sessionReminder: sessionReminderFor(liveNow.length),
+    oldSprintLine: oldSprintLineFor(payload.carryForward),
     lastSession,
     helperNotes: {
       openNudgeCount: openNoteCount,

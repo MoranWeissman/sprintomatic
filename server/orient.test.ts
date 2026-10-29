@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { repoHintFor, sessionReminderFor, activeFeatureField, repoLinkFor } from './orient';
+import { repoHintFor, sessionReminderFor, activeFeatureField, repoLinkFor, oldSprintLineFor } from './orient';
 import type { RepoLinkDeps } from './orient';
 import type { WorkItemDetail } from './ado';
 import type { FoundRepoLink } from './repo-link';
@@ -346,5 +346,28 @@ describe('sprintProgress', () => {
       totalDays: 10,
       daysRemaining: 9,
     });
+  });
+});
+
+describe('oldSprintLineFor', () => {
+  it('is null when nothing is left in an old sprint', () => {
+    expect(oldSprintLineFor(null)).toBeNull();
+  });
+
+  it('names every story, title first', () => {
+    const line = oldSprintLineFor({
+      taskIds: [100001, 100002, 100003],
+      groups: [
+        { storyId: 100010, storyDisplayName: '**Queue for deploys** (#100010)', tasks: [], remainingHours: 3 },
+        { storyId: 100011, storyDisplayName: '**Alerts** (#100011)', tasks: [], remainingHours: 0 },
+      ],
+      count: 3,
+      fromLabel: '26_01, last sprint',
+      remainingHours: 3,
+      noHoursCount: 1,
+    });
+    expect(line).toBe(
+      'You still have 3 open tasks in a sprint that already ended (26_01, last sprint), under **Queue for deploys** (#100010) and **Alerts** (#100011). Move them into this sprint or close them, so the board shows where the work really is.',
+    );
   });
 });
