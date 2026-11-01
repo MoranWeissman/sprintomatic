@@ -1195,6 +1195,9 @@ function FocusPanel({
               const isLive = String(t.id) === taskIdStr;
               const stateClass = boardStateClass(t.state);
               const tRem = t.remainingWork != null ? `${Math.round(t.remainingWork)}h` : '—';
+              const tDone = stateClass === 'done';
+              const tLastNum = tDone ? t.completedWork : t.remainingWork;
+              const tLast = tDone ? (t.completedWork != null ? `${Math.round(t.completedWork)}h` : '—') : tRem;
               return (
                 <li
                   key={t.id}
@@ -1214,9 +1217,9 @@ function FocusPanel({
                       <span className="val">{estimateFor(t)}</span>
                     </span>
                     <span className="r21-num is-compact">
-                      <span className="cap">REM</span>
-                      <span className={`val ${t.remainingWork == null ? 'is-missing' : ''}`}>
-                        {tRem}
+                      <span className="cap">{tDone ? 'DONE' : 'REM'}</span>
+                      <span className={`val ${tLastNum == null ? 'is-missing' : ''}`}>
+                        {tLast}
                       </span>
                     </span>
                   </button>
@@ -2011,6 +2014,10 @@ function DailyStoryCard({
               const sc = dailyStateClass(t.state, t.tags);
               const est = t.originalEstimate != null ? `${fmtNum(t.originalEstimate)}h` : '—';
               const rem = t.remainingWork != null ? `${fmtNum(t.remainingWork)}h` : '—';
+              // A finished task has nothing left; what matters is the hours it took.
+              const isDone = sc === 'is-done';
+              const lastNum = isDone ? t.completedWork : t.remainingWork;
+              const lastText = isDone ? (t.completedWork != null ? `${fmtNum(t.completedWork)}h` : '—') : rem;
               return (
                 <li key={t.id}>
                   <button
@@ -2031,8 +2038,8 @@ function DailyStoryCard({
                         <span className={`val ${t.originalEstimate == null ? 'is-missing' : ''}`}>{est}</span>
                       </span>
                       <span className="r21-daily-task-num">
-                        <span className="cap">REM</span>
-                        <span className={`val ${t.remainingWork == null ? 'is-missing' : ''}`}>{rem}</span>
+                        <span className="cap">{isDone ? 'DONE' : 'REM'}</span>
+                        <span className={`val ${lastNum == null ? 'is-missing' : ''}`}>{lastText}</span>
                       </span>
                     </span>
                   </button>

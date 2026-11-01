@@ -98,6 +98,7 @@ import { countTasks, openTasks, removalComment, removalRefusal } from '../server
 import { htmlPreview } from '../server/html-preview.js';
 import { iterationShortName, resolveIterationInput, sameIterationPath } from '../server/iteration-paths.js';
 import { outsideSprintRefusal } from '../server/outside-sprint.js';
+import { missingEstimateRefusal } from '../server/missing-estimate.js';
 import { markSHCreated } from '../server/sh-created.js';
 import {
   registerWorkspace,
@@ -1513,13 +1514,18 @@ server.registerTool(
   {
     title: 'Start a work session',
     description:
-      "Open a session against a TASK (or a Bug) — never a container. Passing a User Story / Feature / Epic REFUSES and returns its open tasks; pick one (or ask the user which) and call again with that id. Returns a sessionId for later session_log / session_end calls, and is idempotent: an already-open session comes back as-is. AUTO-FLIPS the item from a waiting state (New / To Do / Proposed) to going (Active / In Progress), and flips its parent Story too when the item is a Task. Silent, no prompt. Reports `stateFlip` and `parentStoryFlip` so you can mention it casually. REFUSES a task that is not in the current sprint (an old sprint, a quarter, the backlog) — work on it would land where no sprint board shows it. Ask the user: move it in first, or pass outsideSprintOk: true to work on it where it is.",
+      "Open a session against a TASK (or a Bug) — never a container. Passing a User Story / Feature / Epic REFUSES and returns its open tasks; pick one (or ask the user which) and call again with that id. Returns a sessionId for later session_log / session_end calls, and is idempotent: an already-open session comes back as-is. AUTO-FLIPS the item from a waiting state (New / To Do / Proposed) to going (Active / In Progress), and flips its parent Story too when the item is a Task. Silent, no prompt. Reports `stateFlip` and `parentStoryFlip` so you can mention it casually. REFUSES a task that is not in the current sprint (an old sprint, a quarter, the backlog) — work on it would land where no sprint board shows it. Ask the user: move it in first, or pass outsideSprintOk: true to work on it where it is. REFUSES a Task with no Original Estimate — anchor with estimate_anchor, agree a number with the user, then call again with estimateHours.",
     inputSchema: {
       workItemId: workItemIdSchema,
       outsideSprintOk: z
         .boolean()
         .optional()
         .describe('Pass true only after the user said to work on this task where it is, even though it is not in the current sprint.'),
+      estimateHours: z
+        .number()
+        .gt(0)
+        .optional()
+        .describe("Only when the task has no Original Estimate yet (session_start refuses such a task). The hours the user agreed to — anchor with estimate_anchor first. Fills Original Estimate, and Remaining Work if that's blank too."),
       client: z
         .string()
         .optional()
@@ -1530,7 +1536,7 @@ server.registerTool(
         .describe("This chat's current working directory (absolute path), read from your environment — the same value you pass to story_match. Binds the session to this chat's folder so other chats can tell whose session it is. Omit only if genuinely unknown."),
     },
   },
-  async ({ workItemId, client, cwd, outsideSprintOk }) => {
+  async ({ workItemId, client, cwd, outsideSprintOk, estimateHours }) => {
     // Guard: a session attaches to a workable unit (Task/Bug), never to a
     // container story. Read the item; if it's a container, refuse and hand back
     // its open tasks so the assistant picks one instead of landing on the story.
@@ -1569,6 +1575,18 @@ server.registerTool(
       if (refusal) return errorResult(refusal, { fromBoard: true });
     }
 
+    // Guard: a task with no hours estimate. A task already running is left alone.
+    const alreadyRunning = getActiveSessionMap().has(workItemId);
+    if (detail && !alreadyRunning) {
+      const refusal = missingEstimateRefusal({
+        displayName: displayNameFor(detail.id, detail.title),
+        type: detail.type,
+        originalEstimate: detail.originalEstimate,
+        estimateHours,
+      });
+      if (refusal) return errorResult(refusal, { fromBoard: true });
+    }
+
     // Cap parallel work. Refuse a genuinely NEW session past the limit and
     // name what's already running so the user picks one to pause/finish. Re-opening
     // an item that already has a session is never blocked (handled in the predicate).
@@ -1589,6 +1607,22 @@ server.registerTool(
         `You already have ${max} tasks running — that's your limit. Pause or finish one before starting another. Running now:\n${names.join('\n')}`,
         { fromBoard: true },
       );
+    }
+
+    // Fill a blank estimate before anything starts, so a failed write starts nothing.
+    let estimateFilled: number | undefined;
+    if (
+      detail && !alreadyRunning && estimateHours != null && estimateHours > 0 &&
+      detail.type.trim().toLowerCase() === 'task' &&
+      (detail.originalEstimate == null || detail.originalEstimate <= 0)
+    ) {
+      try {
+        await backfillEstimateIfBlank(workItemId, estimateHours);
+        if (detail.remainingWork == null || detail.remainingWork <= 0) await setRemaining(workItemId, estimateHours);
+        estimateFilled = estimateHours;
+      } catch (e) {
+        return errorResult(`Could not fill in the estimate: ${e instanceof Error ? e.message : String(e)} Nothing was started.`);
+      }
     }
 
     const session = startSession({ workItemId, client: detectedClient() ?? client, cwd: chatCwdKey(cwd) });
@@ -1633,6 +1667,7 @@ server.registerTool(
     return jsonResult({
       session,
       stateFlip,
+      ...(estimateFilled != null ? { estimateFilled } : {}),
       ...(parentStoryFlip?.flipped ? { parentStoryFlip } : {}),
       ...(blockNudge ? { blockNudge } : {}),
     });
