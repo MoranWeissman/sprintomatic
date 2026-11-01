@@ -2,7 +2,7 @@
  * Orientation packet (slice R4).
  *
  * Builds a short "where the user left off and what's waiting" read for the start
- * of every Claude Code session. The MCP `orient` tool returns this; the
+ * of every AI chat session. The MCP `orient` tool returns this; the
  * assistant uses it to write a friendly 2-4 sentence greeting (time of day,
  * last task, day of sprint, any open helper notes) — not to dump the data.
  *

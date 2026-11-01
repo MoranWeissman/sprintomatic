@@ -1,6 +1,6 @@
 /**
- * Claude Code session tracking. Each session is a stretch of work Claude Code
- * reports via the MCP plugin: started against a work item, accumulating events
+ * AI chat session tracking. Each session is a stretch of work an AI chat
+ * (Claude Code or GitHub Copilot CLI) reports via the MCP plugin: started against a work item, accumulating events
  * (focus changes, summaries, blockers, decisions), closed when the user finishes.
  *
  * This is the storage + read layer. The MCP server (slice 2.1b) wraps these.
@@ -175,12 +175,26 @@ export function sessionsOwnedByChat(activeSessions: Session[], chatCwd: string |
 }
 
 /**
+ * Turn the name an MCP client reports about itself (its `clientInfo.name`)
+ * into the short id stored on a session: 'copilot-cli', 'claude-code', or the
+ * raw name for any other client. Null when the client didn't say.
+ */
+export function clientIdFromName(name: string | null | undefined): string | null {
+  const n = name?.trim();
+  if (!n) return null;
+  const lower = n.toLowerCase();
+  if (lower.includes('copilot')) return 'copilot-cli';
+  if (lower.includes('claude')) return 'claude-code';
+  return n;
+}
+
+/**
  * Start a new session for a work item. If one is already active, returns it
- * unchanged (idempotent) — Claude Code can call this on every reconnect.
+ * unchanged (idempotent) — the chat can call this on every reconnect.
  */
 export function startSession({
   workItemId,
-  client = 'claude-code',
+  client = 'unknown',
   cwd,
 }: {
   workItemId: number;

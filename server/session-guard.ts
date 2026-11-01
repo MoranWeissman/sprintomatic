@@ -1,6 +1,6 @@
 /**
- * The session guard: a Claude Code hook that stops file edits in a work repo
- * while no sprintomatic session is open there.
+ * The session guard: a Claude Code and GitHub Copilot CLI hook that stops
+ * file edits in a work repo while no sprintomatic session is open there.
  *
  * Every other reminder sprintomatic has rides inside its own tool answers, so
  * a chat that never calls sprintomatic never sees one — it can work for days
@@ -12,6 +12,8 @@
  *    with the steps to open one.
  *  - UserPromptSubmit: a short line for the assistant on every message while
  *    no session is open, or while the open one has gone quiet.
+ *  - sessionStart (Copilot CLI only): a line asking the assistant to call
+ *    orient first, since Copilot has no other way to get that nudge.
  *
  * The hook runs before every edit, so this file must stay cheap: no import of
  * ./db (that one migrates and takes a backup on open), no board calls. It
@@ -36,6 +38,9 @@ export const QUIET_MINUTES = 60;
 /** The tools that change files. Commands are left alone on purpose — reading
  *  git history or running tests must never need a session. */
 export const EDIT_TOOLS = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit'] as const;
+
+/** The same, by the names the Copilot CLI uses. */
+export const COPILOT_EDIT_TOOLS = ['edit', 'create', 'str_replace_editor', 'apply_patch', 'write'] as const;
 
 export interface GuardSkip {
   chatId: string;
@@ -123,9 +128,15 @@ function watchedRepo(args: {
   dataDir: string;
 }): string | null {
   const { target, state, homeDir, dataDir } = args;
-  // Claude's own files (memory, plans) and sprintomatic's own folder are
-  // never work, even when they happen to sit in a repo.
-  if (isUnder(target, join(homeDir, '.claude')) || isUnder(target, dataDir)) return null;
+  // Claude's and Copilot's own files (memory, plans) and sprintomatic's own
+  // folder are never work, even when they happen to sit in a repo.
+  if (
+    isUnder(target, join(homeDir, '.claude')) ||
+    isUnder(target, join(homeDir, '.copilot')) ||
+    isUnder(target, dataDir)
+  ) {
+    return null;
+  }
   const repo = repoRootFor(target);
   if (!repo) return null;
   if (state.notWork.some(p => resolve(p) === repo)) return null;
@@ -201,6 +212,68 @@ export function promptLine(args: {
   if (quiet < QUIET_MINUTES) return null;
   const ids = mine.map(s => `#${s.workItemId}`).join(', ');
   return `sprintomatic: nothing has been logged on ${ids} for ${quiet} minutes. Call session_log with what got done. If the work only waits on someone else, call session_end without done to pause it.`;
+}
+
+/* ============================================================ */
+/*  Copilot CLI input                                             */
+/* ============================================================ */
+
+/**
+ * Every file a Copilot edit tool is about to change, as full paths.
+ *
+ * `toolArgs` comes as an object, as that object JSON-encoded, or (for
+ * apply_patch) as the raw patch text, which can name several files. When
+ * no file can be found the chat folder stands in, the same as for Claude.
+ */
+export function copilotEditTargets(toolArgs: unknown, cwd: string): string[] {
+  let args = toolArgs;
+  if (typeof args === 'string') {
+    try {
+      args = JSON.parse(args) as unknown;
+    } catch {
+      // Not JSON: a raw patch.
+    }
+  }
+  const found: string[] = [];
+  if (typeof args === 'string') {
+    found.push(...patchPaths(args));
+  } else if (args && typeof args === 'object') {
+    const o = args as Record<string, unknown>;
+    for (const key of ['path', 'file_path', 'filePath']) {
+      if (typeof o[key] === 'string' && o[key]) found.push(o[key]);
+    }
+    // An apply_patch that came wrapped in an object: the patch is one of its values.
+    if (found.length === 0) {
+      for (const v of Object.values(o)) {
+        if (typeof v === 'string') found.push(...patchPaths(v));
+      }
+    }
+  }
+  const paths = [...new Set(found.map(p => resolve(cwd, p)))];
+  return paths.length > 0 ? paths : [cwd];
+}
+
+function patchPaths(text: string): string[] {
+  const out: string[] = [];
+  for (const m of text.matchAll(/^\*\*\* (?:(?:Add|Update|Delete) File|Move to): (.+?)\s*$/gm)) out.push(m[1]);
+  return out;
+}
+
+/**
+ * What Copilot's sessionStart hook hands the assistant. It needs no store:
+ * orient is about the day, not the folder, so it is asked for everywhere.
+ */
+export function sessionStartText(args: { chatId: string; chatCwd: string; source?: string }): string {
+  const { chatId, chatCwd, source } = args;
+  const first =
+    source === 'resume'
+      ? 'sprintomatic: this chat was picked up again. Before you reply, call the sprintomatic orient tool again, so you work from where the sprint is now and not from older messages.'
+      : "sprintomatic: before you reply to the user's first message, call the sprintomatic orient tool and use what it tells you.";
+  return [
+    first,
+    `Your working folder is "${chatCwd}". Pass it as cwd wherever a sprintomatic tool asks for one.`,
+    `This chat's id is "${chatId}". If the user says some work here has no story, call session_skip with chatId "${chatId}".`,
+  ].join('\n');
 }
 
 /* ============================================================ */
@@ -287,4 +360,35 @@ export function withGuardHooks(s: ClaudeSettings, file: string): ClaudeSettings 
     { hooks: [{ type: 'command', command: cmd('prompt') }] },
   ];
   return { ...base, hooks };
+}
+
+/* ============================================================ */
+/*  The hook file in ~/.copilot/hooks                             */
+/* ============================================================ */
+
+/** The name of our own hook file in the Copilot hooks folder. */
+export const COPILOT_HOOK_FILE = `${GUARD_MARK}.json`;
+
+/** The whole Copilot hook file, pointing at `file`. */
+export function copilotHooks(file: string): Record<string, unknown> {
+  const entry = (part: string, extra: Record<string, unknown> = {}) => {
+    // Copilot denies the edit when a preToolUse hook exits non-zero. If the
+    // hook can't even start (node missing, file gone), let the edit through.
+    const cmd = `node "${file}" ${part}`;
+    return {
+      type: 'command',
+      bash: `${cmd} || true`,
+      powershell: `${cmd}; exit 0`,
+      timeoutSec: 10,
+      ...extra,
+    };
+  };
+  return {
+    version: 1,
+    hooks: {
+      sessionStart: [entry('session-start')],
+      userPromptSubmitted: [entry('prompt')],
+      preToolUse: [entry('pre-tool-use', { matcher: COPILOT_EDIT_TOOLS.join('|') })],
+    },
+  };
 }

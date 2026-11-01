@@ -2,7 +2,7 @@
  * Planning-home detection (R12 Thread 1).
  *
  * A "planning home" is a cwd the user has designated for sprint-wide planning
- * work. When Claude Code opens a chat in that cwd, the assistant skips the
+ * work. When an AI chat opens in that cwd, the assistant skips the
  * usual story-anchor ritual (no `story_match` prompt) and runs sprint-wide
  * skills instead.
  *

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, symlinkSync, lstatSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -20,6 +20,7 @@ import {
   SKILLS_DRIFT_CHECKED_KEY,
   seedSkillsDir,
   managedDestinations,
+  copilotSkillsDir,
 } from './skills-sync';
 import { SEED_KEY, WORKSPACE_PATHS_KEY } from './workspace';
 
@@ -191,6 +192,57 @@ describe('a sync that goes wrong never destroys the copy that is already there',
   });
 });
 
+describe('symlinked destinations', () => {
+  it('swaps a linked skill folder for a real copy and never writes through the link', () => {
+    const seed = join(root, 'seed');
+    const claudeGlobal = join(root, 'claude', 'skills');
+    const copilot = join(root, 'copilot', 'skills');
+    for (const s of MANAGED_SKILLS) makeSkill(seed, s, { 'SKILL.md': 'new' });
+    makeSkill(claudeGlobal, 'demo', { 'SKILL.md': 'old' });
+    mkdirSync(copilot, { recursive: true });
+    symlinkSync(join(claudeGlobal, 'demo'), join(copilot, 'demo'));
+
+    // Copilot first, so a write through the link would land in the Claude copy.
+    const out = syncManagedSkills(seed, [copilot, claudeGlobal]);
+
+    expect(lstatSync(join(copilot, 'demo')).isSymbolicLink()).toBe(false);
+    expect(readFileSync(join(copilot, 'demo', 'SKILL.md'), 'utf8')).toBe('new');
+    expect(readFileSync(join(claudeGlobal, 'demo', 'SKILL.md'), 'utf8')).toBe('new');
+    const demo = out.find(o => o.skill === 'demo')!;
+    expect(demo.updated.sort()).toEqual([claudeGlobal, copilot].sort());
+    expect(demo.failed).toEqual([]);
+    expect(readdirSync(copilot).some(n => n.includes('.tmp'))).toBe(false);
+  });
+
+  it('a broken link is replaced with a real copy', () => {
+    const seed = join(root, 'seed');
+    const copilot = join(root, 'copilot', 'skills');
+    for (const s of MANAGED_SKILLS) makeSkill(seed, s, { 'SKILL.md': 'new' });
+    mkdirSync(copilot, { recursive: true });
+    symlinkSync(join(root, 'nowhere'), join(copilot, 'demo'));
+
+    syncManagedSkills(seed, [copilot]);
+
+    expect(readFileSync(join(copilot, 'demo', 'SKILL.md'), 'utf8')).toBe('new');
+  });
+
+  it('a destination that links back to the seed is left alone, never copied onto itself', () => {
+    const seed = join(root, 'seed');
+    const dest = join(root, 'ws', '.claude', 'skills');
+    for (const s of MANAGED_SKILLS) makeSkill(seed, s, { 'SKILL.md': 'seed text' });
+    mkdirSync(dest, { recursive: true });
+    symlinkSync(join(seed, 'demo'), join(dest, 'demo'));
+
+    const out = syncManagedSkills(seed, [dest]);
+
+    expect(readFileSync(join(seed, 'demo', 'SKILL.md'), 'utf8')).toBe('seed text');
+    expect(out.find(o => o.skill === 'demo')!.current).toEqual([dest]);
+    // the seed's own folder passed as a destination is also left alone
+    expect(syncManagedSkills(seed, [seed]).every(o => o.updated.length === 0)).toBe(true);
+    expect(readFileSync(join(seed, 'demo', 'SKILL.md'), 'utf8')).toBe('seed text');
+  });
+});
+
 describe('formatSyncReport', () => {
   it('names what changed, what was already current, and what the seed is missing', () => {
     const text = formatSyncReport(
@@ -252,6 +304,23 @@ describe('seedSkillsDir / managedDestinations', () => {
     expect(destDirs.some(d => d.endsWith(join('sprintomatic-plus', 'skills')))).toBe(true);
     expect(deadWorkspaces).toEqual([deadWs]);
   });
+
+  it('adds the Copilot CLI skills folder only when Copilot is installed', () => {
+    const OLD = process.env.COPILOT_HOME;
+    try {
+      const copilotHome = join(root, 'copilot-home');
+      process.env.COPILOT_HOME = copilotHome;
+      expect(copilotSkillsDir()).toBeNull();
+      expect(managedDestinations().destDirs).not.toContain(join(copilotHome, 'skills'));
+
+      mkdirSync(copilotHome);
+      expect(copilotSkillsDir()).toBe(join(copilotHome, 'skills'));
+      expect(managedDestinations().destDirs).toContain(join(copilotHome, 'skills'));
+    } finally {
+      if (OLD === undefined) delete process.env.COPILOT_HOME;
+      else process.env.COPILOT_HOME = OLD;
+    }
+  });
 });
 
 describe('checkSkillsDriftNudge', () => {
@@ -261,12 +330,14 @@ describe('checkSkillsDriftNudge', () => {
   let seedRoot: string;
   let ws: string;
   const OLD_HOME = process.env.HOME;
+  const OLD_COPILOT_HOME = process.env.COPILOT_HOME;
 
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-27T09:00:00.000Z'));
     home = mkdtempSync(join(tmpdir(), 'skills-home-'));
     process.env.HOME = home;
+    delete process.env.COPILOT_HOME;
     seedRoot = join(root, 'seed-root');
     ws = join(root, 'ws');
     store.set(SEED_KEY, seedRoot);
@@ -283,6 +354,8 @@ describe('checkSkillsDriftNudge', () => {
 
   afterEach(() => {
     process.env.HOME = OLD_HOME;
+    if (OLD_COPILOT_HOME === undefined) delete process.env.COPILOT_HOME;
+    else process.env.COPILOT_HOME = OLD_COPILOT_HOME;
     vi.useRealTimers();
     rmSync(home, { recursive: true, force: true });
   });
@@ -325,5 +398,17 @@ describe('checkSkillsDriftNudge', () => {
   it('a dead workspace path is ignored, not drift', () => {
     store.set(WORKSPACE_PATHS_KEY, JSON.stringify([ws, join(root, 'gone')]));
     expect(checkSkillsDriftNudge()).toBeNull();
+  });
+
+  it('counts a stale Copilot CLI copy as drift once Copilot is installed', () => {
+    mkdirSync(join(home, '.copilot'));
+    // Copilot installed but no copies yet → every skill is missing there.
+    expect(checkSkillsDriftNudge()).toContain('demo');
+    vi.advanceTimersByTime(61 * 60 * 1000);
+    for (const s of MANAGED_SKILLS) makeSkill(join(home, '.copilot', 'skills'), s, { 'SKILL.md': 'v1' });
+    writeFileSync(join(home, '.copilot', 'skills', 'design', 'SKILL.md'), 'old');
+    const nudge = checkSkillsDriftNudge();
+    expect(nudge).toContain('design');
+    expect(nudge).not.toContain('demo');
   });
 });

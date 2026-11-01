@@ -170,7 +170,7 @@ function DashboardLive({
     if (mode === 'dnd' && !dnd) setMode('day');
   }, [mode, dnd, setMode]);
 
-  // Every work item with a live Claude Code session, newest session first.
+  // Every work item with a live AI chat session, newest session first.
   const allItems = useMemo(
     () => {
       const base = [...inProgress, ...upNext, ...done];

@@ -1,7 +1,8 @@
 /**
  * Workspace state + feature-folder scaffolding.
  *
- * A "workspace" is a visible folder the user launches Claude Code in for non-code
+ * A "workspace" is a visible folder the user opens their AI chat in (Claude Code
+ * or GitHub Copilot CLI) for non-code
  * work (discovery, design, small demos). BMAD + the planning CLAUDE.md + the
  * enforcement hook live once at its root; each feature gets a subfolder for its
  * design docs. Generalizes the older planning-home concept (see planning-home.ts).
@@ -10,7 +11,7 @@
  * Everything here is LOCAL — no Azure DevOps access.
  */
 import { join, resolve } from 'node:path';
-import { existsSync, mkdirSync, cpSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, cpSync, readdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { getSetting, setSetting } from './timers';
 import { writeFileAtomicSync, type AtomicWriter } from './atomic-write';
@@ -233,17 +234,34 @@ export function getSeedPath(): string {
   return getSetting(SEED_KEY) ?? DEFAULT_SEED;
 }
 
-const SETTINGS_JSON = JSON.stringify(
-  {
-    hooks: {
-      UserPromptSubmit: [
-        { hooks: [{ type: 'command', command: '"$CLAUDE_PROJECT_DIR"/.claude/hooks/user-prompt-submit.sh' }] },
-      ],
-    },
-  },
-  null,
-  2,
-) + '\n';
+/** The settings.json every workspace got before the hook command learned to
+ *  run without `$CLAUDE_PROJECT_DIR`. An untouched copy is upgraded in place. */
+const OLD_SETTINGS_JSON = settingsJson('"$CLAUDE_PROJECT_DIR"/.claude/hooks/user-prompt-submit.sh');
+
+/** Quote a path for use inside double quotes in a shell command. */
+function shellDoubleQuoteBody(p: string): string {
+  return p.replace(/[\\"$`]/g, c => `\\${c}`);
+}
+
+/**
+ * The project settings that run the workspace hook on every message. Claude
+ * Code sets `$CLAUDE_PROJECT_DIR`; GitHub Copilot CLI reads this same file but
+ * leaves that variable unset, so the command falls back to the workspace's own
+ * absolute path.
+ */
+export function workspaceSettingsJson(ws: string): string {
+  return settingsJson(
+    `"\${CLAUDE_PROJECT_DIR:-${shellDoubleQuoteBody(ws)}}"/.claude/hooks/user-prompt-submit.sh`,
+  );
+}
+
+function settingsJson(command: string): string {
+  return JSON.stringify(
+    { hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command }] }] } },
+    null,
+    2,
+  ) + '\n';
+}
 
 /** Copy seed skill folders the workspace doesn't have yet. Never overwrites an
  *  existing skill (the user may have edited it). Returns `skill:<name>` for each
@@ -306,7 +324,9 @@ export function ensureWorkspaceScaffold(
   const settingsPath = join(ws, '.claude', 'settings.json');
   if (!existsSync(settingsPath)) {
     mkdirSync(join(ws, '.claude'), { recursive: true });
-    writeFileAtomicSync(settingsPath, SETTINGS_JSON, writer);
+    writeFileAtomicSync(settingsPath, workspaceSettingsJson(ws), writer);
+  } else if (readFileSync(settingsPath, 'utf8') === OLD_SETTINGS_JSON) {
+    writeFileAtomicSync(settingsPath, workspaceSettingsJson(ws), writer);
   }
   return { created, seedMissing: false };
 }

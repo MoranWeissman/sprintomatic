@@ -786,7 +786,7 @@ function DiscoveryFacet(props: {
       {sub === 'walkthrough' && (
         payload.hasWalkthrough
           ? <ArtifactView featureId={featureId} kind="walkthrough" title="Discovery walkthrough" />
-          : <p className="dnd-artifact-empty">No walkthrough built yet. In a Claude Code chat, ask to build the walkthrough slideshow.</p>
+          : <p className="dnd-artifact-empty">No walkthrough built yet. In your AI chat, ask to build the walkthrough slideshow.</p>
       )}
       {sub === 'demo' && (
         <DemoFacet
@@ -979,7 +979,7 @@ function DesignFacet(props: {
       {sub === 'walkthrough' && (
         payload.hasWalkthrough
           ? <ArtifactView featureId={featureId} kind="design-walkthrough" title="Design walkthrough" />
-          : <p className="dnd-artifact-empty">No design walkthrough built yet. In a Claude Code chat, ask to build the design walkthrough.</p>
+          : <p className="dnd-artifact-empty">No design walkthrough built yet. In your AI chat, ask to build the design walkthrough.</p>
       )}
     </div>
   );
@@ -994,7 +994,7 @@ function DesignReview(props: { doc: ApiDesignDoc | null; problem: string; diagra
     return (
       <div className="dnd-placeholder">
         <p className="dnd-muted">This feature has no design yet.</p>
-        <p className="dnd-muted-2">In a Claude Code chat, say "start the design".</p>
+        <p className="dnd-muted-2">In your AI chat, say "start the design".</p>
       </div>
     );
   }
@@ -1219,7 +1219,7 @@ function DemoFacet(props: {
       <h2 className="dnd-h2">The demo</h2>
       {hasDemoHtml
         ? <ArtifactView featureId={id} kind="demo" title="Concept demo" />
-        : <p className="dnd-artifact-empty">No demo built yet. In a Claude Code chat, ask to build the concept demo.</p>}
+        : <p className="dnd-artifact-empty">No demo built yet. In your AI chat, ask to build the concept demo.</p>}
 
       <h2 className="dnd-h2">Where the demo stands</h2>
       <div className="dnd-demo-controls">

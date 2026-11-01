@@ -5,7 +5,7 @@
  *  - time_entries: every start/stop session per work item (multiple per item).
  *  - pending_changes: changes we tried to push to ADO and failed; retry queue.
  *  - settings: misc key/value config.
- *  - sessions / session_events: Claude Code sessions reported via MCP — what
+ *  - sessions / session_events: AI chat sessions reported via MCP — what
  *    the user is working on right now, plus summaries, blockers, decisions.
  *  - helper_notes: the assistant's plain-English nudges (R3); soft-dismissed.
  *  - sh_created_items: items the MCP itself created (Task / Story); local

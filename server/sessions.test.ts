@@ -8,7 +8,7 @@ vi.mock('./db', () => ({ getDb: () => h.db.value }));
 
 import {
   startSession, sessionOwnershipHint, sessionsOwnedByChat, setSessionWaiting, logEvent, endSession,
-  listRecentlyEnded, getSession, chatCwdKey,
+  listRecentlyEnded, getSession, chatCwdKey, clientIdFromName,
 } from './sessions';
 
 function makeDb() {
@@ -40,6 +40,17 @@ function makeDb() {
 
 beforeEach(() => {
   h.db.value = makeDb();
+});
+
+describe('clientIdFromName', () => {
+  it('names the chat app from what the MCP client reports', () => {
+    expect(clientIdFromName('github-copilot-developer')).toBe('copilot-cli');
+    expect(clientIdFromName('Copilot CLI')).toBe('copilot-cli');
+    expect(clientIdFromName('claude-code')).toBe('claude-code');
+    expect(clientIdFromName('some-other-app')).toBe('some-other-app');
+    expect(clientIdFromName('  ')).toBeNull();
+    expect(clientIdFromName(undefined)).toBeNull();
+  });
 });
 
 describe('chatCwdKey', () => {

@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import type { AtomicWriter } from './atomic-write';
 
 const { store } = vi.hoisted(() => ({ store: new Map<string, string>() }));
@@ -18,6 +19,7 @@ import {
   registerWorkspace, ensureWorkspaceScaffold, SEED_KEY,
   getActiveFeature, setActiveFeature, clearActiveFeature, ACTIVE_FEATURE_KEY,
   getFeatureKind, setFeatureKind, FEATURE_KINDS_KEY,
+  workspaceSettingsJson,
 } from './workspace';
 
 beforeEach(() => store.clear());
@@ -213,6 +215,51 @@ describe('ensureWorkspaceScaffold', () => {
     } finally {
       rmSync(emptySeed, { recursive: true, force: true });
       rmSync(ws, { recursive: true, force: true });
+    }
+  });
+
+  it('the hook command runs without $CLAUDE_PROJECT_DIR (GitHub Copilot CLI leaves it unset)', () => {
+    const seed = makeSeed();
+    const ws = join(mkdtempSync(join(tmpdir(), 'sh-ws-hook-')), 'my "odd" $folder');
+    try {
+      store.set(SEED_KEY, seed);
+      writeFileSync(join(seed, '.claude', 'hooks', 'user-prompt-submit.sh'), '#!/bin/bash\necho hook-ran\n');
+      chmodSync(join(seed, '.claude', 'hooks', 'user-prompt-submit.sh'), 0o755);
+      ensureWorkspaceScaffold(ws);
+      const settings = JSON.parse(readFileSync(join(ws, '.claude', 'settings.json'), 'utf8'));
+      const command: string = settings.hooks.UserPromptSubmit[0].hooks[0].command;
+      const env = { ...process.env };
+      delete env.CLAUDE_PROJECT_DIR;
+      // Run from somewhere else, the way a chat in a feature subfolder would.
+      expect(execFileSync('bash', ['-c', command], { env, cwd: tmpdir() }).toString().trim()).toBe('hook-ran');
+      // Claude Code's variable still wins when it is set.
+      expect(command.startsWith('"${CLAUDE_PROJECT_DIR:-')).toBe(true);
+    } finally {
+      rmSync(seed, { recursive: true, force: true });
+      rmSync(resolve(ws, '..'), { recursive: true, force: true });
+    }
+  });
+
+  it('upgrades an untouched old settings.json, but never one the user edited', () => {
+    const seed = makeSeed();
+    const ws = mkdtempSync(join(tmpdir(), 'sh-ws-upgrade-'));
+    const ws2 = mkdtempSync(join(tmpdir(), 'sh-ws-edited-'));
+    try {
+      store.set(SEED_KEY, seed);
+      const old = JSON.stringify({ hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: '"$CLAUDE_PROJECT_DIR"/.claude/hooks/user-prompt-submit.sh' }] }] } }, null, 2) + '\n';
+      mkdirSync(join(ws, '.claude'), { recursive: true });
+      writeFileSync(join(ws, '.claude', 'settings.json'), old);
+      ensureWorkspaceScaffold(ws);
+      expect(readFileSync(join(ws, '.claude', 'settings.json'), 'utf8')).toBe(workspaceSettingsJson(resolve(ws)));
+
+      mkdirSync(join(ws2, '.claude'), { recursive: true });
+      writeFileSync(join(ws2, '.claude', 'settings.json'), '{"mine": true}\n');
+      ensureWorkspaceScaffold(ws2);
+      expect(readFileSync(join(ws2, '.claude', 'settings.json'), 'utf8')).toBe('{"mine": true}\n');
+    } finally {
+      rmSync(seed, { recursive: true, force: true });
+      rmSync(ws, { recursive: true, force: true });
+      rmSync(ws2, { recursive: true, force: true });
     }
   });
 

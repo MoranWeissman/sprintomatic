@@ -1,7 +1,8 @@
 /**
  * Managed-skill sync. The four workspace-craft skills (demo, design,
  * discovery, walkthrough) live as COPIES: seed → every registered workspace → the global
- * skills folder. The seed is the only place to EDIT them; the `skills_sync`
+ * Claude Code skills folder → the global GitHub Copilot CLI skills folder (when
+ * Copilot is installed). The seed is the only place to EDIT them; the `skills_sync`
  * MCP tool fans the seed version out. A throttled drift check (Task 2) rides
  * the every-tool-response nudge pipe so hand-edited copies can't silently
  * diverge. Sessions read skill bodies from disk on use, so fixing the files
@@ -13,9 +14,14 @@
  * half-way leaves the old folder exactly where it was, and says so. A skill
  * missing from the seed is never deleted downstream — reported and skipped;
  * that needs a human look.
+ *
+ * Symlinks: a destination skill folder may be a symlink (for example a
+ * Copilot skill linked to the Claude Code copy). The link itself is swapped
+ * for a real folder — nothing is ever written THROUGH it — and a destination
+ * that resolves to the seed itself is never copied onto.
  */
 import { join, dirname, resolve, relative, sep } from 'node:path';
-import { existsSync, mkdirSync, cpSync, rmSync, renameSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, cpSync, rmSync, renameSync, readdirSync, readFileSync, lstatSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { getSetting, setSetting } from './timers';
@@ -28,6 +34,17 @@ function globalSkillsDir(): string {
   return join(homedir(), '.claude', 'skills', 'sprintomatic-plus', 'skills');
 }
 
+/**
+ * GitHub Copilot CLI's global skills folder (`$COPILOT_HOME/skills`, else
+ * `~/.copilot/skills`). Copilot reads `<name>/SKILL.md` straight from there.
+ * Null when Copilot isn't installed (no home folder), so we never create it.
+ */
+export function copilotSkillsDir(): string | null {
+  const fromEnv = process.env.COPILOT_HOME?.trim();
+  const home = fromEnv ? resolve(expandHome(fromEnv)) : join(homedir(), '.copilot');
+  return existsSync(home) ? join(home, 'skills') : null;
+}
+
 /** The seed's skills folder — the single place managed skills get edited. */
 export function seedSkillsDir(): string {
   return join(resolve(expandHome(getSeedPath())), '.claude', 'skills');
@@ -38,7 +55,27 @@ export function managedDestinations(): { destDirs: string[]; deadWorkspaces: str
   const paths = getWorkspaces().paths.map(p => resolve(expandHome(p)));
   const deadWorkspaces = paths.filter(p => !existsSync(p));
   const live = paths.filter(p => existsSync(p));
-  return { destDirs: [...live.map(p => join(p, '.claude', 'skills')), globalSkillsDir()], deadWorkspaces };
+  const copilot = copilotSkillsDir();
+  const destDirs = [...live.map(p => join(p, '.claude', 'skills')), globalSkillsDir()];
+  if (copilot) destDirs.push(copilot);
+  return { destDirs, deadWorkspaces };
+}
+
+/** Real path of `p` (links followed), or `p` itself when it can't be read. */
+function realOrSelf(p: string): string {
+  try {
+    return realpathSync(p);
+  } catch {
+    return resolve(p);
+  }
+}
+
+function isSymlink(p: string): boolean {
+  try {
+    return lstatSync(p).isSymbolicLink();
+  } catch {
+    return false;
+  }
 }
 
 /** Recursive list of a dir's file paths relative to it, sorted for stability. */
@@ -90,12 +127,19 @@ export function syncManagedSkills(
     const src = join(seedSkillsDir, skill);
     const srcFp = dirFingerprint(src);
     if (srcFp === null) return { skill, missingSeed: true, updated: [], current: [], failed: [] };
+    const srcReal = realOrSelf(src);
     const updated: string[] = [];
     const current: string[] = [];
     const failed: { destDir: string; error: string }[] = [];
     for (const destDir of destDirs) {
       const dest = join(destDir, skill);
-      if (dirFingerprint(dest) === srcFp) {
+      // A destination that is really the seed (linked or the same folder) is
+      // current by definition — copying a folder onto itself would wreck it.
+      if (realOrSelf(dest) === srcReal) {
+        current.push(destDir);
+        continue;
+      }
+      if (!isSymlink(dest) && dirFingerprint(dest) === srcFp) {
         current.push(destDir);
         continue;
       }
@@ -135,7 +179,15 @@ function replaceFolder(src: string, dest: string, copyDir: CopyDir): void {
     throw e; // nothing at dest was touched
   }
 
-  const hadOld = existsSync(dest);
+  // lstat, not existsSync: a symlink (even a broken one) must be moved aside
+  // as a link, so the folder it points to is never touched.
+  let hadOld = false;
+  try {
+    lstatSync(dest);
+    hadOld = true;
+  } catch {
+    hadOld = false;
+  }
   if (hadOld) renameSync(dest, previous);
   try {
     renameSync(staging, dest);

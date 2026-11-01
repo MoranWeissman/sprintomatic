@@ -1,5 +1,5 @@
 /**
- * Pure decisions for closing a Claude Code session. Kept out of mcp/server.ts
+ * Pure decisions for closing an AI chat session. Kept out of mcp/server.ts
  * so the logic can be unit-tested without standing up the MCP server.
  */
 

@@ -7,6 +7,8 @@
  * the answers through the same list the settings screen uses
  * (server/settings-registry.ts), checks the connection, reads the board's
  * state names, and prints the one line that adds sprintomatic to Claude Code.
+ * When GitHub Copilot CLI is there too, it offers to add sprintomatic to
+ * Copilot's MCP list and write the rules file Copilot reads in every chat.
  *
  * Press Enter to keep what is shown in [brackets]. Safe to run again.
  */
@@ -19,6 +21,7 @@ import { invalidateAdoConfig } from '../server/config';
 import { resetAdoClient } from '../server/ado-client';
 import { probeBoardStates } from '../server/state-probe';
 import { hourLabel, workingDaysLabel } from '../server/user-config';
+import { copilotPresent, setupCopilot } from '../server/copilot-instructions';
 
 const rl = createInterface({ input: stdin, output: stdout });
 // Built files (an npm install) end in .js; the source run by tsx doesn't.
@@ -119,8 +122,34 @@ async function main() {
   console.log(installed
     ? '  claude mcp add -s user sprintomatic -- npx -y sprintomatic\n'
     : `  claude mcp add -s user sprintomatic -- npm --prefix "${repo}" run mcp --silent\n`);
+  if (copilotPresent()) await offerCopilot();
+
+  console.log('To turn on the session guard (for Claude Code and GitHub Copilot CLI), run:\n');
+  console.log(installed ? '  npx sprintomatic guard install\n' : '  npm run guard:install\n');
   console.log('Then say hi in a new chat. It starts the dashboard on http://localhost:7777.');
   console.log('You can change all of this later under Settings in the dashboard.\n');
+}
+
+/** GitHub Copilot CLI is installed: offer to connect sprintomatic to it too. */
+async function offerCopilot(): Promise<void> {
+  const answer = (await rl.question('GitHub Copilot CLI is installed. Connect sprintomatic to it too? [Y/n]: ')).trim().toLowerCase();
+  if (answer !== '' && answer !== 'y' && answer !== 'yes') {
+    console.log('  Skipped. Run setup again any time to do it.\n');
+    return;
+  }
+  try {
+    // Loaded here, not at the top: the rules text is built from the settings
+    // when the module loads, and setup has only just saved them.
+    const { SERVER_INSTRUCTIONS } = await import('../mcp/instructions');
+    const r = setupCopilot(SERVER_INSTRUCTIONS, { installed, repo });
+    if (r.mcpConfig === 'added') console.log(`  Added sprintomatic to ${r.mcpConfigPath}. Any old copy is kept next to it as .bak.`);
+    else if (r.mcpConfig === 'already-there') console.log(`  sprintomatic is already in ${r.mcpConfigPath}, left as it is.`);
+    else console.log(`  Couldn't read ${r.mcpConfigPath}, so it was left alone. Add the sprintomatic entry by hand (see the README).`);
+    console.log(`  Wrote the rules Copilot reads in every chat to ${r.instructionsPath}.`);
+    console.log('  Copilot does not show an MCP server\'s own instructions to the AI, so this file does that job.\n');
+  } catch (err) {
+    console.log(`  Couldn't set up Copilot: ${err instanceof Error ? err.message : err}\n`);
+  }
 }
 
 main()

@@ -4,7 +4,7 @@
  * Finds sprint items missing effort fields, grouped by feature/story.
  * Attaches a deterministic anchor proposal per gap (median sibling actual
  * from `estimate_anchor` when siblings exist; cold-start flag otherwise).
- * Assembles a verbose paste-ready Claude Code prompt that the dashboard's
+ * Assembles a verbose paste-ready AI chat prompt that the dashboard's
  * "Copy prompt" button hands to the user.
  *
  * No ADO writes. No mutations anywhere — pure read + compute + format.
@@ -72,7 +72,7 @@ export interface PlanningGapsResult {
    * Same list as `gaps` when the scan target already was the current sprint.
    */
   gapsCurrent: PlanningGap[];
-  /** Paste-ready Claude Code prompt assembled from the gap list. */
+  /** Paste-ready AI chat prompt assembled from the gap list. */
   prompt: string;
 }
 
@@ -310,7 +310,7 @@ async function scanSprintGaps(sprintName?: string): Promise<SprintGapScan> {
 }
 
 /**
- * Build the paste-ready Claude Code prompt. Names before numbers; echoes
+ * Build the paste-ready AI chat prompt. Names before numbers; echoes
  * `displayName` verbatim. Verbose on purpose — when pasted into a fresh
  * chat with no context, the model needs to be reminded of the ritual.
  */

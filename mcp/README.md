@@ -1,12 +1,13 @@
 # sprintomatic MCP server
 
-Lets Claude Code (or any MCP client) read sprintomatic data and drive edits and
-session logging — the same backend the dashboard uses. Time is tracked
-silently by the session lifecycle; there are no manual timer tools.
+Lets Claude Code, GitHub Copilot CLI or any other MCP client read sprintomatic
+data and drive edits and session logging — the same backend the dashboard
+uses. Time is tracked silently by the session lifecycle; there are no manual
+timer tools.
 
-The whole server is one file, `mcp/server.ts`. It talks over standard input and
-output, and it carries a long block of instructions that tell the assistant how
-to behave — when to greet, when to log, what never to do.
+The server is `mcp/server.ts`. It talks over standard input and output, and
+it carries a long block of instructions (kept in `mcp/instructions.ts`) that
+tell the assistant how to behave — when to greet, when to log, what never to do.
 
 ## Register with Claude Code
 
@@ -22,6 +23,40 @@ clone instead? `npm run setup` prints the line that points at your folder.
 Then in any Claude Code session, the tools below are available.
 
 To remove later: `claude mcp remove sprintomatic`.
+
+## Register with GitHub Copilot CLI
+
+`npx sprintomatic setup` (or `npm run setup` from a clone) offers to do this
+when it finds `~/.copilot` or `COPILOT_HOME`. By hand, add this to
+`~/.copilot/mcp-config.json`, next to any servers already there:
+
+```json
+{
+  "mcpServers": {
+    "sprintomatic": {
+      "type": "local",
+      "command": "npx",
+      "args": ["-y", "sprintomatic"],
+      "tools": ["*"]
+    }
+  }
+}
+```
+
+For the demo board, use the name `sprintomatic-demo` and add
+`"env": { "SPRINTOMATIC_DEMO": "1" }`. Copilot only passes `PATH` on to MCP
+servers, so other settings must go in `env`.
+
+Copilot CLI does not show an MCP server's instructions to the AI by default.
+So setup also writes the same instructions to
+`~/.copilot/instructions/sprintomatic.instructions.md`, which Copilot reads in
+every chat. The server rewrites that file at startup whenever the instructions
+in the code have changed, but never creates it if it isn't there. The code for
+this is in `server/copilot-instructions.ts`.
+
+`npm run guard:install` adds the session guard and the start-of-chat greeting
+to `~/.copilot/hooks/`. `skills_sync` copies the managed skills to
+`~/.copilot/skills/`.
 
 ## Tools
 

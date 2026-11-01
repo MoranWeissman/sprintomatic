@@ -91,9 +91,9 @@ export interface DashboardWorkItem {
   /** ISO timestamp of the running session's start, if a timer is currently running. */
   runningSince?: string;
   /**
-   * Claude Code session against this item, if one is active right now. The MCP
+   * AI chat session (Claude Code or Copilot CLI) against this item, if one is active right now. The MCP
    * plugin opens these via `session_start`; the Day dashboard surfaces them so
-   * the user can see Claude Code is actively reporting in.
+   * the user can see the chat is actively reporting in.
    */
   activeSession?: {
     id: string;
@@ -160,7 +160,7 @@ export interface UserStoryGroup {
    * 5 — full history is on individual tasks.
    */
   recentActivity: SessionEvent[];
-  /** True if any child task has a live Claude Code session right now. */
+  /** True if any child task has a live AI chat session right now. */
   hasActiveSession: boolean;
   /** Parsed System.Tags on the story (or self-as-story) itself. Includes "Blocked" when tagged blocked. */
   tags?: string[];
@@ -214,7 +214,7 @@ export interface DashboardPayload {
   pendingChanges: number;
   /** Which halves of the Discovery & Design page are turned on. */
   pages: { discovery: boolean; design: boolean };
-  /** Number of live Claude Code sessions reporting in right now. */
+  /** Number of live AI chat sessions reporting in right now. */
   activeSessions: number;
   /** The assistant's read on the sprint: a living summary + a few open nudges. */
   helperNotes: HelperNotes;

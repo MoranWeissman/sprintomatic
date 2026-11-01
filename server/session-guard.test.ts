@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, realpathSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  decideEdit, promptLine, readGuardState, repoRootFor, withGuardHooks, withoutGuardHooks,
+  copilotEditTargets, copilotHooks, decideEdit, promptLine, readGuardState, repoRootFor, sessionStartText,
+  withGuardHooks, withoutGuardHooks,
   GUARD_NOT_WORK_KEY, GUARD_SKIPS_KEY, QUIET_MINUTES, type GuardState,
 } from './session-guard';
 
@@ -161,5 +163,86 @@ describe('guard hook lines in the settings file', () => {
 
   it('takes out only its own lines', () => {
     expect(withoutGuardHooks(withGuardHooks(existing, '/opt/guard.js'))).toEqual(existing);
+  });
+});
+
+describe('copilotEditTargets', () => {
+  it('reads the path from edit, create and str_replace_editor, relative to the chat folder', () => {
+    expect(copilotEditTargets({ path: 'src/a.ts', old_str: 'x', new_str: 'y' }, repo)).toEqual([join(repo, 'src', 'a.ts')]);
+    expect(copilotEditTargets({ path: join(other, 'b.ts'), file_text: 'hi' }, repo)).toEqual([join(other, 'b.ts')]);
+    expect(copilotEditTargets({ command: 'create', path: 'c.ts' }, repo)).toEqual([join(repo, 'c.ts')]);
+  });
+
+  it('reads tool args that come JSON-encoded', () => {
+    expect(copilotEditTargets(JSON.stringify({ path: 'src/a.ts' }), repo)).toEqual([join(repo, 'src', 'a.ts')]);
+  });
+
+  it('finds every file in an apply_patch, once each', () => {
+    const patch = [
+      '*** Begin Patch',
+      '*** Add File: new.txt',
+      '+hi',
+      '*** Update File: src/a.ts',
+      '*** Move to: src/b.ts',
+      '@@',
+      '-x',
+      '+y',
+      `*** Delete File: ${join(other, 'old.ts')}`,
+      '*** Update File: new.txt',
+      '*** End Patch',
+      '',
+    ].join('\n');
+    const want = [join(repo, 'new.txt'), join(repo, 'src', 'a.ts'), join(repo, 'src', 'b.ts'), join(other, 'old.ts')];
+    expect(copilotEditTargets(patch, repo)).toEqual(want);
+    expect(copilotEditTargets({ input: patch }, repo)).toEqual(want);
+  });
+
+  it('falls back to the chat folder when no file is named', () => {
+    expect(copilotEditTargets(undefined, repo)).toEqual([repo]);
+    expect(copilotEditTargets('not a patch', repo)).toEqual([repo]);
+  });
+});
+
+describe('sessionStartText', () => {
+  it('asks for orient first, with the folder and the chat id for session_skip', () => {
+    const t = sessionStartText({ chatId: 'chat-1', chatCwd: repo, source: 'new' });
+    expect(t).toContain('orient');
+    expect(t).toContain(`"${repo}"`);
+    expect(t).toContain('session_skip with chatId "chat-1"');
+  });
+
+  it('asks for orient again after a resume', () => {
+    expect(sessionStartText({ chatId: 'chat-1', chatCwd: repo, source: 'resume' })).toContain('orient tool again');
+  });
+});
+
+describe('Copilot hook file', () => {
+  it('runs session-start, prompt and pre-tool-use on the edit tools, with the path quoted', () => {
+    const h = copilotHooks('/opt/my tools/guard.js') as {
+      version: number;
+      hooks: Record<string, { bash: string; powershell: string; matcher?: string }[]>;
+    };
+    expect(h.version).toBe(1);
+    expect(h.hooks.sessionStart[0].bash).toBe('node "/opt/my tools/guard.js" session-start || true');
+    expect(h.hooks.userPromptSubmitted[0].powershell).toBe('node "/opt/my tools/guard.js" prompt; exit 0');
+    expect(h.hooks.preToolUse[0].bash).toBe('node "/opt/my tools/guard.js" pre-tool-use || true');
+    expect(new RegExp(`^(?:${h.hooks.preToolUse[0].matcher})$`).test('apply_patch')).toBe(true);
+    expect(new RegExp(`^(?:${h.hooks.preToolUse[0].matcher})$`).test('bash')).toBe(false);
+  });
+
+  it('exits 0 when the hook file is gone, so Copilot does not block every edit', () => {
+    const h = copilotHooks(join(tmpdir(), 'sprintomatic-missing', 'guard.js')) as {
+      hooks: { preToolUse: { bash: string }[] };
+    };
+    const run = spawnSync('bash', ['-c', h.hooks.preToolUse[0].bash], { input: '{}', encoding: 'utf8' });
+    expect(run.status).toBe(0);
+    expect(run.stdout).toBe('');
+  });
+});
+
+describe('decideEdit with Copilot files', () => {
+  it("leaves Copilot's own folder alone", () => {
+    mkdirSync(join(home, '.copilot', '.git'), { recursive: true });
+    expect(edit(join(home, '.copilot', 'session-state', 'a.md'), empty()).kind).toBe('allow');
   });
 });

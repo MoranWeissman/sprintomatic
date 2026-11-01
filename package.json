@@ -28,6 +28,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "guard:install": "npm run build:cli && node dist-node/guard.js install",
+    "guard:uninstall": "node dist-node/guard.js uninstall",
     "release-scan": "tsx scripts/release-scan.ts",
     "export": "tsx scripts/export.ts",
     "setup": "tsx scripts/setup.ts",

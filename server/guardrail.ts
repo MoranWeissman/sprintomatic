@@ -3,7 +3,7 @@
  * stretch of work against the current sprint's backlog.
  *
  * Flow:
- *   1. Claude Code starts working on something and calls `sprintCheckIn(desc)`.
+ *   1. The AI chat starts working on something and calls `sprintCheckIn(desc)`.
  *   2. We fuzzy-match `desc` against the user's current-sprint titles + parent
  *      titles.
  *   3. Return matches sorted by confidence + a `nextStep` instruction the LLM

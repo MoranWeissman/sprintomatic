@@ -134,9 +134,9 @@ export interface ApiWorkItem {
   localLoggedSeconds: number;
   /** ISO timestamp of the currently-running timer's start, if any. */
   runningSince?: string;
-  /** Live Claude Code session against this item, if one is open right now. */
+  /** Live AI chat session against this item, if one is open right now. */
   activeSession?: ApiActiveSession;
-  /** Newest-first session events reported by Claude Code via MCP. */
+  /** Newest-first session events reported by the AI chat via MCP. */
   recentActivity: ApiSessionEvent[];
   /** Number of work sessions (open or closed) recorded against this item. */
   sessionCount: number;
@@ -191,7 +191,7 @@ export interface ApiUserStoryGroup {
   counts: { inProgress: number; upNext: number; blocked: number; done: number };
   /** Newest-first session events rolled up across child tasks. Capped at 5. */
   recentActivity: ApiSessionEvent[];
-  /** True if any child task has a live Claude Code session right now. */
+  /** True if any child task has a live AI chat session right now. */
   hasActiveSession: boolean;
   /** Parsed System.Tags on the story. Contains "Blocked" when tagged blocked. */
   tags?: string[];
@@ -412,7 +412,7 @@ export interface ApiPayload {
   pendingChanges: number;
   /** Which halves of the Discovery & Design page are turned on. Older payloads omit it. */
   pages?: { discovery: boolean; design: boolean };
-  /** Number of live Claude Code sessions reporting in right now. */
+  /** Number of live AI chat sessions reporting in right now. */
   activeSessions: number;
   /** The assistant's read on the sprint: a living summary + a few open nudges. */
   helperNotes: ApiHelperNotes;

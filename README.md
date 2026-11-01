@@ -14,8 +14,9 @@
 
 ## What it does
 
-You work in [Claude Code](https://claude.com/claude-code) like you always do.
-sprintomatic sits between the chat and your Azure DevOps board.
+You work in [Claude Code](https://claude.com/claude-code) or
+[GitHub Copilot CLI](https://github.com/features/copilot/cli) like you always
+do. sprintomatic sits between the chat and your Azure DevOps board.
 
 - **It keeps the board up to date for you.** Say you're starting a task, and it
   moves to active on the board. Say you're stuck waiting on someone, and it
@@ -44,10 +45,10 @@ the board has no place for: your notes and your time.
 ## How it works
 
 sprintomatic is an [MCP](https://modelcontextprotocol.io) server. MCP is how
-Claude Code talks to outside tools. sprintomatic gives Claude tools like
-`session_start`, `workitem_block` and `session_end`, plus rules about when to
-use them. So when you type "starting the login task", Claude calls
-`session_start`. That moves the task to active on the board and starts the
+an AI chat like Claude Code or Copilot CLI talks to outside tools. sprintomatic
+gives the AI tools like `session_start`, `workitem_block` and `session_end`,
+plus rules about when to use them. So when you type "starting the login task",
+the AI calls `session_start`. That moves the task to active on the board and starts the
 clock. You never have to open the board yourself.
 
 The important rules are in the code, not only in the text the AI reads. For
@@ -59,7 +60,7 @@ close one without them, the tool says no.
 It probably is if:
 
 - you work alone on your own tasks in **Azure DevOps** (User Stories and Tasks)
-- you use **Claude Code**
+- you use **Claude Code** or **GitHub Copilot CLI**
 - you want the AI to keep you on track, not just do what you say
 
 It's probably not if you need a team tool, Jira or GitHub Issues, or a
@@ -72,8 +73,8 @@ Know this before you start:
 - **It has opinions.** The AI writes short, plain sentences. Hours are estimated
   once and counted down as you work. Time goes on tasks, never on stories. If
   that's not how you work, this tool will get in your way.
-- **It's tested on one setup:** macOS, Node 24, Claude Code, and an Azure DevOps
-  project with User Story and Task types and a Blocked state on both. Other
+- **It's tested on one setup:** macOS, Node 24, Claude Code and GitHub Copilot
+  CLI, and an Azure DevOps project with User Story and Task types and a Blocked state on both. Other
   setups may work, but nobody has tried them yet.
 
 ## Try it without a board
@@ -86,7 +87,8 @@ npx sprintomatic demo
 ```
 
 Then open http://localhost:7778. To try the chat side too, add the demo to
-Claude Code under its own name:
+Claude Code under its own name (for Copilot CLI, see
+[Use it with GitHub Copilot CLI](#use-it-with-github-copilot-cli)):
 
 ```sh
 claude mcp add -s user sprintomatic-demo -e SPRINTOMATIC_DEMO=1 -- npx -y sprintomatic
@@ -114,17 +116,65 @@ you want the Discovery and Design pages. Then it checks that it can reach the
 board. You can run it again any time, and you can change everything later in
 the dashboard's Settings.
 
-**3. Connect it to Claude Code.** Run this once:
+**3. Connect it to your AI chat.** For Claude Code, run this once:
 
 ```sh
 claude mcp add -s user sprintomatic -- npx -y sprintomatic
 ```
 
-**4. Say hi.** Open Claude Code and say good morning. sprintomatic starts the
+For GitHub Copilot CLI, setup offers to do it for you. See
+[Use it with GitHub Copilot CLI](#use-it-with-github-copilot-cli).
+
+**4. Say hi.** Open a new chat and say good morning. sprintomatic starts the
 dashboard at http://localhost:7777 and tells you where your sprint stands.
+
+**Optional:** the session guard reminds the AI to start a session on a task
+when you begin work, and starts each chat with a greeting. Turn it on for both
+Claude Code and Copilot CLI with `npx sprintomatic guard install` (or
+`npm run guard:install` from a clone).
 
 **Optional:** it can read your Outlook calendar, so meetings come out of your
 free hours. See [docs/setup/outlook-calendar.md](docs/setup/outlook-calendar.md).
+
+## Use it with GitHub Copilot CLI
+
+If you have Copilot CLI (a `~/.copilot` folder, or `COPILOT_HOME` set), setup
+asks whether to connect sprintomatic to it too. Say yes and it does two things:
+
+- **Adds sprintomatic to `~/.copilot/mcp-config.json`**, only if it isn't there
+  yet. Other servers in the file are left alone, and the old file is kept as
+  `mcp-config.json.bak`. To do it by hand, add this:
+
+  ```json
+  {
+    "mcpServers": {
+      "sprintomatic": {
+        "type": "local",
+        "command": "npx",
+        "args": ["-y", "sprintomatic"],
+        "tools": ["*"]
+      }
+    }
+  }
+  ```
+
+  For the demo, add a second entry named `sprintomatic-demo` with the same
+  lines plus `"env": { "SPRINTOMATIC_DEMO": "1" }`. Copilot only passes `PATH`
+  on to MCP servers, so any other setting has to go in `env`.
+
+- **Writes `~/.copilot/instructions/sprintomatic.instructions.md`.** This holds
+  the rules for how the AI should use the tools. Claude Code reads these rules
+  straight from the MCP server, but Copilot CLI does not show them to the AI
+  by default. Copilot does read every file in that folder in every chat, so
+  this file does the same job. sprintomatic keeps it up to date each time it
+  starts. Don't edit it by hand. To stop using it, delete the file.
+
+The rest works the same way as in Claude Code:
+
+- `npx sprintomatic guard install` (or `npm run guard:install`) also adds the
+  session guard and the start-of-chat greeting to `~/.copilot/hooks/`.
+- The `skills_sync` tool copies the Discovery and Design skills to
+  `~/.copilot/skills/` too.
 
 ## Good to know
 
@@ -149,9 +199,10 @@ npm install
 npm run setup
 ```
 
-Setup then prints a `claude mcp add` line that points at your clone.
+Setup then prints a `claude mcp add` line that points at your clone. If you
+let it connect Copilot CLI, the entry it writes points at your clone too.
 
-- `mcp/server.ts` is what Claude Code talks to: the tools and the instructions
+- `mcp/server.ts` is what the AI chat talks to: the tools and the instructions
   the AI reads. The list of tools is in [mcp/README.md](mcp/README.md).
 - `src/` is the dashboard (React). `server/serve.ts` serves it and its data on
   port 7777.

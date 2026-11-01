@@ -915,7 +915,7 @@ function SanityCheckSection({
         </button>
       </div>
       <p className="plan2-gap-intro">
-        Sprint items missing an estimate. The dashboard finds them; the conversation in Claude Code fills them in.
+        Sprint items missing an estimate. The dashboard finds them; the conversation in your AI chat (Claude Code or Copilot CLI) fills them in.
       </p>
 
       {state.status === 'error' && (
@@ -935,9 +935,9 @@ function SanityCheckSection({
       {state.status === 'ok' && shownGaps != null && shownGaps.length > 0 && (
         <>
           <GapGroups gaps={shownGaps} />
-          <section className="plan2-prompt" aria-label="Generated prompt for Claude Code">
+          <section className="plan2-prompt" aria-label="Generated prompt for your AI chat">
             <header className="plan2-prompt-head">
-              <span className="plan2-prompt-cap">Prompt for Claude Code</span>
+              <span className="plan2-prompt-cap">Prompt for your AI chat</span>
               <div className="plan2-prompt-actions">
                 <button className="plan2-prompt-btn is-primary" onClick={onCopy}>
                   {copied ? 'Copied ✓' : 'Copy'}
