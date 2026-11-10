@@ -45,3 +45,7 @@ docs/superpowers/
 
 # Claude Code settings for one person's own chats
 .claude/
+
+# The desktop app's note of where this repo is (written at build time)
+desktop/repo-path.json
+desktop/package-lock.json

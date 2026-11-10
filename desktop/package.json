@@ -1,0 +1,29 @@
+{
+  "name": "sprintomatic-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "The sprintomatic dashboard as a Mac app.",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "node write-repo-path.cjs && electron .",
+    "build": "node write-repo-path.cjs && electron-builder --mac --dir",
+    "install-app": "npm run build && rm -rf /Applications/Sprintomatic.app && cp -R dist/mac-arm64/Sprintomatic.app /Applications/"
+  },
+  "devDependencies": {
+    "electron": "^45.2.3",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "dev.sprintomatic.desktop",
+    "productName": "Sprintomatic",
+    "electronLanguages": ["en"],
+    "files": ["main.cjs", "loading.html", "repo-path.json"],
+    "mac": {
+      "icon": "../public/icon.png",
+      "target": "dir",
+      "category": "public.app-category.productivity",
+      "identity": "-",
+      "hardenedRuntime": false
+    }
+  }
+}
