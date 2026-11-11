@@ -216,6 +216,15 @@ export function createApi(): ApiHandler {
     }
   });
 
+  // Which Claude Code chats wait for the user — the Mac app's menu bar reads
+  // this every few seconds. Local store only, no board calls.
+  api.use('/api/chats', async (_req, res) => {
+    const { chatsNow } = await import('./chats');
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'no-store');
+    res.end(JSON.stringify(chatsNow()));
+  });
+
   api.use('/api/workitem/', async (req, res) => {
     try {
       const url = new URL(req.url ?? '/', 'http://localhost');

@@ -5,6 +5,9 @@
  *   guard pre-tool-use   runs before a file edit
  *   guard prompt         runs on every message the user sends
  *   guard session-start  runs when a Copilot chat starts or is picked up again
+ *   guard stop / notification / post-tool-use / session-end
+ *                        Claude Code only: note whether the chat waits for the
+ *                        user (server/chat-state.ts), for the Mac app's menu bar
  *   guard install        add the hooks to ~/.claude/settings.json, and to
  *                        ~/.copilot/hooks when Copilot is set up
  *                        (--claude-only / --copilot-only pick one)
@@ -22,11 +25,13 @@
  * with exit code 0 — Copilot treats any other code as a refusal.
  */
 import Database from 'better-sqlite3';
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, renameSync, writeFileSync, copyFileSync, mkdirSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dataDir } from '../server/data-dir';
+import { applyChatChange, chatChangeFor, type ChatHook } from '../server/chat-state';
 import {
   COPILOT_EDIT_TOOLS, COPILOT_HOOK_FILE, EDIT_TOOLS, GUARD_MARK, copilotEditTargets, copilotHooks, decideEdit,
   promptLine, readGuardState, sessionStartText, withGuardHooks, withoutGuardHooks,
@@ -38,6 +43,7 @@ interface HookInput {
   cwd?: string;
   tool_name?: string;
   tool_input?: { file_path?: string; notebook_path?: string };
+  message?: string;
 }
 
 interface CopilotHookInput {
@@ -68,7 +74,49 @@ function readInput(): Record<string, unknown> | null {
   }
 }
 
-type HookPart = 'pre-tool-use' | 'prompt' | 'session-start';
+type HookPart = 'pre-tool-use' | 'prompt' | 'session-start' | 'stop' | 'notification' | 'post-tool-use' | 'session-end';
+
+/** The terminal this chat runs in ("ttys004"), so the Mac app can bring that
+ *  iTerm tab forward. The hook shares the chat's terminal. */
+function chatTty(): string | null {
+  try {
+    // Claude may start the hook without a terminal of its own; then the
+    // nearest parent that has one (Claude itself) tells.
+    let pid = process.pid;
+    for (let i = 0; i < 4 && pid > 1; i++) {
+      const [ppid, tty] = execFileSync('ps', ['-o', 'ppid=,tty=', '-p', String(pid)], { encoding: 'utf8', timeout: 1000 })
+        .trim().split(/\s+/);
+      if (tty && !tty.startsWith('?')) return tty;
+      pid = Number(ppid);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Note the chat's new state. Writes, so it opens the store on its own; never
+ *  creates it (no store = sprintomatic isn't set up). */
+function noteChatState(hook: ChatHook, input: HookInput): void {
+  try {
+    if (!input.session_id || !input.cwd) return;
+    const change = chatChangeFor(hook, input.message);
+    if (change.kind === 'none') return;
+    const path = join(dataDir(), 'data.db');
+    if (!existsSync(path)) return;
+    const db = new Database(path, { fileMustExist: true, timeout: 1000 });
+    try {
+      // The tty only matters for the jump; skip the extra process on the
+      // busiest hook.
+      const tty = hook === 'post-tool-use' ? null : chatTty();
+      applyChatChange(db, { chatId: input.session_id, client: 'claude', cwd: input.cwd, tty, change, now: new Date() });
+    } finally {
+      db.close();
+    }
+  } catch {
+    // Say nothing: the menu bar count is a nicety.
+  }
+}
 
 function runHook(part: HookPart): void {
   try {
@@ -83,6 +131,13 @@ function runHook(part: HookPart): void {
 
 function runClaudeHook(part: HookPart, input: HookInput): void {
   try {
+    // These only note the chat's state and must print nothing: Stop reads
+    // output as a reason to keep going.
+    if (part === 'stop' || part === 'notification' || part === 'post-tool-use' || part === 'session-end') {
+      noteChatState(part, input);
+      return;
+    }
+    if (part === 'prompt') noteChatState('prompt', input);
     if (part === 'session-start') return;
     if (!input?.session_id || !input.cwd) return;
     const state = readState();
@@ -122,6 +177,7 @@ function runClaudeHook(part: HookPart, input: HookInput): void {
 function runCopilotHook(part: HookPart, input: CopilotHookInput): void {
   try {
     if (!input.sessionId || !input.cwd) return;
+    if (part !== 'pre-tool-use' && part !== 'prompt' && part !== 'session-start') return;
     const reply = (out: Record<string, string>) => process.stdout.write(JSON.stringify(out));
 
     if (part === 'session-start') {
@@ -238,6 +294,10 @@ switch (part) {
   case 'pre-tool-use':
   case 'prompt':
   case 'session-start':
+  case 'stop':
+  case 'notification':
+  case 'post-tool-use':
+  case 'session-end':
     runHook(part);
     break;
   case 'install':
@@ -247,6 +307,6 @@ switch (part) {
     uninstall(flags);
     break;
   default:
-    console.error('Use one of: pre-tool-use, prompt, session-start, install, uninstall.');
+    console.error('Use one of: pre-tool-use, prompt, session-start, stop, notification, post-tool-use, session-end, install, uninstall.');
     process.exitCode = 1;
 }

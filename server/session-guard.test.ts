@@ -151,11 +151,15 @@ describe('guard hook lines in the settings file', () => {
     hooks: { PostToolUse: [{ hooks: [{ type: 'command', command: 'node other.js' }] }] },
   };
 
-  it('adds both hooks once, keeping the others, and running it again changes nothing', () => {
+  it('adds its hooks once, keeping the others, and running it again changes nothing', () => {
     const once = withGuardHooks(existing, '/opt/guard.js');
     expect(withGuardHooks(once, '/opt/guard.js')).toEqual(once);
     expect(once.model).toBe('x');
-    expect(once.hooks?.PostToolUse).toEqual(existing.hooks.PostToolUse);
+    expect(once.hooks?.PostToolUse?.[0]).toEqual(existing.hooks.PostToolUse[0]);
+    expect(once.hooks?.PostToolUse?.[1].hooks[0].command).toContain('post-tool-use');
+    for (const event of ['Stop', 'Notification', 'SessionEnd']) {
+      expect(once.hooks?.[event]?.[0].hooks[0].command).toContain('# sprintomatic-guard');
+    }
     expect(once.hooks?.PreToolUse?.[0].matcher).toBe('Edit|Write|MultiEdit|NotebookEdit');
     expect(once.hooks?.PreToolUse?.[0].hooks[0].command).toContain('"/opt/guard.js" pre-tool-use');
     expect(once.hooks?.UserPromptSubmit?.[0].hooks[0].command).toContain('prompt');

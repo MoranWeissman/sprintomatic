@@ -22,6 +22,7 @@ import { backupDatabase } from './backup';
 import { seedDemoHistory } from './demo-data';
 import { logError } from './log';
 import { dataDir, isDemo } from './data-dir';
+import { CHAT_STATE_SQL } from './chat-state';
 
 let cached: DB | null = null;
 
@@ -222,4 +223,7 @@ function migrate(db: DB) {
   if (!hasWaitingSince) {
     db.exec('ALTER TABLE sessions ADD COLUMN waiting_since TEXT');
   }
+  // chat_state: which Claude Code chats wait for the user, written by the
+  // hooks in scripts/guard.ts (see server/chat-state.ts).
+  db.exec(CHAT_STATE_SQL);
 }

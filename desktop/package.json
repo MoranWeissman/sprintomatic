@@ -16,14 +16,23 @@
   "build": {
     "appId": "dev.sprintomatic.desktop",
     "productName": "Sprintomatic",
-    "electronLanguages": ["en"],
-    "files": ["main.cjs", "loading.html", "repo-path.json"],
+    "electronLanguages": [
+      "en"
+    ],
+    "files": [
+      "main.cjs",
+      "loading.html",
+      "repo-path.json"
+    ],
     "mac": {
       "icon": "../public/icon.png",
       "target": "dir",
       "category": "public.app-category.productivity",
       "identity": "-",
-      "hardenedRuntime": false
+      "hardenedRuntime": false,
+      "extendInfo": {
+        "NSAppleEventsUsageDescription": "Sprintomatic brings the iTerm tab of a waiting chat to the front."
+      }
     }
   }
 }

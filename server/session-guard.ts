@@ -359,6 +359,16 @@ export function withGuardHooks(s: ClaudeSettings, file: string): ClaudeSettings 
     ...(hooks.UserPromptSubmit ?? []),
     { hooks: [{ type: 'command', command: cmd('prompt') }] },
   ];
+  // Which chats wait for the user (server/chat-state.ts). Every tool, not only
+  // edits: after a permission yes, the next tool result is the sign it works again.
+  for (const [event, part] of [
+    ['Stop', 'stop'],
+    ['Notification', 'notification'],
+    ['PostToolUse', 'post-tool-use'],
+    ['SessionEnd', 'session-end'],
+  ] as const) {
+    hooks[event] = [...(hooks[event] ?? []), { hooks: [{ type: 'command', command: cmd(part) }] }];
+  }
   return { ...base, hooks };
 }
 

@@ -5,8 +5,8 @@
 // thing a chat's orient does) when it isn't, and shows it in a window. The
 // dashboard keeps running when the app quits, just like when a chat starts
 // it, so chats never lose it.
-const { app, BrowserWindow, nativeTheme, shell } = require('electron');
-const { spawn } = require('node:child_process');
+const { app, BrowserWindow, Menu, Tray, nativeImage, nativeTheme, shell } = require('electron');
+const { execFile, spawn } = require('node:child_process');
 const { mkdirSync, openSync, readFileSync, writeFileSync } = require('node:fs');
 const { homedir } = require('node:os');
 const { join } = require('node:path');
@@ -130,11 +130,129 @@ function createWindow() {
   });
 }
 
+// ------------------------------------------------------------------
+// The menu bar: how many Claude Code chats wait for the user. Chats live in
+// iTerm, so this is what pulls the user back when a full-screen iTerm hides
+// the Dock. The count comes from the chats' own hooks (GET /api/chats), never
+// from a guess. Clicking a chat brings its iTerm tab forward.
+// ------------------------------------------------------------------
+const POLL_MS = 5000;
+let tray = null;
+let lastShown = '';
+
+function showWindow() {
+  if (!win) createWindow();
+  else win.show();
+  app.focus({ steal: true });
+}
+
+/** Bring the iTerm tab running on `tty` ("ttys004") to the front. */
+function jumpToChat(tty) {
+  const dev = tty ? `/dev/${tty}` : '';
+  const script = `
+    tell application "iTerm2"
+      activate
+      if "${dev}" is "" then return
+      repeat with w in windows
+        repeat with t in tabs of w
+          repeat with s in sessions of t
+            if tty of s is "${dev}" then
+              select w
+              select t
+              select s
+              return
+            end if
+          end repeat
+        end repeat
+      end repeat
+    end tell`;
+  execFile('osascript', ['-e', script], () => {});
+}
+
+function chatLabel(c) {
+  return c.task || c.story || c.repo;
+}
+
+function chatDetail(c) {
+  const mins = c.minutes < 1 ? 'just now' : `${c.minutes} min`;
+  return [c.story && c.task ? c.story : null, c.repo, c.why, mins].filter(Boolean).join(' · ');
+}
+
+function renderTray(chats) {
+  const waiting = chats ? chats.waiting : [];
+  const working = chats ? chats.working : [];
+  const key = JSON.stringify([chats === null, waiting.map(c => [c.chatId, c.why, c.minutes, c.task]), working.map(c => [c.chatId, c.task])]);
+  if (key === lastShown) return;
+  lastShown = key;
+
+  tray.setTitle(waiting.length ? ` ${waiting.length} waiting` : '');
+  tray.setToolTip(waiting.length ? `${waiting.length} chat${waiting.length === 1 ? '' : 's'} waiting for you` : 'No chat is waiting for you');
+  app.dock?.setBadge(waiting.length ? String(waiting.length) : '');
+
+  const items = [];
+  if (chats === null) {
+    items.push({ label: 'The dashboard is not running', enabled: false });
+  } else if (waiting.length) {
+    items.push({ label: 'Waiting for you', enabled: false });
+    for (const c of waiting) items.push({ label: chatLabel(c), sublabel: chatDetail(c), click: () => jumpToChat(c.tty) });
+  } else {
+    items.push({ label: 'No chat is waiting for you', enabled: false });
+  }
+  if (working.length) {
+    items.push({ type: 'separator' }, { label: 'Working', enabled: false });
+    for (const c of working) items.push({ label: chatLabel(c), sublabel: c.repo, click: () => jumpToChat(c.tty) });
+  }
+  items.push(
+    { type: 'separator' },
+    { label: 'Open Sprintomatic', click: showWindow },
+    { label: 'Quit Sprintomatic', role: 'quit' },
+  );
+  tray.setContextMenu(Menu.buildFromTemplate(items));
+}
+
+async function pollChats() {
+  let chats = null;
+  try {
+    const res = await fetch(DASH_URL + 'api/chats', { signal: AbortSignal.timeout(3000) });
+    if (res.ok) chats = await res.json();
+  } catch {
+    // The dashboard is down or restarting; say so in the menu.
+  }
+  renderTray(chats);
+}
+
+/** A small round dot, drawn here so the app needs no icon file. Template
+ *  image: macOS colours it to match the menu bar. */
+function dotIcon() {
+  const n = 32; // drawn at 2x, shown at 16pt
+  const px = Buffer.alloc(n * n * 4);
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      const d = Math.hypot(x - n / 2 + 0.5, y - n / 2 + 0.5);
+      const a = Math.max(0, Math.min(1, 9 - d)) * 255;
+      px.set([0, 0, 0, a], (y * n + x) * 4);
+    }
+  }
+  const img = nativeImage.createFromBitmap(px, { width: n, height: n, scaleFactor: 2 });
+  img.setTemplateImage(true);
+  return img;
+}
+
+function startTray() {
+  tray = new Tray(dotIcon());
+  renderTray({ waiting: [], working: [] });
+  void pollChats();
+  setInterval(pollChats, POLL_MS);
+}
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', () => win?.show());
-  app.on('activate', () => win?.show());
+  app.on('second-instance', showWindow);
+  app.on('activate', showWindow);
   app.on('before-quit', () => { quitting = true; });
-  app.whenReady().then(createWindow);
+  app.whenReady().then(() => {
+    createWindow();
+    startTray();
+  });
 }
