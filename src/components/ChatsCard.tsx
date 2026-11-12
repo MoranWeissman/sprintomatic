@@ -85,8 +85,8 @@ export function ChatsCard({ chats, onOpenItem }: { chats: ApiChats; onOpenItem?:
                   <span className="chats-row-text">
                     <span className="chats-kind">{KIND_WORD[kind]}</span>
                     <span className="chats-label">{label(c)}</span>
+                    <span className="chats-detail">{detail(c, kind)}</span>
                   </span>
-                  <span className="chats-detail">{detail(c, kind)}</span>
                 </button>
                 {c.taskId && onOpenItem && (
                   <button type="button" className="chats-open" onClick={() => onOpenItem(c.taskId!)} title="Open the task">
