@@ -53,7 +53,7 @@ describe('normalizeGoals (legacy migration)', () => {
     ]);
   });
   it('passes through proper goal records', () => {
-    const recs: PrePlanGoal[] = [{ text: 'A', owner: 'Gleb', isMine: false }];
+    const recs: PrePlanGoal[] = [{ text: 'A', owner: 'Dana', isMine: false }];
     expect(normalizeGoals(recs)).toEqual(recs);
   });
   it('fills missing owner/isMine on partial records', () => {
@@ -275,7 +275,7 @@ describe('setGoals (replace + link safety)', () => {
   };
   it('replaces goals and keeps in-range links, resets out-of-range to null', () => {
     const next = setGoals(base, [
-      { text: 'g0', owner: 'Gleb', isMine: false },
+      { text: 'g0', owner: 'Dana', isMine: false },
       { text: 'g1', owner: 'The user', isMine: true },
     ]);
     expect(next.goals).toHaveLength(2);

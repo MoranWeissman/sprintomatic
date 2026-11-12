@@ -1435,7 +1435,7 @@ server.registerTool(
         .array(
           z.object({
             text: z.string().min(1).describe('The goal itself, e.g. "GitOps - finish Phase 1".'),
-            owner: z.string().nullish().describe('The Owner column value, e.g. "Gleb" or "Maxim + Vis". Null/omit when none.'),
+            owner: z.string().nullish().describe('The Owner column value, e.g. "Dana" or "Sam + Lee". Null/omit when none.'),
             isMine: z.boolean().optional().describe("True when this goal is the user's (story-match first, owner-name fallback). Defaults false."),
           }),
         )
