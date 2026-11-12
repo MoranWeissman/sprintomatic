@@ -51,6 +51,7 @@ import { SettingsModal } from './SettingsModal';
 import { WorkItemDrawer } from './WorkItemDrawer';
 import { WrapCard } from './WrapCard';
 import { ChatsCard } from './ChatsCard';
+import { Ring, ShareRing, SegBar, HoursBar, fmtHours, type GaugePart, type GaugeState } from './Gauges';
 import { useChats } from '../lib/useChats';
 import { overEstimate, overEstimateText } from '../../server/over-estimate';
 
@@ -224,8 +225,11 @@ function DashboardLive({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveItems]);
   // Derive what the panels show: the reconciled picks, or — when empty — an
-  // auto-pick of the first live task (preserves today's "opens on one" behaviour).
-  const panelIds = picks.length > 0 ? picks : liveItems.slice(0, 1).map(w => w.id);
+  // auto-pick of one live task.
+  // The auto-pick skips a stuck task: its clock is stopped, so it is not
+  // what the user is working on.
+  const autoPick = liveItems.find(w => boardStateClass(w.state) !== 'blocked') ?? liveItems[0];
+  const panelIds = picks.length > 0 ? picks : autoPick ? [autoPick.id] : [];
   const panelTasks = panelIds.map(id => liveItems.find(w => w.id === id)).filter(Boolean) as ApiWorkItem[];
   // Backwards-compatible single-task focal view for isFocus check.
   const focalTask = panelTasks[0] ?? null;
@@ -800,8 +804,9 @@ function StandupEntry({ entry: e }: { entry: ApiPayload['standup']['yesterday'][
         {extractTitleFromDisplayName(e.displayName)}
         {id && <span className="r21-standup-item-id"> #{id}</span>}
       </span>
-      <span className={`r21-standup-task-state state-${status}`}>{e.storyState ?? 'in work'}</span>
-      <StandupStateBadge state={e.state} minutes={e.minutesInWindow} />
+      <span className="r21-grow" />
+      {e.state === 'live' && <StateChip state="work" text="timer on" />}
+      <StateChip state={gaugeOfBoard(status)} text={STATE_WORD[gaugeOfBoard(status)]} />
     </>
   );
 
@@ -823,14 +828,6 @@ function StandupEntry({ entry: e }: { entry: ApiPayload['standup']['yesterday'][
       {open && e.summary && <p className="r21-standup-item-summary">{e.summary}</p>}
     </li>
   );
-}
-
-function StandupStateBadge({ state }: { state: 'live' | 'paused' | 'closed'; minutes: number | null }) {
-  if (state === 'live') return <span className="r21-standup-pill is-live">timer running</span>;
-  // Closed/paused entries: don't show minutes here. Session-open duration is
-  // a poor proxy for work time (sessions left open overnight bloat it),
-  // and the summary line already says what got done.
-  return null;
 }
 
 function extractTitleFromDisplayName(displayName: string): string {
@@ -1059,7 +1056,6 @@ function FocusPanel({
   const logged = fmtHM(loggedSec, 0);
   const startedAt = task.activeSession ? fmtEventStamp(task.activeSession.startedAt) : '';
   const remaining = task.remainingWork != null ? `${Math.round(task.remainingWork)}h` : 'not set';
-  const completed = task.completedWork != null ? `${Math.round(task.completedWork)}h` : 'not set';
 
   const storyDominant = story ? storyDominantState(story) : null;
   const taskIdStr = String(task.id);
@@ -1084,14 +1080,13 @@ function FocusPanel({
 
       {story ? (
         <header className="r21-focal-story">
-          <div className="r21-focal-story-meta">
-            <span className={`r21-daily-kind kind-${kindSlug(story.type)}`}>{story.type}</span>
-            <Mono className="r21-focal-story-id">#{story.id}</Mono>
+          <div className="a-story-top">
+            <span className="a-kind">{story.type}</span>
+            <Mono className="a-id">#{story.id}</Mono>
             {storyDominant && (
-              <span className={`r21-daily-state state-${storyDominant}`}>
-                {storyStateLabel(storyDominant, story.movedTo)}
-              </span>
+              <StateChip state={gaugeStateOf(storyDominant)} text={storyStateLabel(storyDominant, story.movedTo)} />
             )}
+            {story.feature && <span className="a-muted">in <b className="a-strong">{story.feature.title}</b></span>}
           </div>
           <h1 className="r21-focal-story-title">
             <button type="button" onClick={() => onOpenItem(story.id)}>
@@ -1113,56 +1108,77 @@ function FocusPanel({
           the story title only repeated it (and read as if the STORY was the
           blocked task). Removed as noise. */}
 
-      <section className="r21-focal-current">
-        <div className="r21-focal-current-head">
-          <span className="r21-focal-current-label">{liveStuck ? 'Stuck' : 'Currently running'}</span>
-          {liveStuck ? <span className="r21-blocked-pill">clock stopped</span> : <span className="r21-live-pill">timer running</span>}
-          {startedAt && (
-            <span className="r21-since">
-              started <span className="v">{startedAt}</span>
-            </span>
-          )}
-        </div>
-        <button
-          type="button"
-          className="r21-focal-current-task"
-          onClick={() => setDrilledTaskId(String(task.id))}
-          title="See this task's own activity feed"
-        >
-          <Mono className="r21-focal-current-id">#{task.id}</Mono>
-          <span className="r21-focal-current-title">{task.title}</span>
-          <span className="r21-focal-current-arr" aria-hidden="true">
-            →
-          </span>
-        </button>
-        <div className="r21-focal-meta">
-          <span className="r21-num" title="Time the timer has counted on this task">
-            <span className="cap">LOGGED</span>
-            <span className="val">{logged}</span>
-            {task.sessionCount > 0 && (
-              <span className="sub">
-                · {task.sessionCount} session{task.sessionCount === 1 ? '' : 's'}
+      {story && (() => {
+        const c = story.counts;
+        const total = c.inProgress + c.upNext + c.blocked + c.done;
+        const storySec = story.tasks.reduce((a, t) => a + t.localLoggedSeconds, 0);
+        const storyGuess = story.totalEstimateHours > 0 ? story.totalEstimateHours : story.effort ?? null;
+        return (
+          <div className="a-focus-strip">
+            <div className="a-strip-box">
+              <Ring parts={countParts(c)} size={52} width={6}><b className="a-ring-sm">{c.done}/{total}</b></Ring>
+              <span><b className="a-mid">{c.done} of {total}</b><small>tasks done</small></span>
+            </div>
+            <div className="a-strip-box a-strip-grow">
+              <span className="a-mid-line">
+                <b className="a-mid">{fmtHours(storySec)}</b>
+                <span className="a-of">{storyGuess != null ? `of ${fmtNum(storyGuess)}h guessed` : 'no guess yet'}</span>
               </span>
-            )}
-          </span>
-          <span className="r21-num" title="Hours written on the board as done">
-            <span className="cap">COMPLETED</span>
-            <span className={`val ${task.completedWork == null ? 'is-missing' : ''}`}>
-              {completed}
-            </span>
-          </span>
-          <span className="r21-num" title="The first guess, set once">
-            <span className="cap">ESTIMATE</span>
-            <span className="val">{estimateFor(task)}</span>
-          </span>
-          <span className="r21-num" title="Hours the board says are left">
-            <span className="cap">REMAINING</span>
-            <span className={`val ${task.remainingWork == null ? 'is-missing' : ''}`}>
-              {remaining}
-            </span>
-          </span>
+              <HoursBar spent={storySec / 3600} guess={storyGuess} />
+            </div>
+            <div className="a-strip-box">
+              <span><b className="a-mid">{story.storyPoints != null ? fmtNum(story.storyPoints) : '—'}</b><small>points</small></span>
+            </div>
+          </div>
+        );
+      })()}
+
+      <section className={`r21-focal-current a-now ${liveStuck ? 'is-stuck' : ''}`}>
+        {(() => {
+          const guess = task.originalEstimate ?? null;
+          const share = guess && guess > 0 ? loggedSec / 3600 / guess : 0;
+          return (
+            <ShareRing share={share} state={liveStuck ? 'stuck' : share > 1 ? 'stuck' : 'work'} size={190} width={12}>
+              <b className="a-ring-big">{logged}</b>
+              <small>{guess != null ? `of a ${fmtNum(guess)}h guess` : 'no guess yet'}</small>
+            </ShareRing>
+          );
+        })()}
+        <div className="a-now-main">
+          <div className="a-story-top">
+            {liveStuck ? <StateChip state="stuck" text="stuck · clock stopped" /> : <StateChip state="work" text="timer on" />}
+            <Mono className="a-id">#{task.id}</Mono>
+          </div>
+          <button
+            type="button"
+            className="a-now-title"
+            onClick={() => setDrilledTaskId(String(task.id))}
+            title="See this task's own activity"
+          >
+            {task.title}
+          </button>
+          <div className="a-boxes">
+            <div className="a-box">
+              <small>Started</small>
+              <b>{startedAt || '—'}</b>
+            </div>
+            <div className="a-box" title="Time your chats counted on this task">
+              <small>Logged</small>
+              <b>{logged}</b>
+              {task.sessionCount > 0 && <span>{task.sessionCount} session{task.sessionCount === 1 ? '' : 's'}</span>}
+            </div>
+            <div className="a-box" title="The first guess, set once">
+              <small>Guess</small>
+              <b>{estimateFor(task)}</b>
+            </div>
+            <div className="a-box is-key" title="Hours the board says are left">
+              <small>Left</small>
+              <b className={task.remainingWork == null ? 'is-missing' : ''}>{remaining}</b>
+              <span>on the board</span>
+            </div>
+          </div>
+          <OverEstimateLine task={task} />
         </div>
-        <OverEstimateLine task={task} />
       </section>
 
       {/* Ask panelTasks, not story.tasks. A story can sit in the sprint while
@@ -1179,35 +1195,24 @@ function FocusPanel({
           <ul className="r21-focal-tasks-list">
             {panelTasks.map(t => {
               const isLive = String(t.id) === taskIdStr;
-              const stateClass = boardStateClass(t.state);
-              const tRem = t.remainingWork != null ? `${Math.round(t.remainingWork)}h` : '—';
-              const tDone = stateClass === 'done';
-              const tLastNum = tDone ? t.completedWork : t.remainingWork;
-              const tLast = tDone ? (t.completedWork != null ? `${Math.round(t.completedWork)}h` : '—') : tRem;
+              const st = gaugeStateOfTask(t);
+              const isDone = st === 'done';
               return (
-                <li
-                  key={t.id}
-                  className={`r21-focal-task is-state-${stateClass} ${isLive ? 'is-live' : ''}`}
-                >
+                <li key={t.id} className={`r21-focal-task ${isLive ? 'is-live' : ''}`}>
                   <button
                     type="button"
+                    className={`a-task g-text-${st}`}
                     onClick={() => setDrilledTaskId(String(t.id))}
-                    title="See this task's activity feed"
+                    title="See this task's activity"
                   >
-                    <span className={`r21-focal-task-state state-${stateClass}`}>{t.state}</span>
-                    <span className="r21-focal-task-title">{t.title}</span>
-                    {isLive && !liveStuck && <span className="r21-focal-task-live">timer running</span>}
+                    <span className={`a-dot g-${st}`} aria-hidden="true" />
+                    <span className="a-task-title">{t.title}</span>
+                    <Mono className="a-id">#{t.id}</Mono>
                     <span className="r21-grow" />
-                    <span className="r21-num is-compact">
-                      <span className="cap">EST</span>
-                      <span className="val">{estimateFor(t)}</span>
-                    </span>
-                    <span className="r21-num is-compact">
-                      <span className="cap">{tDone ? 'DONE' : 'REM'}</span>
-                      <span className={`val ${tLastNum == null ? 'is-missing' : ''}`}>
-                        {tLast}
-                      </span>
-                    </span>
+                    {isLive && !liveStuck ? <StateChip state="work" text="on it now" /> : <StateChip state={st} text={STATE_WORD[st]} />}
+                    <span className="a-task-num">logged <b>{fmtHours(t.localLoggedSeconds)}</b></span>
+                    <span className="a-task-num">guess <b>{estimateFor(t)}</b></span>
+                    <span className="a-task-num">left <b>{isDone ? '0h' : t.remainingWork != null ? `${fmtNum(t.remainingWork)}h` : '—'}</b></span>
                   </button>
                 </li>
               );
@@ -1249,7 +1254,6 @@ function FocusTaskDrill({
   const logged = fmtHM(loggedSec, 0);
   const startedAt = task.activeSession ? fmtEventStamp(task.activeSession.startedAt) : '';
   const remaining = task.remainingWork != null ? `${Math.round(task.remainingWork)}h` : 'not set';
-  const completed = task.completedWork != null ? `${Math.round(task.completedWork)}h` : 'not set';
   const events = task.recentActivity;
   const taskBlocked = isBlockedState(task.state) || (task.type === 'Bug' && isBlocked(task.tags));
   const stateClass = boardStateClass(task.state);
@@ -1288,10 +1292,6 @@ function FocusTaskDrill({
           <span className="cap">LOGGED</span>
           <span className="val">{logged}</span>
           {task.sessionCount > 0 && <span className="sub">· {task.sessionCount} session{task.sessionCount === 1 ? '' : 's'}</span>}
-        </span>
-        <span className="r21-num">
-          <span className="cap">COMPLETED</span>
-          <span className={`val ${task.completedWork == null ? 'is-missing' : ''}`}>{completed}</span>
         </span>
         <span className="r21-num">
           <span className="cap">ESTIMATE</span>
@@ -1518,38 +1518,77 @@ function DailyView({
                     title: isCollapsed ? 'Show stories under this feature' : 'Hide stories under this feature',
                   } : {})}
                 >
-                  <span className="r21-daily-feature-caret" aria-hidden="true">
-                    {isCollapsed ? '▸' : '▾'}
-                  </span>
-                  <span className="r21-daily-feature-kind">{g.feature?.type ?? 'No feature'}</span>
-                  {g.feature && <Mono className="r21-daily-feature-id">#{g.feature.id}</Mono>}
-                  {g.feature && childStories.length > 0 && (
-                    <span className={`r21-daily-feature-state state-${featureState}`}>
-                      {featureStateLabel(featureState)}
-                    </span>
-                  )}
-                  <h3 className="r21-daily-feature-title">
-                    {g.feature?.title ?? 'Stories without a parent feature'}
-                  </h3>
-                  <span className="r21-daily-feature-meta">
-                    <span className="r21-daily-feature-count">
-                      {childStories.length} {childStories.length === 1 ? 'story' : 'stories'}
-                    </span>
-                    {featureId && (
-                      <button
-                        type="button"
-                        className="r21-daily-feature-view"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onOpenItem(featureId);
-                        }}
-                        title="Open this feature in the drawer"
-                      >
-                        <span>View</span>
-                        <span className="arr" aria-hidden="true">↗</span>
-                      </button>
-                    )}
-                  </span>
+                  {(() => {
+                    const tc = childStories.reduce(
+                      (a, st) => ({
+                        inProgress: a.inProgress + st.counts.inProgress,
+                        upNext: a.upNext + st.counts.upNext,
+                        blocked: a.blocked + st.counts.blocked,
+                        done: a.done + st.counts.done,
+                      }),
+                      { inProgress: 0, upNext: 0, blocked: 0, done: 0 },
+                    );
+                    const taskTotal = tc.inProgress + tc.upNext + tc.blocked + tc.done;
+                    const storyStates = childStories.map(st => gaugeStateOf(storyDominantState(st)));
+                    const storyParts: GaugePart[] = (['done', 'work', 'stuck', 'wait'] as GaugeState[]).map(state => ({
+                      state,
+                      count: storyStates.filter(x => x === state).length,
+                    }));
+                    const doneStories = storyParts[0].count;
+                    const loggedSec = childStories.reduce((a, st) => a + st.tasks.reduce((b, t) => b + t.localLoggedSeconds, 0), 0);
+                    const guess = childStories.reduce((a, st) => a + st.totalEstimateHours, 0);
+                    return (
+                      <>
+                        <span className="r21-daily-feature-caret" aria-hidden="true">
+                          {isCollapsed ? '▸' : '▾'}
+                        </span>
+                        {childStories.length > 0 && (
+                          <Ring parts={storyParts} size={76} width={8}>
+                            <b>{doneStories}/{childStories.length}</b>
+                            <small>{childStories.length === 1 ? 'story' : 'stories'}</small>
+                          </Ring>
+                        )}
+                        <span className="a-feature-main">
+                          <span className="a-story-top">
+                            <span className="a-kind">{g.feature?.type ?? 'No feature'}</span>
+                            {g.feature && <Mono className="a-id">#{g.feature.id}</Mono>}
+                            {g.feature && childStories.length > 0 && (
+                              <StateChip state={gaugeStateOf(featureState)} text={featureStateLabel(featureState)} />
+                            )}
+                          </span>
+                          <h3 className="r21-daily-feature-title">
+                            {g.feature?.title ?? 'Stories without a parent feature'}
+                          </h3>
+                          {taskTotal > 0 && (
+                            <>
+                              <SegBar parts={countParts(tc)} />
+                              <span className="a-countline-wrap">
+                                <CountLine counts={tc} />
+                                <span className="a-muted"> — {taskTotal} task{taskTotal === 1 ? '' : 's'}</span>
+                              </span>
+                            </>
+                          )}
+                        </span>
+                        <span className="a-feature-side">
+                          <span className="a-big">{fmtHours(loggedSec)}</span>
+                          <span className="a-of">{guess > 0 ? `of ${fmtNum(guess)}h guessed` : 'no guess yet'}</span>
+                          {featureId && (
+                            <button
+                              type="button"
+                              className="a-link"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenItem(featureId);
+                              }}
+                              title="Open this feature"
+                            >
+                              Open <span aria-hidden="true">↗</span>
+                            </button>
+                          )}
+                        </span>
+                      </>
+                    );
+                  })()}
                 </header>
                 {!isCollapsed && childStories.length > 0 && (
                   <div className="r21-daily-list">
@@ -1688,6 +1727,13 @@ function RailSprintTime({
       <div className="bar" aria-hidden="true">
         <i style={{ width: `${pctUsed}%` }} />
       </div>
+      {totalDays > 0 && (
+        <div className="a-days" aria-hidden="true">
+          {Array.from({ length: totalDays }, (_, i) => (
+            <i key={i} className={i + 1 < today ? 'is-past' : i + 1 === today ? 'is-today' : ''} />
+          ))}
+        </div>
+      )}
       <p className="caption">
         {workingDaysLeft <= 0
           ? `Last working day — ${availableLeft}h of ${available}h still open`
@@ -1894,128 +1940,142 @@ function DailyStoryCard({
   onOpenItem: (id: string) => void;
   onToggleExpanded: () => void;
 }) {
-  const sp = story.storyPoints != null ? `${fmtNum(story.storyPoints)}d` : '—';
-  const eff = story.effort != null ? `${fmtNum(story.effort)}h` : '—';
-  const taskCount = story.counts.inProgress + story.counts.upNext + story.counts.blocked + story.counts.done;
+  const c = story.counts;
+  const taskCount = c.inProgress + c.upNext + c.blocked + c.done;
   const dominant = storyDominantState(story);
+  const loggedSec = story.tasks.reduce((sum, t) => sum + t.localLoggedSeconds, 0);
+  const guess = story.totalEstimateHours > 0 ? story.totalEstimateHours : story.effort ?? null;
 
   return (
-    <article className={`r21-daily-card is-state-${dominant} ${expanded ? 'is-expanded' : ''} ${story.hasActiveSession ? 'is-live' : ''}`}>
-      <button
-        type="button"
-        className="r21-daily-card-head"
-        onClick={() => onOpenItem(story.id)}
-      >
-        <span className="r21-daily-card-headline">
-          <span className="r21-daily-card-meta-row">
-            <span className={`r21-daily-kind kind-${kindSlug(story.type)}`}>{story.type}</span>
-            <Mono className="r21-daily-card-id">#{story.id}</Mono>
-            <span className={`r21-daily-state state-${dominant}`}>{storyStateLabel(dominant, story.movedTo)}</span>
-          </span>
-          <h2 className="r21-daily-card-title">
-            {story.title}
-            <SHPip shown={story.wasSHCreated} />
-          </h2>
-        </span>
-        <span className="r21-daily-card-numbers">
-          <span className="r21-daily-num">
-            <span className="cap">SP</span>
-            <span className={`val ${story.storyPoints == null ? 'is-missing' : ''}`}>{sp}</span>
-          </span>
-          <span className="r21-daily-num">
-            <span className="cap">EFFORT</span>
-            <span className={`val ${story.effort == null ? 'is-missing' : ''}`}>{eff}</span>
-          </span>
-        </span>
+    <article className={`r21-daily-card a-story is-state-${dominant} ${expanded ? 'is-expanded' : ''} ${story.hasActiveSession ? 'is-live' : ''}`}>
+      <div className="a-story-top">
+        <span className="a-kind">{story.type}</span>
+        <Mono className="a-id">#{story.id}</Mono>
+        <span className="r21-grow" />
+        {story.hasActiveSession && <StateChip state="work" text="timer on" />}
+        <StateChip state={gaugeStateOf(dominant)} text={storyStateLabel(dominant, story.movedTo)} />
+      </div>
+      <button type="button" className="a-story-title" onClick={() => onOpenItem(story.id)} title="Open this story">
+        {story.title}
+        <SHPip shown={story.wasSHCreated} />
       </button>
+      {story.descriptionPreview && <p className="a-story-desc">{story.descriptionPreview}</p>}
 
-      <div className="r21-daily-card-body">
-        {story.descriptionPreview && (
-          <p className="r21-daily-desc">{story.descriptionPreview}</p>
-        )}
-
-        {story.url && (
-          <a
-            className="r21-daily-card-ext"
-            href={story.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Open this story in Azure DevOps"
-          >
-            Open in Azure DevOps <span aria-hidden="true">↗</span>
-          </a>
-        )}
-
-        <div className="r21-daily-counts">
-          {story.counts.inProgress > 0 && (
-            <span className="c-going"><span className="dot" /> {story.counts.inProgress} going</span>
-          )}
-          {story.counts.upNext > 0 && (
-            <span className="c-waiting"><span className="dot" /> {story.counts.upNext} waiting</span>
-          )}
-          {story.counts.blocked > 0 && (
-            <span className="c-stuck"><span className="dot" /> {story.counts.blocked} stuck</span>
-          )}
-          {story.counts.done > 0 && (
-            <span className="c-done"><span className="dot" /> {story.counts.done} done</span>
-          )}
-          {taskCount === 0 && <span className="c-empty">no tasks under this story yet</span>}
+      <div className="a-stats">
+        <Ring parts={countParts(c)} size={68} width={7}>
+          <b>{c.done}/{taskCount}</b>
+          <small>tasks</small>
+        </Ring>
+        <div className="a-stats-hours">
+          <div className="a-big">
+            {fmtHours(loggedSec)}
+            <span className="a-of">{guess != null ? `of ${fmtNum(guess)}h guessed` : 'no guess yet'}</span>
+          </div>
+          <HoursBar spent={loggedSec / 3600} guess={guess} />
+          <CountLine counts={c} />
         </div>
+        <div className="a-stats-points">
+          <b className={story.storyPoints == null ? 'is-missing' : ''}>
+            {story.storyPoints != null ? fmtNum(story.storyPoints) : '—'}
+          </b>
+          <small>points</small>
+        </div>
+      </div>
 
-        {expanded && story.tasks.length > 0 && (
-          <ul className="r21-daily-tasks">
-            {story.tasks.map(t => {
-              const sc = dailyStateClass(t.state, t.tags);
-              const est = t.originalEstimate != null ? `${fmtNum(t.originalEstimate)}h` : '—';
-              const rem = t.remainingWork != null ? `${fmtNum(t.remainingWork)}h` : '—';
-              // A finished task has nothing left; what matters is the hours it took.
-              const isDone = sc === 'is-done';
-              const lastNum = isDone ? t.completedWork : t.remainingWork;
-              const lastText = isDone ? (t.completedWork != null ? `${fmtNum(t.completedWork)}h` : '—') : rem;
-              return (
-                <li key={t.id}>
-                  <button
-                    type="button"
-                    className={`r21-daily-task ${sc}`}
-                    onClick={() => onOpenItem(t.id)}
-                  >
-                    <span className="r21-daily-task-dot" aria-hidden="true" />
-                    <Mono className="r21-daily-task-id">#{t.id}</Mono>
-                    <span className="r21-daily-task-title">
-                      {t.title}
-                      <SHPip shown={t.wasSHCreated} />
-                    </span>
-                    <span className="r21-daily-task-state">{dailyStateLabel(t.state, t.tags)}</span>
-                    <span className="r21-daily-task-numbers">
-                      <span className="r21-daily-task-num">
-                        <span className="cap">EST</span>
-                        <span className={`val ${t.originalEstimate == null ? 'is-missing' : ''}`}>{est}</span>
-                      </span>
-                      <span className="r21-daily-task-num">
-                        <span className="cap">{isDone ? 'DONE' : 'REM'}</span>
-                        <span className={`val ${lastNum == null ? 'is-missing' : ''}`}>{lastText}</span>
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+      {expanded && story.tasks.length > 0 && (
+        <ul className="a-tasks">
+          {story.tasks.map(t => {
+            const st = gaugeStateOfTask(t);
+            const isDone = st === 'done';
+            const left = isDone ? null : t.remainingWork;
+            return (
+              <li key={t.id}>
+                <button type="button" className={`a-task g-text-${st}`} onClick={() => onOpenItem(t.id)}>
+                  <span className={`a-dot g-${st}`} aria-hidden="true" />
+                  <span className="a-task-title">
+                    {t.title}
+                    <SHPip shown={t.wasSHCreated} />
+                  </span>
+                  <Mono className="a-id">#{t.id}</Mono>
+                  <span className="r21-grow" />
+                  <StateChip state={st} text={STATE_WORD[st]} />
+                  <span className="a-task-num">logged <b>{fmtHours(t.localLoggedSeconds)}</b></span>
+                  <span className="a-task-num">guess <b>{t.originalEstimate != null ? `${fmtNum(t.originalEstimate)}h` : '—'}</b></span>
+                  <span className="a-task-num">left <b>{isDone ? '0h' : left != null ? `${fmtNum(left)}h` : '—'}</b></span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
-        {story.tasks.length > 0 && (
-          <button
-            type="button"
-            className="r21-daily-toggle"
-            onClick={onToggleExpanded}
-            aria-expanded={expanded}
-          >
-            {expanded ? `▴  hide ${story.tasks.length} task${story.tasks.length === 1 ? '' : 's'}` : `▾  show ${story.tasks.length} task${story.tasks.length === 1 ? '' : 's'}`}
+      <div className="a-story-foot">
+        {story.tasks.length > 0 ? (
+          <button type="button" className="a-link" onClick={onToggleExpanded} aria-expanded={expanded}>
+            {expanded ? `▴ hide ${story.tasks.length} task${story.tasks.length === 1 ? '' : 's'}` : `▾ show ${story.tasks.length} task${story.tasks.length === 1 ? '' : 's'}`}
           </button>
+        ) : (
+          <span className="a-muted">no tasks under this story yet</span>
+        )}
+        {story.url && (
+          <a className="a-link" href={story.url} target="_blank" rel="noopener noreferrer" title="Open this story on the board">
+            Open on the board <span aria-hidden="true">↗</span>
+          </a>
         )}
       </div>
     </article>
   );
+}
+
+const STATE_WORD: Record<GaugeState, string> = { work: 'in work', wait: 'not started', stuck: 'stuck', done: 'done' };
+
+function StateChip({ state, text }: { state: GaugeState; text: string }) {
+  return (
+    <span className={`a-chip g-text-${state}`}>
+      <i className={`g-${state}`} aria-hidden="true" />
+      {text}
+    </span>
+  );
+}
+
+/** "2 done · 1 in work · 1 stuck", each in its state colour. */
+function CountLine({ counts: c }: { counts: ApiUserStoryGroup['counts'] }) {
+  const bits: [GaugeState, number][] = [['done', c.done], ['work', c.inProgress], ['stuck', c.blocked], ['wait', c.upNext]];
+  return (
+    <span className="a-countline">
+      {bits.filter(([, n]) => n > 0).map(([st, n], i) => (
+        <span key={st} className={`g-text-${st}`}>{i > 0 && <span className="a-sep"> · </span>}{n} {STATE_WORD[st]}</span>
+      ))}
+    </span>
+  );
+}
+
+function countParts(c: ApiUserStoryGroup['counts']): GaugePart[] {
+  return [
+    { state: 'done', count: c.done },
+    { state: 'work', count: c.inProgress },
+    { state: 'stuck', count: c.blocked },
+    { state: 'wait', count: c.upNext },
+  ];
+}
+
+function gaugeStateOf(d: StoryState): GaugeState {
+  if (d === 'going') return 'work';
+  if (d === 'blocked') return 'stuck';
+  if (d === 'done') return 'done';
+  return 'wait';
+}
+
+function gaugeOfBoard(cls: 'going' | 'waiting' | 'blocked' | 'done'): GaugeState {
+  return cls === 'going' ? 'work' : cls === 'blocked' ? 'stuck' : cls === 'done' ? 'done' : 'wait';
+}
+
+function gaugeStateOfTask(t: ApiWorkItem): GaugeState {
+  const sc = dailyStateClass(t.state, t.tags);
+  if (sc === 'is-going') return 'work';
+  if (sc === 'is-blocked') return 'stuck';
+  if (sc === 'is-done') return 'done';
+  return 'wait';
 }
 
 function fmtNum(n: number): string {
@@ -2068,9 +2128,9 @@ function storyDominantState(s: ApiUserStoryGroup): StoryState {
 function storyStateLabel(d: StoryState, movedTo?: string | null): string {
   if (d === 'moved') return `moved to ${movedTo ?? 'another sprint'}`;
   if (d === 'going') return 'in work';
-  if (d === 'blocked') return 'blocked';
+  if (d === 'blocked') return 'stuck';
   if (d === 'waiting') return 'not started';
-  if (d === 'done') return 'closed';
+  if (d === 'done') return 'done';
   return 'no tasks';
 }
 
@@ -2094,9 +2154,9 @@ function featureDominantState(stories: ApiUserStoryGroup[]): StoryState {
 function featureStateLabel(d: StoryState): string {
   if (d === 'moved') return 'moved out of this sprint';
   if (d === 'going') return 'in work';
-  if (d === 'blocked') return 'blocked';
+  if (d === 'blocked') return 'stuck';
   if (d === 'waiting') return 'not started';
-  if (d === 'done') return 'closed';
+  if (d === 'done') return 'done';
   return 'no stories';
 }
 
@@ -2109,23 +2169,6 @@ function dailyStateClass(state: string, tags?: string[]): string {
   if (isBlocked(tags)) return 'is-blocked';
   if (s === 'active' || s === 'in progress' || s === 'doing' || s === 'committed') return 'is-going';
   return 'is-waiting';
-}
-
-function dailyStateLabel(state: string, tags?: string[]): string {
-  const sc = dailyStateClass(state, tags);
-  if (sc === 'is-blocked') return 'blocked';
-  if (sc === 'is-going') return 'going';
-  if (sc === 'is-done') return 'done';
-  return 'waiting';
-}
-
-function kindSlug(type: string): string {
-  const s = type.toLowerCase();
-  if (s.includes('feature')) return 'feature';
-  if (s.includes('epic')) return 'epic';
-  if (s.includes('bug') || s.includes('issue')) return 'bug';
-  if (s.includes('story')) return 'story';
-  return 'other';
 }
 
 function fmtClockISO(iso: string): string {
