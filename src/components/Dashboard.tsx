@@ -775,34 +775,27 @@ function StandupEntries({
 }
 
 /**
- * One story row in the today / previous-day recap. Collapsed by default: the
- * story title + summary read at a glance, and the active tasks under it drop
- * down when you click the row. Done/closed tasks are left out — this section
- * is for the work still in play, not a finished-list.
+ * One story row in the today / previous-day recap: the full story name, its
+ * number and its state, nothing else. The user reads these out at the daily
+ * meeting, so the row stays short; what happened (the summary) opens with a
+ * click for when it's needed. Tasks are left out on purpose.
  */
 function StandupEntry({ entry: e }: { entry: ApiPayload['standup']['yesterday'][number] }) {
-  const activeTasks = e.tasks.filter(t => boardStateClass(t.adoState) !== 'done');
-  const hasTasks = activeTasks.length > 0;
   // Status comes from the story's real Azure state so the recap agrees with the
-  // stories list — not guessed from the worked-task list (which is empty when
-  // the session was logged on the story itself). Older cached payloads without
-  // storyState fall back to going, since a recapped story is one being worked.
+  // stories list. Older cached payloads without storyState fall back to going,
+  // since a recapped story is one being worked.
   const status: 'going' | 'waiting' | 'blocked' | 'done' = e.storyState
     ? boardStateClass(e.storyState)
     : 'going';
   const [open, setOpen] = useState(false);
+  const id = e.displayName.match(/\(#(\d+)\)\s*$/)?.[1];
 
   const headInner = (
     <>
-      <span className="r21-standup-item-kind">Story</span>
       <span className="r21-standup-item-title">
         {extractTitleFromDisplayName(e.displayName)}
+        {id && <span className="r21-standup-item-id"> #{id}</span>}
       </span>
-      {hasTasks && (
-        <span className="r21-standup-item-count">
-          {activeTasks.length} active
-        </span>
-      )}
       <span className={`r21-standup-task-state state-${status}`}>{e.storyState ?? 'in work'}</span>
       <StandupStateBadge state={e.state} minutes={e.minutesInWindow} />
     </>
@@ -810,35 +803,20 @@ function StandupEntry({ entry: e }: { entry: ApiPayload['standup']['yesterday'][
 
   return (
     <li className={`r21-standup-item is-${e.state}`}>
-      {hasTasks ? (
+      {e.summary ? (
         <button
           type="button"
           className="r21-standup-item-head is-toggle"
           onClick={() => setOpen(o => !o)}
           aria-expanded={open}
-          title={open ? 'Hide tasks' : `Show ${activeTasks.length} active task${activeTasks.length === 1 ? '' : 's'}`}
+          title={open ? 'Hide what happened' : 'Show what happened'}
         >
-          <span className="r21-standup-item-caret" aria-hidden="true">{open ? '▾' : '▸'}</span>
           {headInner}
         </button>
       ) : (
         <div className="r21-standup-item-head">{headInner}</div>
       )}
-
-      {e.summary && <p className="r21-standup-item-summary">{e.summary}</p>}
-
-      {open && hasTasks && (
-        <ul className="r21-standup-tasks">
-          {activeTasks.map(t => (
-            <li key={t.workItemId} className={`r21-standup-task is-${boardStateClass(t.adoState)}`}>
-              <span className={`r21-standup-task-state state-${boardStateClass(t.adoState)}`}>
-                {t.adoState}
-              </span>
-              <span className="r21-standup-task-title">{t.title}</span>
-            </li>
-          ))}
-        </ul>
-      )}
+      {open && e.summary && <p className="r21-standup-item-summary">{e.summary}</p>}
     </li>
   );
 }
