@@ -1566,7 +1566,10 @@ html, body {
 
 .r21-app {
   position: relative;
-  min-height: 100vh;
+  /* Exactly one screen tall: the left side stays put and each column
+     scrolls on its own. min-height let the page grow and scroll as one. */
+  height: 100vh;
+  height: 100dvh;
   background: var(--bg-0);
   color: var(--ink-1);
   font-family: var(--font-sans);
@@ -5046,3 +5049,5 @@ html, body { background: var(--page); }
 .r21-daily-kind.kind-story { color: var(--ink-2); background: transparent; border-color: var(--line); }
 .chats-row-main:hover:not(:disabled) { background: var(--raised); }
 .ember-glow { display: none; }
+/* A full-width page (Retro) scrolls inside the body, like Plan does. */
+.r21-pagescroll { position: absolute; inset: 0; overflow-y: auto; }

@@ -345,7 +345,7 @@ function DashboardLive({
           {mode === 'plan' ? (
             <PlanView onOpenItem={openItem} />
           ) : mode === 'retro' ? (
-            <RetroView />
+            <div className="r21-pagescroll"><RetroView /></div>
           ) : mode === 'dnd' && dnd ? (
             <DnDView page={dnd} onOpenItem={openItem} />
           ) : isFocus ? (
@@ -1407,6 +1407,10 @@ function DailyView({
       else next.add(id);
       return next;
     });
+  const featureKeys = () => [...new Set(stories.map(s => s.feature?.id ?? '__no_feature__'))];
+  const allFeaturesClosed = stories.length > 0 && featureKeys().every(k => featuresCollapsed.has(k));
+  const toggleAllFeatures = () =>
+    setFeaturesCollapsed(allFeaturesClosed ? new Set() : new Set(featureKeys()));
 
   // Group stories by their parent Feature/Epic. Features with active work
   // float to the top; stories with no feature fall to the bottom.
@@ -1440,14 +1444,24 @@ function DailyView({
         </div>
         <div className="r21-daily-head-actions">
           {stories.length > 0 && (
-            <button
-              type="button"
-              className="r21-daily-bulk"
-              onClick={anyExpanded ? collapseAll : expandAll}
-              title={anyExpanded ? 'Collapse every card' : 'Expand every card'}
-            >
-              {anyExpanded ? 'collapse all' : 'expand all'}
-            </button>
+            <>
+              <button
+                type="button"
+                className="r21-daily-bulk"
+                onClick={toggleAllFeatures}
+                title={allFeaturesClosed ? 'Open every feature' : 'Close every feature down to its title'}
+              >
+                {allFeaturesClosed ? 'open all features' : 'close all features'}
+              </button>
+              <button
+                type="button"
+                className="r21-daily-bulk"
+                onClick={anyExpanded ? collapseAll : expandAll}
+                title={anyExpanded ? 'Hide the tasks on every story' : 'Show the tasks on every story'}
+              >
+                {anyExpanded ? 'hide all tasks' : 'show all tasks'}
+              </button>
+            </>
           )}
         </div>
       </div>
