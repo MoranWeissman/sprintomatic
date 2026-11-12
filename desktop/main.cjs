@@ -13,7 +13,7 @@ const { join } = require('node:path');
 
 const PORT = 7777;
 const DASH_URL = `http://localhost:${PORT}/`;
-const BG = '#0b1019';
+const BG = '#161512'; // the page colour, oklch(0.195 0.005 75)
 const { repo } = JSON.parse(readFileSync(join(__dirname, 'repo-path.json'), 'utf8'));
 const boundsFile = () => join(app.getPath('userData'), 'window.json');
 
@@ -26,8 +26,8 @@ const APP_CSS = `
   #app-bar {
     position: fixed; top: 0; left: 0; right: 0; height: ${BAR}px; z-index: 40;
     display: flex; align-items: center; justify-content: center;
-    background: oklch(0.108 0.024 260); border-bottom: 1px solid oklch(0.40 0.030 252 / 0.85);
-    font: 500 13px system-ui, sans-serif; color: oklch(0.68 0.025 244);
+    background: oklch(0.17 0.005 75); border-bottom: 1px solid oklch(0.42 0.005 75 / 0.85);
+    font: 500 13px system-ui, sans-serif; color: oklch(0.68 0.008 80);
     -webkit-app-region: drag; user-select: none;
   }
   #app-bar::after { content: 'Sprintomatic'; }
@@ -36,8 +36,8 @@ const APP_CSS = `
   html body :is(.r21-app, .ember) { min-height: calc(100vh - ${BAR}px); }
   html body :is(.ember-drawer, .ember-drawer-scrim, .schedule-scrim) { top: ${BAR}px; }
   html body :is(.r21-rail, .r21-sidewrap, .r21-topwrap, .ember-top) { user-select: none; }
-  html body :is(.r21-rail, .r21-sidewrap) { border-right-color: oklch(0.40 0.030 252 / 0.85); }
-  html body :is(.r21-topwrap, .ember-top) { border-bottom-color: oklch(0.40 0.030 252 / 0.85); }
+  html body :is(.r21-rail, .r21-sidewrap) { border-right-color: oklch(0.42 0.005 75 / 0.85); }
+  html body :is(.r21-topwrap, .ember-top) { border-bottom-color: oklch(0.42 0.005 75 / 0.85); }
 `;
 const ADD_BAR = `document.getElementById('app-bar') || document.body.prepend(Object.assign(document.createElement('div'), { id: 'app-bar' }))`;
 

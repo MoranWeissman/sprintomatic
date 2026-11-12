@@ -1,66 +1,75 @@
 /* sprintomatic dashboard — Ember variation
  * Ported from Claude Design handoff (2026-05-26).
- * ADHD-tuned deep dusk palette, single moonlit blue accent, no motion.
+ * Warm graphite neutrals, one blue accent for "in work", no motion.
  */
 
 /* ---------- shared tokens ---------- */
 :root {
-  /* ADHD-tuned deep dusk palette — midnight blue family, low chroma.
+  /* 2026-11: warm graphite. Neutral surfaces (chroma 0.005, hue 75) in five
+   * clear steps; blue is kept for "in work" only. The old names below point
+   * at these five so nothing else had to change. */
+  --frame: oklch(0.170 0.005 75);   /* mode strip + both side panels */
+  --page: oklch(0.195 0.005 75);    /* main column */
+  --card: oklch(0.235 0.005 75);
+  --raised: oklch(0.270 0.005 75);  /* card heads, rows inside a card */
+  --hover: oklch(0.295 0.005 75);
+
+  /* Old notes: ADHD-tuned deep dusk palette — midnight blue family, low chroma.
    * Hue rotates subtly between zones to give visual diversity within the
    * blue family (sidebar cooler/violet, content neutral, accents warmer).
    * All hues stay between 240–272 so nothing reads as a different color. */
-  --bg-0: oklch(0.135 0.028 260);      /* main page */
-  --bg-1: oklch(0.180 0.030 258);
-  --bg-2: oklch(0.215 0.030 256);
-  --bg-3: oklch(0.275 0.030 254);
-  --line: oklch(0.36 0.030 252 / 0.55);
-  --line-soft: oklch(0.36 0.030 252 / 0.28);
-  --line-strong: oklch(0.40 0.040 250 / 0.85);
-  --line-hair: oklch(0.36 0.030 252 / 0.18);
+  --bg-0: var(--page);      /* main page */
+  --bg-1: var(--card);
+  --bg-2: var(--raised);
+  --bg-3: var(--hover);
+  --line: oklch(0.31 0.005 75);
+  --line-soft: oklch(0.29 0.005 75);
+  --line-strong: oklch(0.37 0.005 75);
+  --line-hair: oklch(0.275 0.005 75);
 
   /* Surface stack (2026-06-02): explicit step ramp for panel separation.
    * Each step is ~0.025 lighter in OKLCH which is just enough to read as
    * "different surface" without breaking the calm dark warm-dusk feel.
    * Use --surface-1 for the page, --surface-2 for cards, --surface-3 for
    * elevated tiles (helper notes, capacity tile, daily strip). */
-  --surface-1: oklch(0.125 0.026 260);
-  --surface-2: oklch(0.155 0.030 258);
-  --surface-3: oklch(0.180 0.034 256);
+  --surface-1: var(--page);
+  --surface-2: var(--card);
+  --surface-3: var(--raised);
   /* Reading-card step: content cards that sit ON a lifted card. One clear
      step lighter than --bg-2 so nested cards separate instead of meshing
      (the "dark frame, lighter-blue content" ladder). */
-  --surface-4: oklch(0.250 0.036 254);
+  --surface-4: var(--hover);
 
   /* Zone-specific backgrounds — each is a small hue + lightness shift
    * relative to bg-0 so zones feel distinct without competing. */
-  --zone-side: oklch(0.155 0.034 268);   /* sidebar — cooler, slightly violet, slightly raised */
-  --zone-side-edge: oklch(0.20 0.038 270 / 0.5);
-  --zone-content: oklch(0.130 0.026 256); /* content area — neutral dusk */
-  --zone-card: oklch(0.175 0.028 252);   /* generic card */
-  --zone-card-warm: oklch(0.180 0.032 248); /* standup card — a touch warmer toward accent */
-  --zone-running: oklch(0.205 0.038 250); /* main running card — warmest */
-  --zone-running-2: oklch(0.155 0.030 254);
-  --zone-banner: oklch(0.205 0.044 252); /* sync banner */
+  --zone-side: var(--frame);   /* sidebar — cooler, slightly violet, slightly raised */
+  --zone-side-edge: var(--line);
+  --zone-content: var(--frame); /* content area — neutral dusk */
+  --zone-card: var(--card);   /* generic card */
+  --zone-card-warm: var(--card); /* standup card — a touch warmer toward accent */
+  --zone-running: var(--raised); /* main running card — warmest */
+  --zone-running-2: var(--card);
+  --zone-banner: var(--raised); /* sync banner */
 
   /* 2026-06-01: ink ramp lifted globally per the user's "all gray too dim"
      feedback. Lightness floor raised so even ink-4 reads clearly on the
      dark warm-dusk background; ink-2 is now near-primary so caption / unit
      text feels alive, not vestigial. Hierarchy ratios preserved. */
-  --ink-0: oklch(0.97 0.014 230);
-  --ink-1: oklch(0.92 0.016 232);
-  --ink-2: oklch(0.80 0.022 238);
-  --ink-3: oklch(0.68 0.025 244);
-  --ink-4: oklch(0.635 0.025 248);
+  --ink-0: oklch(0.96 0.006 80);
+  --ink-1: oklch(0.91 0.008 80);
+  --ink-2: oklch(0.80 0.010 80);
+  --ink-3: oklch(0.70 0.010 80);
+  --ink-4: oklch(0.66 0.010 80);
 
   /* Single accent — soft moonlit blue */
-  --accent: oklch(0.78 0.075 245);
-  --accent-deep: oklch(0.62 0.090 250);
-  --accent-soft: oklch(0.78 0.075 245 / 0.18);
+  --accent: oklch(0.76 0.090 248);
+  --accent-deep: oklch(0.62 0.100 252);
+  --accent-soft: color-mix(in oklch, var(--accent) 18%, transparent);
 
   /* Story chip — slightly warmer blue (toward periwinkle) so parent USes are
    * visually distinct from task IDs without using a different hue family. */
-  --story: oklch(0.72 0.060 235);
-  --story-soft: oklch(0.72 0.060 235 / 0.16);
+  --story: var(--ink-2);
+  --story-soft: color-mix(in oklch, var(--ink-2) 12%, transparent);
 
   --ember-accent: var(--accent);
   --ember-accent-deep: var(--accent-deep);
@@ -72,7 +81,7 @@
 html, body {
   margin: 0;
   padding: 0;
-  background: oklch(0.125 0.026 260);
+  background: oklch(0.19 0.005 75);
   font-family: var(--font-sans);
   min-height: 100vh;
 }
@@ -103,7 +112,7 @@ html, body {
   position: relative;
   width: 100%;
   min-height: 100vh;
-  background: oklch(0.125 0.026 260);
+  background: oklch(0.19 0.005 75);
   color: var(--ink-1);
   font-family: var(--font-sans);
   overflow: hidden;
@@ -115,12 +124,12 @@ html, body {
 .ember-glow-1 {
   bottom: -200px; left: -200px;
   width: 800px; height: 700px;
-  background: radial-gradient(ellipse at center, oklch(0.40 0.10 255 / 0.45), transparent 65%);
+  background: radial-gradient(ellipse at center, oklch(0.42 0.03 248 / 0.45), transparent 65%);
 }
 .ember-glow-2 {
   top: -180px; right: 100px;
   width: 600px; height: 400px;
-  background: radial-gradient(ellipse at center, oklch(0.30 0.06 248 / 0.30), transparent 70%);
+  background: radial-gradient(ellipse at center, oklch(0.33 0.03 248 / 0.30), transparent 70%);
 }
 .ember-grain {
   position: absolute; inset: 0; z-index: 0; pointer-events: none;
@@ -160,13 +169,13 @@ html, body {
   appearance: none; font-family: inherit; cursor: pointer;
   display: inline-flex; align-items: center; gap: 10px;
   padding: 8px 14px; border-radius: 999px;
-  background: oklch(0.20 0.030 252);
+  background: oklch(0.255 0.005 75);
   border: 1px solid var(--line-soft);
   font-size: 14px; color: var(--ink-2);
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 .ember-sync:hover {
-  background: oklch(0.235 0.035 252);
+  background: oklch(0.275 0.005 75);
   border-color: var(--accent-deep);
   color: var(--ink-0);
 }
@@ -178,12 +187,12 @@ html, body {
 /* Sprint picker */
 .ember-sprint-pick {
   display: inline-flex; align-items: stretch;
-  background: linear-gradient(180deg, oklch(0.215 0.038 254), oklch(0.180 0.030 256));
+  background: linear-gradient(180deg, oklch(0.265 0.005 75), oklch(0.235 0.005 75));
   border: 1px solid var(--line);
   border-radius: 999px;
   overflow: hidden;
   font-size: 15px;
-  box-shadow: 0 1px 0 oklch(0.40 0.030 250 / 0.18) inset;
+  box-shadow: 0 1px 0 oklch(0.42 0.005 75 / 0.18) inset;
 }
 .ember-sprint-pick::before {
   content: "sprint";
@@ -204,7 +213,7 @@ html, body {
 }
 .ember-sprint-pick button:hover,
 .ember-sprint-pick select:hover {
-  background: oklch(0.255 0.040 252);
+  background: oklch(0.294 0.005 75);
   color: var(--ink-0);
 }
 .ember-sprint-pick button[disabled] {
@@ -265,8 +274,8 @@ html, body {
   appearance: none; cursor: pointer; border: none;
   display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto;
   width: 100%; gap: 4px 16px;
-  background: oklch(0.215 0.035 255);
-  border: 1px solid oklch(0.36 0.06 250 / 0.55);
+  background: oklch(0.265 0.005 75);
+  border: 1px solid oklch(0.38 0.03 248 / 0.55);
   color: var(--ink-0);
   padding: 22px 24px; border-radius: 6px;
   font-family: inherit; text-align: left;
@@ -277,7 +286,7 @@ html, body {
   content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
   background: var(--ember-accent);
 }
-.ember-cta:hover { background: oklch(0.250 0.040 255); border-color: var(--ember-accent); }
+.ember-cta:hover { background: oklch(0.29 0.005 75); border-color: var(--ember-accent); }
 .ember-cta-line1 { grid-column: 1; grid-row: 1; }
 .ember-cta-line1 .dim-small { color: var(--ember-accent); }
 .ember-cta-line2 {
@@ -346,7 +355,7 @@ html, body {
   overflow: hidden;
 }
 .ember-stat {
-  background: oklch(0.155 0.027 258);
+  background: oklch(0.215 0.005 75);
   padding: clamp(20px, 1.8vw, 32px) clamp(18px, 1.6vw, 28px);
   display: flex; flex-direction: column; gap: 6px;
 }
@@ -375,7 +384,7 @@ html, body {
 .ember-parent {
   display: inline-flex; align-items: center; gap: 10px;
   background: var(--story-soft);
-  border: 1px solid oklch(0.45 0.05 235 / 0.4);
+  border: 1px solid oklch(0.45 0.055 248 / 0.4);
   border-radius: 999px;
   padding: 6px 14px 6px 12px;
   margin-bottom: 18px;
@@ -387,16 +396,16 @@ html, body {
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 .ember-parent:hover {
-  background: oklch(0.72 0.060 235 / 0.24);
+  background: oklch(0.72 0.066 248 / 0.24);
   border-color: var(--story);
 }
 .ember-parent .ember-parent-type {
   font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase;
-  color: oklch(0.72 0.060 235 / 0.85); font-weight: 600;
+  color: oklch(0.72 0.066 248 / 0.85); font-weight: 600;
 }
 .ember-parent .ember-parent-id {
   font-family: var(--font-mono); font-size: 13px; color: var(--story);
-  padding-right: 8px; border-right: 1px solid oklch(0.45 0.05 235 / 0.5);
+  padding-right: 8px; border-right: 1px solid oklch(0.45 0.055 248 / 0.5);
 }
 .ember-parent .ember-parent-title {
   color: var(--ink-1); font-weight: 500; letter-spacing: -0.005em;
@@ -464,14 +473,14 @@ html, body {
 .ember-act:disabled,
 .ember-act[aria-disabled="true"] {
   color: var(--ink-4);
-  border-bottom-color: oklch(0.36 0.030 252 / 0.25);
+  border-bottom-color: oklch(0.38 0.005 75 / 0.25);
   cursor: not-allowed;
   position: relative;
 }
 .ember-act:disabled:hover,
 .ember-act[aria-disabled="true"]:hover {
   color: var(--ink-4);
-  border-bottom-color: oklch(0.36 0.030 252 / 0.25);
+  border-bottom-color: oklch(0.38 0.005 75 / 0.25);
 }
 .ember-act-soon {
   display: inline-flex; align-items: center; gap: 6px;
@@ -480,7 +489,7 @@ html, body {
   color: var(--story); font-weight: 600;
   padding: 2px 6px; border-radius: 4px;
   background: var(--story-soft);
-  border: 1px solid oklch(0.45 0.05 235 / 0.25);
+  border: 1px solid oklch(0.45 0.055 248 / 0.25);
 }
 .ember-act-sep { color: var(--ink-4); }
 .ember-act-ghost { margin-left: auto; color: var(--ink-2); border-bottom-color: transparent; }
@@ -489,7 +498,7 @@ html, body {
 /* ===== WORK ITEM DRAWER ===== */
 .ember-drawer-scrim {
   position: fixed; inset: 0;
-  background: oklch(0.06 0.02 260 / 0.65);
+  background: oklch(0.155 0.005 75 / 0.65);
   backdrop-filter: blur(2px);
   z-index: 50;
   animation: ember-fade-in 180ms ease;
@@ -572,13 +581,13 @@ html, body {
 .ember-drawer-pill {
   display: inline-flex; align-items: center;
   padding: 6px 12px; border-radius: 999px;
-  background: oklch(0.20 0.030 252);
+  background: oklch(0.255 0.005 75);
   border: 1px solid var(--line-soft);
   font-size: 14px; color: var(--ink-1);
 }
 .ember-drawer-pill.accent {
   background: var(--accent-soft);
-  border-color: oklch(0.78 0.075 245 / 0.4);
+  border-color: oklch(0.78 0.083 248 / 0.4);
   color: var(--accent);
 }
 
@@ -624,7 +633,7 @@ html, body {
 .ember-drawer-html li { margin-bottom: 4px; }
 .ember-drawer-html a {
   color: var(--accent); text-decoration: underline; text-underline-offset: 2px;
-  text-decoration-color: oklch(0.78 0.075 245 / 0.35);
+  text-decoration-color: oklch(0.78 0.083 248 / 0.35);
 }
 .ember-drawer-html a:hover { text-decoration-color: var(--accent); }
 .ember-drawer-html code {
@@ -665,7 +674,7 @@ html, body {
   display: grid; grid-template-columns: 70px minmax(0, 1fr) auto;
   gap: 14px; align-items: baseline;
   padding: 12px 16px;
-  background: oklch(0.18 0.028 256);
+  background: oklch(0.235 0.005 75);
   border: 1px solid var(--line-soft);
   border-radius: 6px;
   color: var(--ink-1);
@@ -689,7 +698,7 @@ html, body {
   display: flex; flex-direction: column; gap: 14px;
 }
 .ember-drawer-comment {
-  background: oklch(0.18 0.028 256);
+  background: oklch(0.235 0.005 75);
   border: 1px solid var(--line-soft);
   border-radius: 8px;
   padding: 14px 16px;
@@ -713,12 +722,12 @@ html, body {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 8px 14px; border-radius: 6px;
   background: var(--accent);
-  color: oklch(0.16 0.04 260);
+  color: oklch(0.22 0.005 75);
   text-decoration: none;
   font-weight: 600; letter-spacing: -0.005em;
   transition: background 0.15s ease, transform 0.15s ease;
 }
-.ember-drawer-open:hover { background: oklch(0.82 0.08 245); transform: translateY(-1px); }
+.ember-drawer-open:hover { background: oklch(0.82 0.088 248); transform: translateY(-1px); }
 
 /* On narrow screens the drawer becomes full-width. */
 @media (max-width: 640px) {
@@ -752,7 +761,7 @@ html, body {
   text-align: left; font-family: inherit;
   background: var(--zone-card);
   border: 1px solid var(--line-soft);
-  border-left: 2px solid oklch(0.45 0.05 235 / 0.5);
+  border-left: 2px solid oklch(0.45 0.055 248 / 0.5);
   border-radius: 8px;
   padding: 16px 18px;
   display: flex; flex-direction: column; gap: 10px;
@@ -767,7 +776,7 @@ html, body {
 .ember-story-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .ember-story-chip.active {
   background: linear-gradient(120deg, var(--story-soft), var(--zone-card) 60%);
-  border-color: oklch(0.45 0.06 235 / 0.4);
+  border-color: oklch(0.45 0.066 248 / 0.4);
   border-left-color: var(--story);
 }
 .ember-story-chip-head {
@@ -798,17 +807,17 @@ html, body {
 .ember-story-chip-pill {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 2px 8px; border-radius: 999px;
-  background: oklch(0.20 0.030 252);
+  background: oklch(0.255 0.005 75);
   border: 1px solid var(--line-soft);
   font-size: 12px;
   color: var(--ink-2);
 }
 .ember-story-chip-pill.going {
-  color: var(--accent); border-color: oklch(0.78 0.075 245 / 0.4);
+  color: var(--accent); border-color: oklch(0.78 0.083 248 / 0.4);
   background: var(--accent-soft);
 }
 .ember-story-chip.active .ember-story-chip-pill.going {
-  background: oklch(0.78 0.075 245 / 0.28);
+  background: oklch(0.78 0.083 248 / 0.28);
 }
 
 /* ===== ACTIVE STORY CARD ===== */
@@ -861,7 +870,7 @@ html, body {
   grid-template-columns: 56px minmax(0, 1fr) minmax(0, 110px) 70px auto 28px;
   gap: 14px; align-items: center;
   padding: 12px 16px;
-  background: oklch(0.165 0.026 258);
+  background: oklch(0.225 0.005 75);
   border: 1px solid var(--line-soft);
   border-left: 2px solid transparent;
   border-radius: 6px;
@@ -869,19 +878,19 @@ html, body {
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 .ember-active-story-task:hover {
-  background: oklch(0.185 0.028 258);
+  background: oklch(0.24 0.005 75);
 }
 .ember-active-story-task:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 .ember-active-story-task.is-open {
-  background: oklch(0.20 0.030 256 / 0.6);
+  background: oklch(0.255 0.005 75 / 0.6);
 }
 .ember-active-story-task.state-going { border-left-color: var(--ink-3); }
 .ember-active-story-task.is-running {
   border-left-color: var(--accent);
-  background: oklch(0.18 0.030 258);
+  background: oklch(0.235 0.005 75);
 }
 .ember-active-story-task.state-done { opacity: 0.55; }
 .ember-active-story-task.state-done .ember-task-title {
@@ -931,16 +940,16 @@ html, body {
 }
 .ember-task-btn:hover {
   color: var(--ink-0);
-  background: oklch(0.22 0.028 258);
+  background: oklch(0.268 0.005 75);
   border-color: var(--line);
 }
 .ember-task-btn.pause {
   color: var(--accent);
-  border-color: oklch(0.45 0.075 245 / 0.35);
+  border-color: oklch(0.45 0.083 248 / 0.35);
 }
 .ember-task-btn.pause:hover {
   color: var(--ink-0);
-  background: oklch(0.28 0.06 245 / 0.4);
+  background: oklch(0.314 0.03 248 / 0.4);
 }
 .ember-task-btn.sync {
   color: oklch(0.75 0.08 195);
@@ -967,7 +976,7 @@ html, body {
   grid-column: 1 / -1;
   margin-top: 6px;
   font-size: 13px;
-  color: oklch(0.72 0.12 30);
+  color: var(--st-blocked);
   padding: 8px 10px;
   background: oklch(0.22 0.05 30 / 0.2);
   border: 1px solid oklch(0.42 0.08 30 / 0.35);
@@ -1005,14 +1014,14 @@ html, body {
   grid-template-columns: 56px minmax(0, 1.6fr) minmax(0, 1fr) auto;
   gap: 20px; align-items: center;
   padding: 18px 22px;
-  background: oklch(0.165 0.026 258);
+  background: oklch(0.225 0.005 75);
   border: 1px solid var(--line-soft);
-  border-left: 2px solid oklch(0.78 0.075 245 / 0.5);
+  border-left: 2px solid oklch(0.78 0.083 248 / 0.5);
   border-radius: 6px;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 .ember-par-row:hover {
-  background: oklch(0.185 0.028 258);
+  background: oklch(0.24 0.005 75);
   border-left-color: var(--accent);
 }
 .ember-par-id { font-size: 15px; color: var(--ink-2); }
@@ -1139,7 +1148,7 @@ html, body {
   display: flex; align-items: center; justify-content: space-between;
   padding: 28px 36px;
   background: linear-gradient(90deg, var(--zone-banner), var(--zone-card));
-  border: 1px solid oklch(0.36 0.06 250 / 0.4);
+  border: 1px solid oklch(0.38 0.03 248 / 0.4);
   border-radius: 8px;
   position: relative; overflow: hidden;
 }
@@ -1157,15 +1166,15 @@ html, body {
 .ember-sync-detail { font-size: 15px; color: var(--ink-3); }
 .ember-report {
   appearance: none; cursor: pointer; border: none;
-  background: var(--accent); color: oklch(0.16 0.04 260);
+  background: var(--accent); color: oklch(0.22 0.005 75);
   padding: 16px 24px; border-radius: 4px;
   font-family: inherit; font-size: 16px; font-weight: 600;
   display: inline-flex; align-items: center; gap: 14px;
   letter-spacing: -0.005em;
-  box-shadow: 0 1px 0 oklch(0.88 0.05 240 / 0.4) inset, 0 16px 36px -16px oklch(0.50 0.10 250 / 0.65);
+  box-shadow: 0 1px 0 oklch(0.88 0.055 248 / 0.4) inset, 0 16px 36px -16px oklch(0.5 0.09 248 / 0.65);
   transition: background 0.15s ease, transform 0.15s ease;
 }
-.ember-report:hover { background: oklch(0.82 0.08 245); transform: translateY(-1px); }
+.ember-report:hover { background: oklch(0.82 0.088 248); transform: translateY(-1px); }
 
 
 /* ============================================================ */
@@ -1175,20 +1184,20 @@ html, body {
 /* ----- Schedule modal ----- */
 .schedule-scrim {
   position: fixed; inset: 0;
-  background: oklch(0.08 0.020 260 / 0.55);
+  background: oklch(0.16 0.005 75 / 0.55);
   backdrop-filter: blur(2px);
   z-index: 100;
   display: flex; align-items: center; justify-content: center;
   padding: 32px;
 }
 .schedule-modal {
-  background: linear-gradient(180deg, oklch(0.195 0.032 256), oklch(0.155 0.028 258));
+  background: linear-gradient(180deg, oklch(0.25 0.005 75), oklch(0.215 0.005 75));
   border: 1px solid var(--line);
   border-radius: 12px;
   width: min(560px, 100%);
   max-height: calc(100% - 64px);
   display: flex; flex-direction: column;
-  box-shadow: 0 30px 80px -20px oklch(0.04 0.04 260 / 0.7), 0 0 0 1px oklch(0.36 0.030 252 / 0.2);
+  box-shadow: 0 30px 80px -20px oklch(0.15 0.005 75 / 0.7), 0 0 0 1px oklch(0.38 0.005 75 / 0.2);
   overflow: hidden;
 }
 .schedule-modal-head {
@@ -1219,7 +1228,7 @@ html, body {
   overflow-y: auto;
 }
 .schedule-error {
-  font-size: 14px; color: oklch(0.78 0.10 30);
+  font-size: 14px; color: var(--st-blocked);
   padding: 10px 12px; margin: 6px 0;
   background: oklch(0.22 0.05 30 / 0.18);
   border: 1px solid oklch(0.42 0.08 30 / 0.32);
@@ -1256,7 +1265,7 @@ html, body {
 /* Pill select (with floating menu) */
 .schedule-pick { position: relative; display: inline-block; }
 .schedule-pill {
-  appearance: none; background: oklch(0.155 0.028 258);
+  appearance: none; background: oklch(0.215 0.005 75);
   border: 1px solid var(--line-soft); cursor: pointer; font-family: inherit;
   color: var(--ink-0); font-size: 14.5px;
   padding: 5px 10px 5px 12px;
@@ -1264,17 +1273,17 @@ html, body {
   display: inline-flex; align-items: center; gap: 8px;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
-.schedule-pill:hover { border-color: oklch(0.78 0.075 245 / 0.30); background: oklch(0.175 0.030 258); }
+.schedule-pill:hover { border-color: oklch(0.78 0.083 248 / 0.30); background: oklch(0.232 0.005 75); }
 .schedule-pill:focus-visible { outline: none; border-color: var(--accent); }
 .schedule-pill .chev { color: var(--ink-3); font-family: var(--font-mono); font-size: 12px; }
 .schedule-pick-menu {
   position: absolute; top: calc(100% + 4px); left: 0;
   margin: 0; padding: 4px;
   list-style: none;
-  background: linear-gradient(180deg, oklch(0.195 0.032 256), oklch(0.155 0.028 258));
+  background: linear-gradient(180deg, oklch(0.25 0.005 75), oklch(0.215 0.005 75));
   border: 1px solid var(--line);
   border-radius: 6px;
-  box-shadow: 0 14px 40px -12px oklch(0.04 0.04 260 / 0.6);
+  box-shadow: 0 14px 40px -12px oklch(0.15 0.005 75 / 0.6);
   z-index: 110;
   min-width: 140px;
   max-height: 240px;
@@ -1288,12 +1297,12 @@ html, body {
   padding: 8px 12px; border-radius: 4px;
   transition: background 0.15s ease, color 0.15s ease;
 }
-.schedule-pick-opt:hover { background: oklch(0.20 0.030 256); color: var(--ink-0); }
+.schedule-pick-opt:hover { background: oklch(0.255 0.005 75); color: var(--ink-0); }
 .schedule-pick-opt.is-active { color: var(--accent); }
 
 /* Time input (click to edit) */
 .schedule-time {
-  appearance: none; background: oklch(0.155 0.028 258);
+  appearance: none; background: oklch(0.215 0.005 75);
   border: 1px solid var(--line-soft);
   cursor: text; font-family: var(--font-mono); font-feature-settings: "tnum" 1;
   color: var(--ink-0); font-size: 15px;
@@ -1303,14 +1312,14 @@ html, body {
   text-align: center;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
-.schedule-time:hover { border-color: oklch(0.78 0.075 245 / 0.30); }
-.schedule-time:focus { outline: none; border-color: var(--accent); background: oklch(0.180 0.030 258); }
+.schedule-time:hover { border-color: oklch(0.78 0.083 248 / 0.30); }
+.schedule-time:focus { outline: none; border-color: var(--accent); background: oklch(0.235 0.005 75); }
 
 /* On/off toggle */
 .schedule-toggle {
   appearance: none; cursor: pointer; border: none; padding: 0;
   width: 30px; height: 18px; border-radius: 999px;
-  background: oklch(0.275 0.030 254);
+  background: oklch(0.31 0.005 75);
   position: relative;
   transition: background 0.15s ease;
 }
@@ -1323,7 +1332,7 @@ html, body {
   transition: left 0.18s ease, background 0.18s ease;
 }
 .schedule-toggle.is-on { background: var(--accent); }
-.schedule-toggle.is-on::after { left: 14px; background: oklch(0.16 0.04 260); }
+.schedule-toggle.is-on::after { left: 14px; background: oklch(0.22 0.005 75); }
 
 .schedule-modal-foot {
   padding: 16px 26px 18px;
@@ -1345,17 +1354,17 @@ html, body {
   padding: 9px 14px; border-radius: 5px;
   transition: color 0.15s ease, background 0.15s ease;
 }
-.schedule-btn-ghost:hover { color: var(--ink-0); background: oklch(0.18 0.030 258 / 0.6); }
+.schedule-btn-ghost:hover { color: var(--ink-0); background: oklch(0.235 0.005 75 / 0.6); }
 .schedule-btn-ghost:disabled { opacity: 0.5; cursor: progress; }
 .schedule-btn-accent {
   appearance: none; cursor: pointer; border: none;
-  background: var(--accent); color: oklch(0.16 0.04 260);
+  background: var(--accent); color: oklch(0.22 0.005 75);
   font-family: inherit; font-size: 15px; font-weight: 600;
   padding: 10px 18px; border-radius: 5px;
-  box-shadow: 0 1px 0 oklch(0.88 0.05 240 / 0.4) inset, 0 8px 24px -10px oklch(0.50 0.10 250 / 0.6);
+  box-shadow: 0 1px 0 oklch(0.88 0.055 248 / 0.4) inset, 0 8px 24px -10px oklch(0.5 0.09 248 / 0.6);
   transition: background 0.15s ease;
 }
-.schedule-btn-accent:hover { background: oklch(0.82 0.08 245); }
+.schedule-btn-accent:hover { background: oklch(0.82 0.088 248); }
 .schedule-btn-accent:disabled { opacity: 0.6; cursor: progress; }
 
 /* ----- Settings panel (reuses the schedule modal shell) ----- */
@@ -1379,9 +1388,9 @@ html, body {
 .settings-row-field { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
 .settings-row-help { font-size: 13.5px; color: var(--ink-3); margin: 0; line-height: 1.45; }
 .settings-row-help code { font-family: var(--font-mono); color: var(--ink-2); }
-.settings-row.has-error .settings-input { border-color: oklch(0.62 0.12 30); }
+.settings-row.has-error .settings-input { border-color: var(--st-blocked); }
 .settings-input {
-  appearance: none; background: oklch(0.155 0.028 258);
+  appearance: none; background: oklch(0.215 0.005 75);
   border: 1px solid var(--line-soft);
   color: var(--ink-0); font-family: inherit; font-size: 14.5px;
   padding: 6px 10px; border-radius: 5px;
@@ -1395,16 +1404,16 @@ html, body {
 .settings-days, .settings-seg { display: inline-flex; flex-wrap: wrap; gap: 6px; }
 .settings-day, .settings-seg-opt {
   appearance: none; cursor: pointer; font-family: inherit; font-size: 14px;
-  background: oklch(0.155 0.028 258); color: var(--ink-2);
+  background: oklch(0.215 0.005 75); color: var(--ink-2);
   border: 1px solid var(--line-soft); border-radius: 5px;
   padding: 5px 10px;
   transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
 }
 .settings-day { min-width: 46px; }
-.settings-day:hover, .settings-seg-opt:hover { border-color: oklch(0.78 0.075 245 / 0.30); color: var(--ink-0); }
+.settings-day:hover, .settings-seg-opt:hover { border-color: oklch(0.78 0.083 248 / 0.30); color: var(--ink-0); }
 .settings-day.is-on, .settings-seg-opt.is-on {
   color: var(--ink-0); border-color: var(--accent);
-  background: oklch(0.22 0.045 250);
+  background: oklch(0.268 0.005 75);
 }
 .settings-day:disabled, .settings-seg-opt:disabled { opacity: 0.55; cursor: not-allowed; }
 .settings-link {
@@ -1416,7 +1425,7 @@ html, body {
 .settings-link:disabled { opacity: 0.6; cursor: progress; text-decoration: none; }
 .settings-note { font-size: 13.5px; color: var(--ink-3); margin: 14px 0 0; }
 .settings-good { color: var(--ink-1); font-size: 14px; }
-.settings-bad { color: oklch(0.78 0.10 30); font-size: 14px; }
+.settings-bad { color: var(--st-blocked); font-size: 14px; }
 .r21-rail-gear + .r21-rail-gear { margin-top: 0; }
 
 /* ============================================================ */
@@ -1432,7 +1441,7 @@ html, body {
   transition: color 0.15s ease, background 0.15s ease, transform 180ms ease-out;
   line-height: 1; padding: 0;
 }
-.chev:hover { color: var(--ink-0); background: oklch(0.275 0.030 254 / 0.5); }
+.chev:hover { color: var(--ink-0); background: oklch(0.31 0.005 75 / 0.5); }
 .chev.is-open { transform: rotate(90deg); color: var(--accent); }
 
 /* ============================================================ */
@@ -1522,31 +1531,31 @@ html, body {
 
 :root {
   /* Hairline lines (used since slice 4a; declaring them here for clarity). */
-  --line-hair:   oklch(0.36 0.030 252 / 0.18);
-  --accent-hair: oklch(0.78 0.075 245 / 0.30);
+  --line-hair: oklch(0.275 0.005 75);
+  --accent-hair: color-mix(in oklch, var(--accent) 30%, transparent);
 
   /* Desaturated event-type tints. All single hue family. NOT a multi-accent
    * system — micro-variations of "calm" so types are distinguishable without
    * shouting (no bright red, no bright green). */
-  --ev-focus:    oklch(0.78 0.075 245);   /* same as accent — "this is on" */
+  --ev-focus: var(--accent);   /* same as accent — "this is on" */
   --ev-progress: oklch(0.78 0.050 160);   /* muted sage */
-  --ev-blocker:  oklch(0.74 0.060 38);    /* muted rust — NOT red */
-  --ev-decision: oklch(0.87 0.016 232);   /* ink-1 — neutral */
-  --ev-note:     oklch(0.55 0.022 244);   /* dim ink */
+  --ev-blocker: var(--st-blocked);    /* muted rust — NOT red */
+  --ev-decision: oklch(0.87 0.008 80);   /* ink-1 — neutral */
+  --ev-note:     oklch(0.55 0.008 80);   /* dim ink */
 
   /* Status palette — used by the Daily view to give each card a glanceable identity */
-  --st-going:    oklch(0.78 0.075 245);   /* accent blue */
-  --st-going-bg: oklch(0.78 0.075 245 / 0.16);
-  --st-done:     oklch(0.74 0.060 150);   /* muted sage */
-  --st-done-bg:  oklch(0.74 0.060 150 / 0.16);
-  --st-waiting:  oklch(0.78 0.070 85);    /* warm amber */
-  --st-waiting-bg: oklch(0.78 0.070 85 / 0.14);
-  --st-blocked:  oklch(0.74 0.060 38);    /* warm rust */
-  --st-blocked-bg: oklch(0.74 0.060 38 / 0.16);
+  --st-going: var(--accent);   /* accent blue */
+  --st-going-bg: color-mix(in oklch, var(--accent) 16%, transparent);
+  --st-done: oklch(0.75 0.065 150);   /* muted sage */
+  --st-done-bg: oklch(0.75 0.065 150 / 0.16);
+  --st-waiting: oklch(0.80 0.080 82);    /* warm amber */
+  --st-waiting-bg: oklch(0.80 0.080 82 / 0.14);
+  --st-blocked: oklch(0.71 0.085 36);    /* warm rust */
+  --st-blocked-bg: oklch(0.71 0.085 36 / 0.16);
 
   /* Feature/Epic accent — copper, distinct from the story blue */
-  --feature:     oklch(0.78 0.075 60);    /* warm copper */
-  --feature-bg:  oklch(0.78 0.075 60 / 0.14);
+  --feature: var(--ink-2);    /* warm copper */
+  --feature-bg: color-mix(in oklch, var(--ink-2) 10%, transparent);
 }
 
 /* ============================================================ */
@@ -1576,8 +1585,8 @@ html, body {
   width: 84px; flex-shrink: 0;
   display: flex; flex-direction: column; gap: 6px;
   padding: 22px 10px 18px;
-  border-right: 1px solid var(--line-strong, oklch(0.30 0.030 258 / 0.7));
-  background: oklch(0.108 0.024 260);
+  border-right: 1px solid var(--line-strong, oklch(0.33 0.005 75 / 0.7));
+  background: oklch(0.17 0.005 75);
 }
 .r21-rail-cap {
   font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
@@ -1596,10 +1605,10 @@ html, body {
 .r21-rail-tile .glyph { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; color: currentColor; }
 .r21-rail-tile .glyph svg { width: 100%; height: 100%; }
 .r21-rail-tile .lbl { font-size: 11px; letter-spacing: 0.10em; text-transform: uppercase; font-weight: 500; line-height: 1; }
-.r21-rail-tile:hover { color: var(--ink-0); background: oklch(0.18 0.030 258 / 0.7); }
+.r21-rail-tile:hover { color: var(--ink-0); background: oklch(0.235 0.005 75 / 0.7); }
 .r21-rail-tile.is-active {
   color: var(--ink-0);
-  background: linear-gradient(180deg, oklch(0.235 0.040 256), oklch(0.185 0.030 258));
+  background: linear-gradient(180deg, oklch(0.275 0.005 75), oklch(0.24 0.005 75));
   border-color: var(--line-soft);
 }
 .r21-rail-tile.is-active::before {
@@ -1618,7 +1627,7 @@ html, body {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
   transition: color 0.15s ease, background 0.15s ease;
 }
-.r21-rail-gear:hover { color: var(--ink-0); background: oklch(0.18 0.030 258 / 0.7); }
+.r21-rail-gear:hover { color: var(--ink-0); background: oklch(0.235 0.005 75 / 0.7); }
 .r21-rail-gear .glyph { width: 22px; height: 22px; display: inline-flex; }
 .r21-rail-gear .glyph svg { width: 100%; height: 100%; }
 .r21-rail-gear .lbl { font-size: 10.5px; letter-spacing: 0.10em; text-transform: uppercase; font-weight: 500; }
@@ -1655,7 +1664,7 @@ html, body {
 .r21-side-week-grid { display: flex; flex-wrap: wrap; gap: 4px; }
 .r21-side-week-cell { flex: 1 0 8%; min-width: 22px; font-size: 12px; color: var(--ink-3); text-align: center; font-family: var(--font-mono); padding: 6px 0; border-radius: 4px; letter-spacing: 0.04em; border: 1px solid transparent; }
 .r21-side-week-cell.is-past { color: var(--ink-4); }
-.r21-side-week-cell.is-today { color: oklch(0.16 0.04 260); background: var(--accent); font-weight: 600; }
+.r21-side-week-cell.is-today { color: oklch(0.22 0.005 75); background: var(--accent); font-weight: 600; }
 .r21-side-week-cell.is-future { color: var(--ink-2); border-color: var(--line-hair); }
 /* Days outside the user's working days. Grayed + struck so they read clearly as off,
    even when they fall in the "today/future" range. Overrides the state colors. */
@@ -1663,14 +1672,14 @@ html, body {
 
 /* TOP BAR — two crossfading layers */
 .r21-topwrap { position: relative; flex-shrink: 0; height: 60px; border-bottom: 1px solid var(--line-hair); background: var(--bg-0); z-index: 2; }
-.r21-app.is-focus .r21-topwrap { background: oklch(0.118 0.024 260); border-bottom-color: var(--line-soft); }
+.r21-app.is-focus .r21-topwrap { background: oklch(0.185 0.005 75); border-bottom-color: var(--line-soft); }
 .r21-top { position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 32px; transition: opacity 200ms ease; }
 .r21-top.is-overview { opacity: 1; }
 .r21-top.is-focus { opacity: 0; pointer-events: none; font-size: 13px; color: var(--ink-3); letter-spacing: 0.04em; }
 .r21-app.is-focus .r21-top.is-overview { opacity: 0; pointer-events: none; }
 .r21-app.is-focus .r21-top.is-focus { opacity: 1; pointer-events: auto; }
 .r21-brand { display: flex; align-items: center; gap: 14px; }
-.r21-brand-mark { width: 9px; height: 9px; background: var(--accent); border-radius: 1px; box-shadow: 0 0 12px oklch(0.65 0.10 245 / 0.45); }
+.r21-brand-mark { width: 9px; height: 9px; background: var(--accent); border-radius: 1px; box-shadow: 0 0 12px oklch(0.65 0.09 248 / 0.45); }
 .r21-brand-name { font-size: 14px; font-weight: 600; letter-spacing: 0.22em; color: var(--ink-1); }
 .r21-brand-meta { font-size: 14px; color: var(--ink-3); padding-left: 14px; border-left: 1px solid var(--line-soft); letter-spacing: 0.08em; }
 .r21-top-right { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--ink-2); }
@@ -1680,7 +1689,7 @@ html, body {
 .r21-strip-meta .sep { color: var(--ink-4); }
 .r21-strip-meta .v { color: var(--ink-1); font-family: var(--font-mono); font-feature-settings: "tnum" 1; }
 .r21-escape { appearance: none; cursor: pointer; font-family: inherit; background: transparent; border: 1px solid var(--line-soft); color: var(--ink-2); font-size: 13px; letter-spacing: 0.04em; padding: 6px 12px; border-radius: 999px; display: inline-flex; align-items: center; gap: 8px; transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease; }
-.r21-escape:hover { color: var(--ink-0); border-color: var(--line); background: oklch(0.165 0.026 258); }
+.r21-escape:hover { color: var(--ink-0); border-color: var(--line); background: oklch(0.225 0.005 75); }
 .r21-escape .arr { color: var(--ink-3); font-family: var(--font-mono); font-size: 14px; }
 .r21-escape .v { color: var(--ink-1); font-family: var(--font-mono); }
 
@@ -1714,7 +1723,7 @@ html, body {
 .r21-stories-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 14px; }
 .r21-storychip { background: var(--bg-1); border: 1px solid var(--line-hair); border-left: 2px solid transparent; border-radius: 6px; padding: 16px 18px 14px; display: flex; flex-direction: column; gap: 10px; min-height: 116px; cursor: pointer; text-align: left; font-family: inherit; transition: background 0.15s ease, border-color 0.15s ease; }
 .r21-storychip:hover { background: var(--bg-2); border-color: var(--line-soft); }
-.r21-storychip.is-live { border-left-color: var(--accent); background: oklch(0.180 0.030 258); }
+.r21-storychip.is-live { border-left-color: var(--accent); background: oklch(0.235 0.005 75); }
 .r21-storychip-head { display: flex; align-items: center; gap: 8px; }
 .r21-storychip-kind { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-4); font-weight: 500; }
 .r21-storychip-id { font-size: 13px; color: var(--ink-3); font-family: var(--font-mono); margin-left: auto; }
@@ -1783,7 +1792,7 @@ html, body {
   -webkit-appearance: none; appearance: none;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
-.r21-focal-task > button:hover { border-color: var(--accent-hair); background: oklch(0.205 0.022 258 / 0.5); }
+.r21-focal-task > button:hover { border-color: var(--accent-hair); background: oklch(0.258 0.005 75 / 0.5); }
 .r21-focal-task.is-live > button {
   border-color: var(--accent-hair);
   background: var(--accent-soft);
@@ -2058,7 +2067,7 @@ html, body {
 .r21-ev.t-note { --ev-accent: var(--ev-note); }
 .r21-ev-head { display: flex; align-items: center; gap: 14px; background: none; border: none; padding: 14px 18px; margin: 0; font: inherit; color: inherit; text-align: left; width: 100%; -webkit-appearance: none; appearance: none; cursor: default; transition: background 0.12s ease; }
 .r21-ev-head[data-toggleable="true"] { cursor: pointer; }
-.r21-ev-head[data-toggleable="true"]:hover { background: oklch(0.205 0.022 258 / 0.5); }
+.r21-ev-head[data-toggleable="true"]:hover { background: oklch(0.258 0.005 75 / 0.5); }
 .r21-ev[data-has-toggleable-head] { /* anchor — no-op */ }
 .r21-ev.t-focus:has(.r21-ev-head[data-toggleable="true"]:hover),
 .r21-ev.t-progress:has(.r21-ev-head[data-toggleable="true"]:hover),
@@ -2084,8 +2093,8 @@ html, body {
 .r21-ev-body ul, .r21-ev-body ol { margin: 0.4em 0 0.6em; padding-left: 1.4em; }
 .r21-ev-body li { margin-bottom: 0.25em; }
 .r21-ev-body li:last-child { margin-bottom: 0; }
-.r21-ev-body code { font-family: var(--font-mono); font-size: 0.92em; background: oklch(0.22 0.018 258 / 0.7); border: 1px solid var(--line-hair); padding: 1px 6px; border-radius: 4px; color: var(--ink-0); }
-.r21-ev-body pre { font-family: var(--font-mono); font-size: 0.92em; background: oklch(0.165 0.018 258); border: 1px solid var(--line-hair); padding: 10px 14px; border-radius: 6px; margin: 0.6em 0; overflow-x: auto; color: var(--ink-0); }
+.r21-ev-body code { font-family: var(--font-mono); font-size: 0.92em; background: oklch(0.268 0.005 75 / 0.7); border: 1px solid var(--line-hair); padding: 1px 6px; border-radius: 4px; color: var(--ink-0); }
+.r21-ev-body pre { font-family: var(--font-mono); font-size: 0.92em; background: oklch(0.225 0.005 75); border: 1px solid var(--line-hair); padding: 10px 14px; border-radius: 6px; margin: 0.6em 0; overflow-x: auto; color: var(--ink-0); }
 .r21-ev-body pre code { background: none; border: none; padding: 0; }
 .r21-ev-body strong { color: var(--ink-0); font-weight: 600; }
 .r21-ev-body em { color: var(--ink-1); font-style: italic; }
@@ -2115,7 +2124,7 @@ html, body {
 .r21-app[data-focal="whisper"] .r21-focal-title { font-size: 36px; max-width: 22ch; }
 .r21-app[data-focal="whisper"] .r21-focal { padding: 48px 72px 28px; position: relative; }
 .r21-app[data-focal="whisper"] .r21-num .val { font-size: 16px; }
-.r21-app[data-focal="whisper"] .r21-focal::before { content: ""; position: absolute; pointer-events: none; inset: 0; background: radial-gradient(ellipse at center top, transparent 40%, oklch(0.135 0.028 260 / 0.4) 100%); }
+.r21-app[data-focal="whisper"] .r21-focal::before { content: ""; position: absolute; pointer-events: none; inset: 0; background: radial-gradient(ellipse at center top, transparent 40%, oklch(0.195 0.005 75 / 0.4) 100%); }
 
 /* R3 — helper's notes: the assistant's plain-English read on the sprint */
 .r21-notes {
@@ -2127,7 +2136,7 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  box-shadow: 0 1px 0 oklch(0.40 0.030 250 / 0.10) inset;
+  box-shadow: 0 1px 0 oklch(0.42 0.005 75 / 0.10) inset;
 }
 .r21-notes-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .r21-notes-title { font-size: 14.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-2); font-weight: 600; }
@@ -2171,7 +2180,7 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  box-shadow: 0 1px 0 oklch(0.40 0.030 250 / 0.10) inset;
+  box-shadow: 0 1px 0 oklch(0.42 0.005 75 / 0.10) inset;
 }
 .r21-capacity.is-over { border-left-color: var(--ev-blocker); }
 .r21-capacity.is-under { border-left-color: var(--ev-progress, var(--accent-deep)); }
@@ -2260,7 +2269,7 @@ html, body {
   border-radius: 12px;
   padding: 20px 24px 22px;
   margin-bottom: 22px;
-  box-shadow: inset 0 1px 0 oklch(0.98 0.005 258 / 0.04);
+  box-shadow: inset 0 1px 0 oklch(0.98 0.008 80 / 0.04);
 }
 .r21-standup.is-empty {
   display: flex;
@@ -2338,7 +2347,7 @@ html, body {
   flex-direction: column;
   gap: 4px;
   padding: 10px 12px 12px;
-  background: oklch(0.20 0.02 258);
+  background: oklch(0.255 0.005 75);
   border: 1px solid var(--line-hair);
   border-left: 3px solid var(--ink-4);
   border-radius: 8px;
@@ -2375,7 +2384,7 @@ html, body {
   letter-spacing: 0.04em;
   padding: 2px 8px;
   border-radius: 999px;
-  background: oklch(0.24 0.02 258);
+  background: oklch(0.28 0.005 75);
   color: var(--ink-2);
   border: 1px solid var(--line-hair);
   flex-shrink: 0;
@@ -2397,7 +2406,7 @@ html, body {
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--surface-3);
-  box-shadow: 0 1px 0 oklch(0.40 0.030 250 / 0.10) inset;
+  box-shadow: 0 1px 0 oklch(0.42 0.005 75 / 0.10) inset;
 }
 .r21-daily-strip-left {
   display: flex;
@@ -2452,10 +2461,10 @@ html, body {
 /* Blocked — first-class state bucket alongside going / waiting / done.
    Driven by ADO state ("Blocked" / "On Hold") with legacy fallback to tag. */
 :root {
-  --blocked-line: oklch(0.62 0.16 30 / 0.55);
-  --blocked-line-strong: oklch(0.62 0.16 30 / 0.7);
-  --blocked-ink: oklch(0.84 0.14 35);
-  --blocked-bg: oklch(0.42 0.12 30 / 0.18);
+  --blocked-line: color-mix(in oklch, var(--st-blocked) 55%, var(--line));
+  --blocked-line-strong: color-mix(in oklch, var(--st-blocked) 75%, var(--line));
+  --blocked-ink: var(--st-blocked);
+  --blocked-bg: var(--st-blocked-bg);
 }
 .r21-blocked-pill {
   display: inline-flex;
@@ -2535,7 +2544,7 @@ html, body {
 }
 .r21-place-seg:hover:not(:disabled):not(.is-active) {
   color: var(--ink-1);
-  background: oklch(0.22 0.030 256);
+  background: oklch(0.268 0.005 75);
 }
 .r21-place-seg.is-active {
   background: var(--accent);
@@ -2789,7 +2798,7 @@ html, body {
   width: 100%;
   display: flex; flex-direction: column; gap: 14px;
   padding: 18px 20px 16px;
-  background: linear-gradient(180deg, oklch(0.235 0.034 256) 0%, transparent 100%);
+  background: linear-gradient(180deg, oklch(0.275 0.005 75) 0%, transparent 100%);
   border: 0;
   border-bottom: 1px solid var(--line-hair);
   text-align: left;
@@ -2797,7 +2806,7 @@ html, body {
   color: inherit;
   font: inherit;
 }
-.r21-daily-card-head:hover { background: linear-gradient(180deg, oklch(0.27 0.034 256) 0%, transparent 100%); }
+.r21-daily-card-head:hover { background: linear-gradient(180deg, oklch(0.306 0.005 75) 0%, transparent 100%); }
 .r21-daily-card-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 .r21-daily-card-headline { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
@@ -3064,8 +3073,8 @@ html, body {
 
 /* (1) Accent reservation — going steps calmer; live keeps the full pop. */
 .r21-app[data-density="generous"] {
-  --st-going:    oklch(0.72 0.050 236);
-  --st-going-bg: oklch(0.72 0.050 236 / 0.15);
+  --st-going: var(--accent);
+  --st-going-bg: color-mix(in oklch, var(--accent) 16%, transparent);
 }
 .r21-app[data-density="generous"] .r21-brand-mark {
   box-shadow: none;
@@ -4329,7 +4338,7 @@ button.r21-standup-item-head.is-toggle:hover .r21-standup-item-title { color: va
 .dnd-muted { font-size: 15px; color: var(--ink-3); }
 .dnd-muted-2 { font-size: 14px; color: var(--ink-4); margin-top: 6px; }
 .dnd-error {
-  font-size: 14px; color: oklch(0.78 0.10 30);
+  font-size: 14px; color: var(--st-blocked);
   padding: 12px 16px; background: oklch(0.22 0.05 30 / 0.18);
   border: 1px solid oklch(0.42 0.08 30 / 0.32); border-radius: 6px; margin: 12px 0;
 }
@@ -4867,8 +4876,8 @@ button.r21-standup-item-head.is-toggle:hover .r21-standup-item-title { color: va
   align-items: flex-start;
   justify-content: space-between;
   gap: 14px;
-  border: 1px solid var(--line-soft);
-  background: var(--surface-1);
+  border: 1px solid var(--line-hair);
+  background: var(--card);
   border-left: 3px solid var(--line);
   border-radius: 8px;
   padding: 10px 14px;
@@ -5009,3 +5018,31 @@ button.r21-standup-item-head.is-toggle:hover .r21-standup-item-title { color: va
 }
 .chats-open:hover { color: var(--ink-1); border-color: var(--line-strong); }
 .r21-focusgrid > .chats-card { margin-bottom: 0; flex: none; }
+
+/* ==========================================================================
+   2026-11 warm graphite — the frame and card rules that go with the tokens.
+   One frame tone around a lighter page; every card is a filled surface at
+   least one clear step above what it sits on; edges are solid lines; one
+   quiet shadow on cards only; no gradients on surfaces.
+   ========================================================================== */
+html, body { background: var(--page); }
+.r21-app, .r21-topwrap { background: var(--page); }
+.r21-rail, .r21-sidewrap, .r22-rail { background: var(--frame); }
+.r21-rail { border-right: 1px solid var(--line-hair); }
+.r21-sidewrap { border-right: 1px solid var(--line); }
+.r22-rail { border-left: 1px solid var(--line); }
+.r21-topwrap { border-bottom: 1px solid var(--line-hair); }
+.r22-rail-card, .r21-side-card { background: var(--card); border: 1px solid var(--line-hair); box-shadow: none; }
+.r22-rail-card .note { background: transparent; }
+.r21-daily-card, .r21-standup, .r21-focal-current, .chats-card {
+  background: var(--card);
+  border-color: var(--line-hair);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.03), 0 6px 16px -10px oklch(0 0 0 / 0.55);
+}
+.r21-daily-card.is-live, .chats-card.has-waiting { border-color: color-mix(in oklch, var(--accent) 45%, var(--line)); }
+.r21-daily-card-head { background: var(--raised); border-bottom: 1px solid var(--line-hair); }
+.r21-daily-card-head:hover { background: var(--hover); }
+.r21-standup-item, .r21-daily-feature-head { background: var(--raised); border-color: var(--line-soft); }
+.r21-daily-kind.kind-story { color: var(--ink-2); background: transparent; border-color: var(--line); }
+.chats-row-main:hover:not(:disabled) { background: var(--raised); }
+.ember-glow { display: none; }
