@@ -23,9 +23,17 @@ export const CHAT_STATE_SQL = `
     tty        TEXT,
     state      TEXT NOT NULL,
     reason     TEXT,
-    since      TEXT NOT NULL
+    since      TEXT NOT NULL,
+    seen       TEXT
   );
 `;
+
+/** Make the table, and add `seen` to one made before it existed. */
+export function ensureChatTable(db: ChatDb): void {
+  db.exec(CHAT_STATE_SQL);
+  const cols = db.prepare("SELECT name FROM pragma_table_info('chat_state')").all() as { name: string }[];
+  if (!cols.some(c => c.name === 'seen')) db.exec('ALTER TABLE chat_state ADD COLUMN seen TEXT');
+}
 
 /** How long a chat waits before it counts. A permission ask the user is
  *  looking at right now shouldn't light up the menu bar. */
@@ -34,6 +42,10 @@ export const WAIT_SHOW_SECONDS = 30;
 /** A finished answer shows as "finished" this long, then the chat is just idle.
  *  Finished is not waiting: most answers end with "done", nothing to do. */
 export const FINISHED_SHOW_MINUTES = 30;
+
+/** A working chat with no hook for this long was stopped mid-answer (Esc
+ *  sends no Stop hook). It is idle, not working, so it is not shown. */
+export const WORKING_QUIET_MINUTES = 30;
 
 /** Rows older than this are dropped: a chat killed without SessionEnd. */
 export const STALE_HOURS = 12;
@@ -76,7 +88,7 @@ export function applyChatChange(
 ): void {
   const { chatId, client, cwd, tty, change, now } = args;
   if (change.kind === 'none') return;
-  db.exec(CHAT_STATE_SQL);
+  ensureChatTable(db);
   if (change.kind === 'delete') {
     db.prepare('DELETE FROM chat_state WHERE chat_id = ?').run(chatId);
     return;
@@ -85,16 +97,17 @@ export function applyChatChange(
   // 6 min" stays true while more hooks of the same kind arrive. The tty is
   // kept from the first hook that knew it.
   db.prepare(
-    `INSERT INTO chat_state (chat_id, client, cwd, tty, state, reason, since)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO chat_state (chat_id, client, cwd, tty, state, reason, since, seen)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(chat_id) DO UPDATE SET
        cwd = excluded.cwd,
        tty = COALESCE(excluded.tty, chat_state.tty),
        since = CASE WHEN chat_state.state = excluded.state AND chat_state.reason IS excluded.reason
                     THEN chat_state.since ELSE excluded.since END,
        state = excluded.state,
-       reason = excluded.reason`,
-  ).run(chatId, client, cwd, tty, change.state, change.reason, now.toISOString());
+       reason = excluded.reason,
+       seen = excluded.seen`,
+  ).run(chatId, client, cwd, tty, change.state, change.reason, now.toISOString(), now.toISOString());
 }
 
 export interface ChatRow {
@@ -105,14 +118,16 @@ export interface ChatRow {
   state: 'waiting' | 'working';
   reason: string | null;
   since: string;
+  /** The last hook of any kind. Null on rows written before it existed. */
+  seen: string | null;
 }
 
 export function readChatRows(db: ChatDb, now: Date): ChatRow[] {
-  db.exec(CHAT_STATE_SQL);
+  ensureChatTable(db);
   const cutoff = new Date(now.getTime() - STALE_HOURS * 3600_000).toISOString();
-  db.prepare('DELETE FROM chat_state WHERE since < ?').run(cutoff);
+  db.prepare('DELETE FROM chat_state WHERE COALESCE(seen, since) < ?').run(cutoff);
   return db
-    .prepare('SELECT chat_id AS chatId, client, cwd, tty, state, reason, since FROM chat_state ORDER BY since')
+    .prepare('SELECT chat_id AS chatId, client, cwd, tty, state, reason, since, seen FROM chat_state ORDER BY since')
     .all() as ChatRow[];
 }
 
@@ -179,7 +194,8 @@ export function buildChatsBlock(opts: {
       tty: r.tty,
     };
     if (r.state === 'working') {
-      out.working.push(view);
+      const quiet = (opts.now.getTime() - Date.parse(r.seen ?? r.since)) / 60_000;
+      if (quiet < WORKING_QUIET_MINUTES) out.working.push(view);
       continue;
     }
     // The model's own question (session_waiting) counts even after the answer ended.

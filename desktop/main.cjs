@@ -231,25 +231,14 @@ async function pollChats() {
   renderTray(chats);
 }
 
-/** A small round dot, drawn here so the app needs no icon file. Template
- *  image: macOS colours it to match the menu bar. */
-function dotIcon() {
-  const n = 32; // drawn at 2x, shown at 16pt
-  const px = Buffer.alloc(n * n * 4);
-  for (let y = 0; y < n; y++) {
-    for (let x = 0; x < n; x++) {
-      const d = Math.hypot(x - n / 2 + 0.5, y - n / 2 + 0.5);
-      const a = Math.max(0, Math.min(1, 9 - d)) * 255;
-      px.set([0, 0, 0, a], (y * n + x) * 4);
-    }
-  }
-  const img = nativeImage.createFromBitmap(px, { width: n, height: n, scaleFactor: 2 });
-  img.setTemplateImage(true);
-  return img;
+/** The robot logo, black on clear. The "Template" name tells macOS to colour
+ *  it to match the menu bar; the @2x file is picked up on its own. */
+function trayIcon() {
+  return nativeImage.createFromPath(join(__dirname, 'trayTemplate.png'));
 }
 
 function startTray() {
-  tray = new Tray(dotIcon());
+  tray = new Tray(trayIcon());
   renderTray({ waiting: [], working: [] });
   void pollChats();
   setInterval(pollChats, POLL_MS);

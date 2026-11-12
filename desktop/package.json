@@ -22,7 +22,8 @@
     "files": [
       "main.cjs",
       "loading.html",
-      "repo-path.json"
+      "repo-path.json",
+      "trayTemplate*.png"
     ],
     "mac": {
       "icon": "../public/icon.png",

@@ -61,7 +61,7 @@ describe('applyChatChange', () => {
 describe('buildChatsBlock', () => {
   const row = (over: Partial<ChatRow>): ChatRow => ({
     chatId: 'chat-1', client: 'claude', cwd: '/tmp/web-api', tty: 'ttys004',
-    state: 'waiting', reason: 'finished', since: t0.toISOString(), ...over,
+    state: 'waiting', reason: 'finished', since: t0.toISOString(), seen: null, ...over,
   });
 
   it('counts a permission ask only after 30 seconds', () => {
@@ -88,6 +88,26 @@ describe('buildChatsBlock', () => {
       storyFor: () => ({ story: null, task: null, question: 'Push now?' }),
     });
     expect(b.waiting).toMatchObject([{ why: 'Push now?' }]);
+  });
+
+  it('hides a working chat with no hook for 30 minutes: it was stopped mid-answer', () => {
+    const rows = [row({ state: 'working', reason: null, seen: later(60).toISOString() })];
+    expect(buildChatsBlock({ rows, now: later(60 + 29 * 60), liveTtys: null, storyFor: noStory }).working).toHaveLength(1);
+    expect(buildChatsBlock({ rows, now: later(60 + 31 * 60), liveTtys: null, storyFor: noStory }).working).toEqual([]);
+  });
+
+  it('every hook moves the last-seen time, even when the state stays', () => {
+    const db = new Database(':memory:');
+    note(db, 'prompt', t0);
+    note(db, 'post-tool-use', later(600));
+    expect(readChatRows(db, later(601))[0]).toMatchObject({ since: t0.toISOString(), seen: later(600).toISOString() });
+  });
+
+  it('adds the last-seen column to a table made before it existed', () => {
+    const db = new Database(':memory:');
+    db.exec("CREATE TABLE chat_state (chat_id TEXT PRIMARY KEY, client TEXT NOT NULL, cwd TEXT NOT NULL, tty TEXT, state TEXT NOT NULL, reason TEXT, since TEXT NOT NULL)");
+    note(db, 'prompt', t0);
+    expect(readChatRows(db, later(1))[0]).toMatchObject({ seen: t0.toISOString() });
   });
 
   it('drops a chat whose terminal is gone', () => {
