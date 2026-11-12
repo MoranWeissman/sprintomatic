@@ -24,7 +24,7 @@ function liveTtys(): Set<string> | null {
 
 export function chatsNow(now = new Date()): ChatsBlock {
   const rows = readChatRows(getDb(), now);
-  if (rows.length === 0) return { waiting: [], working: [] };
+  if (rows.length === 0) return { waiting: [], finished: [], working: [] };
 
   const sessions = listActiveSessions().filter(s => s.cwd && s.cwd.startsWith('/'));
   const sessionRepo = new Map(sessions.map(s => [s.id, repoRootFor(s.cwd!)]));

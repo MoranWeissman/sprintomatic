@@ -64,17 +64,35 @@ describe('buildChatsBlock', () => {
     state: 'waiting', reason: 'finished', since: t0.toISOString(), ...over,
   });
 
-  it('counts a wait only after 30 seconds', () => {
-    const rows = [row({})];
+  it('counts a permission ask only after 30 seconds', () => {
+    const rows = [row({ reason: 'permission' })];
     expect(buildChatsBlock({ rows, now: later(10), liveTtys: null, storyFor: noStory }).waiting).toEqual([]);
     const b = buildChatsBlock({ rows, now: later(400), liveTtys: null, storyFor: noStory });
-    expect(b.waiting).toMatchObject([{ repo: 'web-api', why: 'finished', minutes: 6 }]);
+    expect(b.waiting).toMatchObject([{ repo: 'web-api', why: 'asks for permission', minutes: 6 }]);
+  });
+
+  it('a finished answer is not waiting: shown as finished for 30 minutes, then dropped', () => {
+    const rows = [row({ reason: 'finished' })];
+    const soon = buildChatsBlock({ rows, now: later(5 * 60), liveTtys: null, storyFor: noStory });
+    expect(soon.waiting).toEqual([]);
+    expect(soon.finished).toMatchObject([{ why: 'finished', minutes: 5 }]);
+    const late = buildChatsBlock({ rows, now: later(31 * 60), liveTtys: null, storyFor: noStory });
+    expect([...late.waiting, ...late.finished, ...late.working]).toEqual([]);
+  });
+
+  it("a finished answer with the model's own question does count", () => {
+    const b = buildChatsBlock({
+      rows: [row({ reason: 'finished' })],
+      now: later(60 * 60),
+      liveTtys: null,
+      storyFor: () => ({ story: null, task: null, question: 'Push now?' }),
+    });
+    expect(b.waiting).toMatchObject([{ why: 'Push now?' }]);
   });
 
   it('drops a chat whose terminal is gone', () => {
     const b = buildChatsBlock({ rows: [row({})], now: later(400), liveTtys: new Set(['ttys009']), storyFor: noStory });
-    expect(b.waiting).toEqual([]);
-    expect(b.working).toEqual([]);
+    expect([...b.waiting, ...b.finished, ...b.working]).toEqual([]);
   });
 
   it("uses the model's own question and the story when it knows them", () => {

@@ -174,14 +174,18 @@ function chatLabel(c) {
 }
 
 function chatDetail(c) {
-  const mins = c.minutes < 1 ? 'just now' : `${c.minutes} min`;
-  return [c.story && c.task ? c.story : null, c.repo, c.why, mins].filter(Boolean).join(' · ');
+  const mins = c.minutes < 1 ? 'just now' : `${c.minutes} min ago`;
+  const label = chatLabel(c);
+  const parts = [c.story && c.story !== label ? c.story : null, c.repo !== label ? c.repo : null, c.why];
+  if (c.why) parts.push(mins);
+  return parts.filter(Boolean).join(' · ');
 }
 
 function renderTray(chats) {
   const waiting = chats ? chats.waiting : [];
+  const finished = chats ? chats.finished || [] : [];
   const working = chats ? chats.working : [];
-  const key = JSON.stringify([chats === null, waiting.map(c => [c.chatId, c.why, c.minutes, c.task]), working.map(c => [c.chatId, c.task])]);
+  const key = JSON.stringify([chats === null, [waiting, finished, working].map(l => l.map(c => [c.chatId, c.why, c.minutes, c.task]))]);
   if (key === lastShown) return;
   lastShown = key;
 
@@ -198,9 +202,13 @@ function renderTray(chats) {
   } else {
     items.push({ label: 'No chat is waiting for you', enabled: false });
   }
-  if (working.length) {
-    items.push({ type: 'separator' }, { label: 'Working', enabled: false });
-    for (const c of working) items.push({ label: chatLabel(c), sublabel: c.repo, click: () => jumpToChat(c.tty) });
+  for (const [title, list] of [['Finished', finished], ['Working', working]]) {
+    if (!list.length) continue;
+    items.push({ type: 'separator' }, { label: title, enabled: false });
+    for (const c of list) {
+      const sub = chatDetail(c);
+      items.push({ label: chatLabel(c), ...(sub ? { sublabel: sub } : {}), click: () => jumpToChat(c.tty) });
+    }
   }
   items.push(
     { type: 'separator' },

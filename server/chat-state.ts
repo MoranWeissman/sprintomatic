@@ -27,9 +27,13 @@ export const CHAT_STATE_SQL = `
   );
 `;
 
-/** How long a chat waits before it counts. A chat that just answered, while
- *  the user is reading it, shouldn't light up the menu bar. */
+/** How long a chat waits before it counts. A permission ask the user is
+ *  looking at right now shouldn't light up the menu bar. */
 export const WAIT_SHOW_SECONDS = 30;
+
+/** A finished answer shows as "finished" this long, then the chat is just idle.
+ *  Finished is not waiting: most answers end with "done", nothing to do. */
+export const FINISHED_SHOW_MINUTES = 30;
 
 /** Rows older than this are dropped: a chat killed without SessionEnd. */
 export const STALE_HOURS = 12;
@@ -139,7 +143,10 @@ export interface ChatView {
 }
 
 export interface ChatsBlock {
+  /** Really stuck on the user: a permission ask, or a question the model asked. */
   waiting: ChatView[];
+  /** Ended an answer in the last 30 minutes. Shown quietly, never counted. */
+  finished: ChatView[];
   working: ChatView[];
 }
 
@@ -150,7 +157,7 @@ export function buildChatsBlock(opts: {
   liveTtys: Set<string> | null;
   storyFor: (cwd: string) => ChatStory;
 }): ChatsBlock {
-  const out: ChatsBlock = { waiting: [], working: [] };
+  const out: ChatsBlock = { waiting: [], finished: [], working: [] };
   for (const r of opts.rows) {
     // An iTerm tab closed without Claude saying goodbye: no process left on it.
     if (r.tty && opts.liveTtys && !opts.liveTtys.has(r.tty)) continue;
@@ -162,13 +169,24 @@ export function buildChatsBlock(opts: {
       story: s.story,
       task: s.task,
       state: r.state,
-      why: s.question ?? (r.reason === 'permission' ? 'asks for permission' : r.reason === 'finished' ? 'finished' : null),
+      why: null,
       since: r.since,
       minutes: Math.max(0, Math.floor(seconds / 60)),
       tty: r.tty,
     };
-    if (r.state === 'waiting' && seconds >= WAIT_SHOW_SECONDS) out.waiting.push(view);
-    else out.working.push({ ...view, state: 'working', why: null });
+    if (r.state === 'working') {
+      out.working.push(view);
+      continue;
+    }
+    // The model's own question (session_waiting) counts even after the answer ended.
+    const why = s.question ?? (r.reason === 'permission' ? 'asks for permission' : null);
+    if (why) {
+      if (seconds >= WAIT_SHOW_SECONDS) out.waiting.push({ ...view, why });
+      else out.working.push(view);
+    } else if (view.minutes < FINISHED_SHOW_MINUTES) {
+      out.finished.push({ ...view, why: 'finished' });
+    }
+    // Finished longer ago: just an idle chat, not shown.
   }
   return out;
 }
