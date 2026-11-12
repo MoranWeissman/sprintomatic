@@ -223,6 +223,14 @@ function migrate(db: DB) {
   if (!hasWaitingSince) {
     db.exec('ALTER TABLE sessions ADD COLUMN waiting_since TEXT');
   }
+  // tty: the terminal of the chat that opened the session (server/tty.ts), so
+  //   a session belongs to one chat, not to every chat in the repo.
+  const hasSessionTty = db
+    .prepare("SELECT 1 FROM pragma_table_info('sessions') WHERE name = 'tty'")
+    .get();
+  if (!hasSessionTty) {
+    db.exec('ALTER TABLE sessions ADD COLUMN tty TEXT');
+  }
   // chat_state: which Claude Code chats wait for the user, written by the
   // hooks in scripts/guard.ts (see server/chat-state.ts).
   db.exec(CHAT_STATE_SQL);

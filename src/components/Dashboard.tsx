@@ -1,5 +1,5 @@
 import { sprintDate } from '../../server/sprint-date';
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import MarkdownIt from 'markdown-it';
 import {
   dismissHelperNote,
@@ -9,7 +9,7 @@ import {
   useDashboardData,
   type ApiHelperNote,
   type ApiHelperNotes,
-  type ApiNeedsYou,
+  type ApiChats,
   type ApiOutlookCapacity,
   type ApiPayload,
   type ApiSessionEvent,
@@ -50,6 +50,8 @@ import { ScheduleModal } from './ScheduleModal';
 import { SettingsModal } from './SettingsModal';
 import { WorkItemDrawer } from './WorkItemDrawer';
 import { WrapCard } from './WrapCard';
+import { ChatsCard } from './ChatsCard';
+import { useChats } from '../lib/useChats';
 import { overEstimate, overEstimateText } from '../../server/over-estimate';
 
 export function Dashboard() {
@@ -241,6 +243,7 @@ function DashboardLive({
   // Focus has top precedence — if a session is live and the user hasn't asked to
   // see the whole board, the screen morphs to Focus.
   const isFocus = mode === 'day' && !!focalTask && !showBoard;
+  const chats = useChats();
 
   const sprintLabel = data.sprint?.name ?? '—';
 
@@ -348,6 +351,7 @@ function DashboardLive({
           ) : isFocus ? (
             <div className="r21-body is-focus">
               <R21FocusGrid
+                top={<ChatsCard chats={chats} onOpenItem={openItem} />}
                 tasks={panelTasks}
                 allLive={liveItems}
                 storyFor={storyFor}
@@ -366,7 +370,7 @@ function DashboardLive({
               onOpenItem={openItem}
               outlookCapacity={data.outlookCapacity}
               helperNotes={data.helperNotes}
-              needsYou={data.needsYou}
+              chats={chats}
               wrap={data.wrap}
               now={now}
               standup={data.standup}
@@ -901,7 +905,10 @@ function R21FocusGrid({
   onOpenItem,
   helperNotes,
   onRefresh,
+  top,
 }: {
+  /** Shown above the panels, inside the scroll (the chats card). */
+  top?: ReactNode;
   /** The tasks currently shown as panels (1–maxPanels). */
   tasks: ApiWorkItem[];
   /** Every live session's task — drives the split bar. */
@@ -930,6 +937,7 @@ function R21FocusGrid({
 
   return (
     <div className={`r21-focusgrid is-count-${count}`}>
+      {top}
       {/* Split bar — visible whenever more than one session runs. Each running
           task is a chip; click to show/hide it as a panel. This is the front
           door to splitting Focus (the old bottom "also running" strip hid it). */}
@@ -1337,7 +1345,7 @@ function DailyView({
   onOpenItem,
   outlookCapacity,
   helperNotes,
-  needsYou,
+  chats,
   wrap,
   now,
   standup,
@@ -1356,7 +1364,7 @@ function DailyView({
   onOpenItem: (id: string) => void;
   outlookCapacity: ApiOutlookCapacity | null;
   helperNotes: ApiHelperNotes;
-  needsYou: ApiNeedsYou;
+  chats: ApiChats;
   wrap: ApiPayload['wrap'];
   now: Date;
   standup: ApiPayload['standup'];
@@ -1446,6 +1454,8 @@ function DailyView({
 
       {/* End-of-day wrap — appears only after work goes quiet in the
           afternoon. The evening twin of the standup card below it. */}
+      <ChatsCard chats={chats} onOpenItem={onOpenItem} />
+
       <WrapCard wrap={wrap} standupToday={standup.today} now={now} onOpenItem={onOpenItem} />
 
       {/* Standup card — Daily-only. The first thing the user wants on the screen
@@ -1576,7 +1586,6 @@ function DailyView({
             hasCalendar={!!outlookCapacity?.hasUrl && !outlookCapacity.fetchError}
             onOpenItem={onOpenItem}
           />
-          <RailNeedsYou needsYou={needsYou} now={now} />
           <RailNotes notes={helperNotes} onRefresh={onRefresh} />
         </>
       )}
@@ -1774,17 +1783,6 @@ function NoteRow({ note, onChange }: { note: ApiHelperNote; onChange: () => void
   );
 }
 
-function ageShort(iso: string, now: Date): string {
-  const min = Math.max(0, Math.floor((now.getTime() - new Date(iso).getTime()) / 60000));
-  if (min < 60) return `${min}m`;
-  return `${Math.floor(min / 60)}h ${min % 60}m`;
-}
-
-// displayName arrives as **title** (#id) — render the title plain.
-function plainTitle(displayName: string): string {
-  return displayName.replace(/\*\*/g, '').replace(/\s*\(#\d+\)\s*$/, '');
-}
-
 /**
  * A quiet line when the logged time on a task has passed its estimate. No
  * colour that shouts, no motion — just the fact, where the numbers are.
@@ -1838,40 +1836,6 @@ function RailFitsToday({
           {!hasCalendar && <p className="fits-none">No calendar is connected, so meetings are not counted.</p>}
         </>
       )}
-    </section>
-  );
-}
-
-function RailNeedsYou({ needsYou, now }: { needsYou: ApiNeedsYou | undefined; now: Date }) {
-  // A long-running dev server can serve an older payload shape than the page
-  // code expects (server modules bake at process start; page files load fresh
-  // per request). Missing block → render nothing, never crash.
-  if (!needsYou) return null;
-  if (needsYou.waiting.length === 0 && needsYou.recentlyFinished.length === 0) return null;
-  return (
-    <section className="r22-rail-card r22-rail-needs-you" aria-label="Needs you">
-      <div className="r22-rail-card-head">
-        <span className="r22-rail-card-label">Needs you</span>
-        {needsYou.waiting.length > 0 && (
-          <span className="r22-rail-card-meta">{needsYou.waiting.length} waiting</span>
-        )}
-      </div>
-      <ul className="needsyou-list">
-        {needsYou.waiting.map(w => (
-          <li key={`w-${w.workItemId}-${w.waitingSince}`} className="needsyou-row is-waiting">
-            <span className="needsyou-title">{plainTitle(w.displayName)}</span>
-            <span className="needsyou-question">{w.question}</span>
-            <span className="needsyou-age">waiting {ageShort(w.waitingSince, now)}</span>
-          </li>
-        ))}
-        {needsYou.recentlyFinished.map(f => (
-          <li key={`f-${f.workItemId}-${f.endedAt}`} className="needsyou-row is-finished">
-            <span className="needsyou-title">{plainTitle(f.displayName)}</span>
-            {f.summary && <span className="needsyou-summary">{f.summary}</span>}
-            <span className="needsyou-age">finished {ageShort(f.endedAt, now)} ago</span>
-          </li>
-        ))}
-      </ul>
     </section>
   );
 }

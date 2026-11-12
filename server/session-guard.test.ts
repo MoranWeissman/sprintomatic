@@ -88,6 +88,25 @@ describe('decideEdit', () => {
     expect(edit(join(repo, 'a.ts'), { ...empty(), notWork: [repo] }).kind).toBe('allow');
   });
 
+  it("a second chat in the same repo needs its own session", () => {
+    const state = { ...empty(), openSessions: [{ workItemId: 100001, cwd: repo, tty: 'ttys004', lastActivityAt: at() }] };
+    const by = (chatTty: string | null) =>
+      decideEdit({ chatId: 'chat-1', chatCwd: repo, chatTty, target: join(repo, 'a.ts'), state, homeDir: home, dataDir: data });
+    expect(by('ttys004').kind).toBe('allow');
+    const d = by('ttys009');
+    expect(d.kind).toBe('block');
+    if (d.kind === 'block') expect(d.reason).toContain('another chat');
+    // A chat that can't tell its terminal falls back to the repo rule.
+    expect(by(null).kind).toBe('allow');
+  });
+
+  it('an old session with no terminal still covers every chat in the repo', () => {
+    const state = { ...empty(), openSessions: [{ workItemId: 100001, cwd: repo, tty: null, lastActivityAt: at() }] };
+    expect(
+      decideEdit({ chatId: 'chat-1', chatCwd: repo, chatTty: 'ttys009', target: join(repo, 'a.ts'), state, homeDir: home, dataDir: data }).kind,
+    ).toBe('allow');
+  });
+
   it('lets a "no story" chat through, and only that chat', () => {
     const state = { ...empty(), skippedChats: ['chat-1'] };
     expect(edit(join(repo, 'a.ts'), state).kind).toBe('allow');
@@ -137,8 +156,8 @@ describe('readGuardState', () => {
     db.prepare('INSERT INTO settings VALUES (?, ?)').run(GUARD_SKIPS_KEY, JSON.stringify([{ chatId: 'chat-9', cwd: '/a', reason: 'x', at: '' }]));
     const state = readGuardState(db);
     expect(state.openSessions).toEqual([
-      { workItemId: 100001, cwd: '/a', lastActivityAt: '2026-01-10T09:30:00Z' },
-      { workItemId: 100003, cwd: null, lastActivityAt: '2026-01-10T07:00:00Z' },
+      { workItemId: 100001, cwd: '/a', tty: null, lastActivityAt: '2026-01-10T09:30:00Z' },
+      { workItemId: 100003, cwd: null, tty: null, lastActivityAt: '2026-01-10T07:00:00Z' },
     ]);
     expect(state.notWork).toEqual(['/c']);
     expect(state.skippedChats).toEqual(['chat-9']);

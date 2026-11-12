@@ -24,7 +24,8 @@ function makeDb() {
       client TEXT NOT NULL DEFAULT 'claude-code',
       summary TEXT,
       waiting_note TEXT,
-      waiting_since TEXT
+      waiting_since TEXT,
+      tty           TEXT
     );
     CREATE TABLE session_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -218,6 +218,21 @@ export function createApi(): ApiHandler {
 
   // Which Claude Code chats wait for the user — the Mac app's menu bar reads
   // this every few seconds. Local store only, no board calls.
+  // Bring a chat's iTerm tab to the front. POST { tty: "ttys004" }.
+  api.use('/api/chats/jump', async (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    if (req.method !== 'POST') {
+      res.statusCode = 405;
+      res.end(JSON.stringify({ error: 'POST only' }));
+      return;
+    }
+    const body = (await readJsonBody(req).catch(() => null)) as { tty?: unknown } | null;
+    const { jumpToChat } = await import('./chats');
+    const ok = jumpToChat(typeof body?.tty === 'string' ? body.tty : '');
+    res.statusCode = ok ? 200 : 400;
+    res.end(JSON.stringify({ ok }));
+  });
+
   api.use('/api/chats', async (_req, res) => {
     const { chatsNow } = await import('./chats');
     res.setHeader('Content-Type', 'application/json');

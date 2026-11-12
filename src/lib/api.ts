@@ -1078,3 +1078,40 @@ export async function saveRetroChoices(
   const body = await r.json().catch(() => ({}));
   if (!r.ok || (body && 'error' in body)) throw new Error((body && body.error) || 'Could not save the retro');
 }
+
+/* ------------------------------ Chats ------------------------------ */
+
+/** One open AI chat, as its hooks tell it (server/chat-state.ts). */
+export interface ApiChat {
+  chatId: string;
+  repo: string;
+  story: string | null;
+  task: string | null;
+  taskId: string | null;
+  state: 'waiting' | 'working';
+  why: string | null;
+  since: string;
+  minutes: number;
+  tty: string | null;
+}
+
+export interface ApiChats {
+  waiting: ApiChat[];
+  finished: ApiChat[];
+  working: ApiChat[];
+}
+
+export async function fetchChats(): Promise<ApiChats> {
+  const res = await fetch('/api/chats', { cache: 'no-store' });
+  if (!res.ok) throw new Error(`chats failed: ${res.status}`);
+  return (await res.json()) as ApiChats;
+}
+
+/** Bring the chat's iTerm tab to the front. */
+export async function jumpToChat(tty: string): Promise<void> {
+  await fetch('/api/chats/jump', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tty }),
+  });
+}

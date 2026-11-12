@@ -27,6 +27,7 @@ export interface SessionRow {
   cwd: string | null;
   waiting_note: string | null;
   waiting_since: string | null;
+  tty?: string | null;
 }
 
 export interface SessionEventRow {
@@ -51,6 +52,8 @@ export interface Session {
   waitingNote: string | null;
   /** When the chat started waiting (ISO); null = not waiting. */
   waitingSince: string | null;
+  /** Terminal of the chat that opened it (server/tty.ts); null when unknown. */
+  tty: string | null;
 }
 
 export interface SessionEvent {
@@ -73,6 +76,7 @@ function toSession(r: SessionRow): Session {
     cwd: r.cwd ?? null,
     waitingNote: r.waiting_note ?? null,
     waitingSince: r.waiting_since ?? null,
+    tty: r.tty ?? null,
   };
 }
 
@@ -196,9 +200,12 @@ export function startSession({
   workItemId,
   client = 'unknown',
   cwd,
+  tty = null,
 }: {
   workItemId: number;
   client?: string;
+  /** Terminal of the calling chat; the first chat to open the session owns it. */
+  tty?: string | null;
   /** Repo folder of the calling chat (basename), supplied by the MCP handler
    *  from the model's cwd. Omit or null when unknown — never auto-detected. */
   cwd?: string | null;
@@ -218,19 +225,22 @@ export function startSession({
   if (existing) {
     // Old (pre-migration) sessions learn their home on first touch. Never
     // overwrite a known cwd — the first chat to open the session owns it.
-    if (existing.cwd == null && chatCwd != null) {
-      db.prepare(`UPDATE sessions SET cwd = ? WHERE id = ?`).run(chatCwd, existing.id);
-      return toSession({ ...existing, cwd: chatCwd });
+    const learn = {
+      cwd: existing.cwd == null && chatCwd != null ? chatCwd : existing.cwd,
+      tty: existing.tty == null && tty != null ? tty : existing.tty ?? null,
+    };
+    if (learn.cwd !== existing.cwd || learn.tty !== (existing.tty ?? null)) {
+      db.prepare(`UPDATE sessions SET cwd = ?, tty = ? WHERE id = ?`).run(learn.cwd, learn.tty, existing.id);
     }
-    return toSession(existing);
+    return toSession({ ...existing, ...learn });
   }
 
   const id = randomUUID();
   const startedAt = new Date().toISOString();
   db.prepare(
-    `INSERT INTO sessions (id, work_item_id, started_at, client, cwd)
-     VALUES (?, ?, ?, ?, ?)`,
-  ).run(id, workItemId, startedAt, client, chatCwd);
+    `INSERT INTO sessions (id, work_item_id, started_at, client, cwd, tty)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ).run(id, workItemId, startedAt, client, chatCwd, tty);
   return {
     id,
     workItemId,
@@ -241,6 +251,7 @@ export function startSession({
     cwd: chatCwd,
     waitingNote: null,
     waitingSince: null,
+    tty,
   };
 }
 

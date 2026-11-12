@@ -52,6 +52,8 @@ export interface GuardSkip {
 export interface GuardSession {
   workItemId: number;
   cwd: string | null;
+  /** The terminal of the chat that opened it; null on old rows and GUI clients. */
+  tty?: string | null;
   /** The newest of the session start and its last logged event. */
   lastActivityAt: string;
 }
@@ -151,12 +153,26 @@ function sessionsFor(repos: string[], sessions: GuardSession[]): GuardSession[] 
   });
 }
 
+/**
+ * Of the sessions in these repos, the ones this chat may use. When both sides
+ * know their terminal, only the chat that opened a session owns it: a second
+ * chat in the same repo needs its own. A session with no terminal (an old row,
+ * a GUI client) still covers every chat in the repo, as before.
+ */
+export function sessionsForChat(repos: string[], sessions: GuardSession[], chatTty: string | null): GuardSession[] {
+  const here = sessionsFor(repos, sessions);
+  if (!chatTty) return here;
+  return here.filter(s => !s.tty || s.tty === chatTty);
+}
+
 export type EditDecision = { kind: 'allow' } | { kind: 'block'; reason: string };
 
 /** PreToolUse on a file edit: let it through, or refuse with the way out. */
 export function decideEdit(args: {
   chatId: string;
   chatCwd: string;
+  /** This chat's terminal, when known. */
+  chatTty?: string | null;
   /** The file being changed; the chat folder when the tool names none. */
   target: string;
   state: GuardState;
@@ -172,14 +188,17 @@ export function decideEdit(args: {
   const repos = [repo];
   const chatRepo = repoRootFor(chatCwd);
   if (chatRepo && !repos.includes(chatRepo)) repos.push(chatRepo);
-  if (sessionsFor(repos, state.openSessions).length > 0) return { kind: 'allow' };
-  return { kind: 'block', reason: blockReason({ repo, chatId, chatCwd }) };
+  if (sessionsForChat(repos, state.openSessions, args.chatTty ?? null).length > 0) return { kind: 'allow' };
+  const otherChat = sessionsFor(repos, state.openSessions).length > 0;
+  return { kind: 'block', reason: blockReason({ repo, chatId, chatCwd, otherChat }) };
 }
 
-export function blockReason(args: { repo: string; chatId: string; chatCwd: string }): string {
-  const { repo, chatId, chatCwd } = args;
+export function blockReason(args: { repo: string; chatId: string; chatCwd: string; otherChat?: boolean }): string {
+  const { repo, chatId, chatCwd, otherChat } = args;
   return [
-    `sprintomatic: no work session is open for ${basename(repo)}, so this change was stopped. Nothing was written.`,
+    otherChat
+      ? `sprintomatic: another chat has the work session open for ${basename(repo)}, not this one, so this change was stopped. Nothing was written. Each chat needs its own session, so its time and notes land on the right task.`
+      : `sprintomatic: no work session is open for ${basename(repo)}, so this change was stopped. Nothing was written.`,
     'Before changing files here:',
     `1. Find the task: call story_match, then session_start on the task, both with cwd "${chatCwd}".`,
     '2. If the story has no tasks, suggest a task name and hours to the user. Create it with task_create only after they say yes, then call session_start on it.',
@@ -193,6 +212,7 @@ export function blockReason(args: { repo: string; chatId: string; chatCwd: strin
 export function promptLine(args: {
   chatId: string;
   chatCwd: string;
+  chatTty?: string | null;
   state: GuardState;
   homeDir: string;
   dataDir: string;
@@ -202,7 +222,7 @@ export function promptLine(args: {
   if (state.skippedChats.includes(chatId)) return null;
   const repo = watchedRepo({ ...args, target: chatCwd });
   if (!repo) return null;
-  const mine = sessionsFor([repo], state.openSessions);
+  const mine = sessionsForChat([repo], state.openSessions, args.chatTty ?? null);
   if (mine.length === 0) {
     return `sprintomatic: no work session is open for ${basename(repo)}. Before you change any file, open one: story_match, then session_start on the task, with cwd "${chatCwd}". Edits are stopped until then. If the user says there is no story for this, call session_skip with chatId "${chatId}".`;
   }
@@ -296,9 +316,11 @@ function jsonArray<T>(raw: unknown): T[] {
 }
 
 export function readGuardState(db: ReadOnlyDb): GuardState {
+  // The hook can run against a store the newer server hasn't migrated yet.
+  const hasTty = db.prepare("SELECT 1 FROM pragma_table_info('sessions') WHERE name = 'tty'").get() != null;
   const rows = db
     .prepare(
-      `SELECT s.work_item_id AS workItemId, s.cwd AS cwd,
+      `SELECT s.work_item_id AS workItemId, s.cwd AS cwd, ${hasTty ? 's.tty' : 'NULL'} AS tty,
               MAX(s.started_at, COALESCE(MAX(e.created_at), s.started_at)) AS lastActivityAt
          FROM sessions s
          LEFT JOIN session_events e ON e.session_id = s.id

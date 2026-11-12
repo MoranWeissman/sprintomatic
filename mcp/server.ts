@@ -24,6 +24,7 @@
  * Run: `npm run mcp` from the source (tsx), or `sprintomatic` once installed.
  */
 import { sprintDate } from '../server/sprint-date.js';
+import { ownChatTty } from '../server/tty.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
@@ -888,7 +889,7 @@ server.registerTool(
       // actually working the task — so don't let this window's cwd stamp
       // the session's home. Leave cwd unknown; the first working chat's
       // session_start backfills it (never-overwrite keeps it honest).
-      const session = plan.openSession ? startSession({ workItemId, cwd: null }) : null;
+      const session = plan.openSession ? startSession({ workItemId, cwd: null, tty: ownChatTty() }) : null;
       if (plan.clock === 'stop') timerService.pause(workItemId);
 
       if (!plan.postComment) {
@@ -965,7 +966,7 @@ server.registerTool(
       // Same constraint as workitem_block: an unblock can come from any
       // window, so don't stamp this chat's cwd onto the session. Leave it
       // unknown and let the first working chat's session_start backfill it.
-      const session = plan.openSession ? startSession({ workItemId, cwd: null }) : null;
+      const session = plan.openSession ? startSession({ workItemId, cwd: null, tty: ownChatTty() }) : null;
       if (plan.clock === 'start') timerService.start(workItemId);
 
       const text = `UNBLOCKED: ${summary} · (now ${stateChange.toState})`;
@@ -1625,7 +1626,7 @@ server.registerTool(
       }
     }
 
-    const session = startSession({ workItemId, client: detectedClient() ?? client, cwd: chatCwdKey(cwd) });
+    const session = startSession({ workItemId, client: detectedClient() ?? client, cwd: chatCwdKey(cwd), tty: ownChatTty() });
     timerService.start(workItemId); // silent time tracking begins with the session
     void mirrorTaskFile(workItemId); // background — keep the archive file fresh
 

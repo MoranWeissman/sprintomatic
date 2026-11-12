@@ -148,7 +148,9 @@ function showWindow() {
 
 /** Bring the iTerm tab running on `tty` ("ttys004") to the front. */
 function jumpToChat(tty) {
-  const dev = tty ? `/dev/${tty}` : '';
+  // The tty goes into a script, so it must look like one ("ttys004").
+  if (typeof tty !== 'string' || !/^ttys\d{1,4}$/.test(tty)) return;
+  const dev = `/dev/${tty}`;
   const script = `
     tell application "iTerm2"
       activate

@@ -121,9 +121,10 @@ export function readChatRows(db: ChatDb, now: Date): ChatRow[] {
 /* ============================================================ */
 
 export interface ChatStory {
-  /** The story title, when exactly one open session sits in this chat's repo. */
+  /** The story title: the session this chat opened, or the only one in its repo. */
   story: string | null;
   task: string | null;
+  taskId?: string | null;
   /** What the model said it waits on (session_waiting), if it did. */
   question: string | null;
 }
@@ -134,6 +135,8 @@ export interface ChatView {
   repo: string;
   story: string | null;
   task: string | null;
+  /** The task's id, so the dashboard can open it. */
+  taskId: string | null;
   state: 'waiting' | 'working';
   /** Plain words for the menu: "asks for permission", "finished", or the model's own question. */
   why: string | null;
@@ -155,19 +158,20 @@ export function buildChatsBlock(opts: {
   now: Date;
   /** Chat ttys that still have a process; null = can't tell, keep them all. */
   liveTtys: Set<string> | null;
-  storyFor: (cwd: string) => ChatStory;
+  storyFor: (cwd: string, tty: string | null) => ChatStory;
 }): ChatsBlock {
   const out: ChatsBlock = { waiting: [], finished: [], working: [] };
   for (const r of opts.rows) {
     // An iTerm tab closed without Claude saying goodbye: no process left on it.
     if (r.tty && opts.liveTtys && !opts.liveTtys.has(r.tty)) continue;
     const seconds = (opts.now.getTime() - Date.parse(r.since)) / 1000;
-    const s = opts.storyFor(r.cwd);
+    const s = opts.storyFor(r.cwd, r.tty);
     const view: ChatView = {
       chatId: r.chatId,
       repo: basename(r.cwd),
       story: s.story,
       task: s.task,
+      taskId: s.taskId ?? null,
       state: r.state,
       why: null,
       since: r.since,

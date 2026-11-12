@@ -25,13 +25,13 @@
  * with exit code 0 — Copilot treats any other code as a refusal.
  */
 import Database from 'better-sqlite3';
-import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, renameSync, writeFileSync, copyFileSync, mkdirSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dataDir } from '../server/data-dir';
 import { applyChatChange, chatChangeFor, type ChatHook } from '../server/chat-state';
+import { findChatTty } from '../server/tty';
 import {
   COPILOT_EDIT_TOOLS, COPILOT_HOOK_FILE, EDIT_TOOLS, GUARD_MARK, copilotEditTargets, copilotHooks, decideEdit,
   promptLine, readGuardState, sessionStartText, withGuardHooks, withoutGuardHooks,
@@ -78,21 +78,11 @@ type HookPart = 'pre-tool-use' | 'prompt' | 'session-start' | 'stop' | 'notifica
 
 /** The terminal this chat runs in ("ttys004"), so the Mac app can bring that
  *  iTerm tab forward. The hook shares the chat's terminal. */
+let tty: string | null | undefined;
+/** Looked up at most once per hook run. */
 function chatTty(): string | null {
-  try {
-    // Claude may start the hook without a terminal of its own; then the
-    // nearest parent that has one (Claude itself) tells.
-    let pid = process.pid;
-    for (let i = 0; i < 4 && pid > 1; i++) {
-      const [ppid, tty] = execFileSync('ps', ['-o', 'ppid=,tty=', '-p', String(pid)], { encoding: 'utf8', timeout: 1000 })
-        .trim().split(/\s+/);
-      if (tty && !tty.startsWith('?')) return tty;
-      pid = Number(ppid);
-    }
-    return null;
-  } catch {
-    return null;
-  }
+  if (tty === undefined) tty = findChatTty();
+  return tty;
 }
 
 /** Note the chat's new state. Writes, so it opens the store on its own; never
@@ -140,12 +130,13 @@ function runClaudeHook(part: HookPart, input: HookInput): void {
     if (part === 'prompt') noteChatState('prompt', input);
     if (part === 'session-start') return;
     if (!input?.session_id || !input.cwd) return;
+    // Most tools are not edits: leave before the store read and the ps call.
+    if (part === 'pre-tool-use' && !(EDIT_TOOLS as readonly string[]).includes(input.tool_name ?? '')) return;
     const state = readState();
     if (!state) return;
-    const common = { chatId: input.session_id, chatCwd: input.cwd, state, homeDir: homedir(), dataDir: dataDir() };
+    const common = { chatId: input.session_id, chatCwd: input.cwd, chatTty: chatTty(), state, homeDir: homedir(), dataDir: dataDir() };
 
     if (part === 'pre-tool-use') {
-      if (!(EDIT_TOOLS as readonly string[]).includes(input.tool_name ?? '')) return;
       const file = input.tool_input?.file_path ?? input.tool_input?.notebook_path;
       const target = file ? resolve(input.cwd, file) : input.cwd;
       const d = decideEdit({ ...common, target });
@@ -187,7 +178,7 @@ function runCopilotHook(part: HookPart, input: CopilotHookInput): void {
     if (part === 'pre-tool-use' && !(COPILOT_EDIT_TOOLS as readonly string[]).includes(input.toolName ?? '')) return;
     const state = readState();
     if (!state) return;
-    const common = { chatId: input.sessionId, chatCwd: input.cwd, state, homeDir: homedir(), dataDir: dataDir() };
+    const common = { chatId: input.sessionId, chatCwd: input.cwd, chatTty: null, state, homeDir: homedir(), dataDir: dataDir() };
 
     if (part === 'pre-tool-use') {
       for (const target of copilotEditTargets(input.toolArgs, input.cwd)) {
