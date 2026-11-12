@@ -7,6 +7,7 @@ vi.mock('./db', () => ({ getDb: () => h.db.value }));
 
 import {
   buildRetroDraft,
+  earlyRetroNote,
   saveRetro,
   getSavedRetro,
   getPreviousRetro,
@@ -113,6 +114,19 @@ describe('buildRetroDraft — got in the way', () => {
     const c = d.candidates.find(x => x.key === 'open-100004')!;
     expect(c.bucket).toBe('way');
     expect(c.text).toContain('carry into the next sprint');
+  });
+
+  it('mid-sprint, an open story is "still open", not carrying over', () => {
+    const d = buildRetroDraft({
+      ...base,
+      workingDaysLeft: 6,
+      stories: [{ id: 100004, title: 'Big migration', state: 'Active' }],
+    });
+    const c = d.candidates.find(x => x.key === 'open-100004')!;
+    expect(c.text).toContain('still open, 6 working days left');
+    expect(c.text).not.toContain('carry');
+    expect(earlyRetroNote(6)).toContain('6 working days');
+    expect(earlyRetroNote(2)).toBeNull();
   });
 });
 

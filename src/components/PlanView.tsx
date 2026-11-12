@@ -160,6 +160,27 @@ export function PlanView({ onOpenItem, onScanComplete }: PlanViewProps) {
     }
   };
 
+  // End of sprint: one yes for all the leftover tasks, listed by name.
+  const onMoveAll = async (tasks: ApiCockpitOpenTask[], path: string, name: string) => {
+    const list = tasks.map(t => `• ${t.title} (#${t.id})`).join('\n');
+    if (!window.confirm(`Move these ${tasks.length} open tasks to ${name}? Their stories stay here.\n\n${list}`)) return;
+    setActionError(null);
+    const failed: string[] = [];
+    for (const t of tasks) {
+      setActingOn(t.id);
+      try {
+        await moveWorkItemToIteration(t.id, path);
+        const credit = t.remainingWork ?? t.originalEstimate ?? 0;
+        if (credit > 0) setPulledHoursThisSession(h => h + credit);
+      } catch {
+        failed.push(t.title);
+      }
+    }
+    setActingOn(null);
+    if (failed.length > 0) setActionError(`Couldn't move: ${failed.join(', ')}`);
+    await refreshCockpit();
+  };
+
   const onCloseTask = async (taskId: number, completedHours: number) => {
     setActingOn(taskId);
     setActionError(null);
@@ -250,6 +271,8 @@ export function PlanView({ onOpenItem, onScanComplete }: PlanViewProps) {
 
       <CloseOutSection
         cockpit={cockpit}
+        midSprint={effTarget === 'current'}
+        onMoveAll={onMoveAll}
         actingOn={actingOn}
         expanded={expanded}
         onToggleExpanded={toggleExpanded}
@@ -419,6 +442,8 @@ function PlanHeader({
 
 function CloseOutSection({
   cockpit,
+  midSprint,
+  onMoveAll,
   actingOn,
   expanded,
   onToggleExpanded,
@@ -427,6 +452,9 @@ function CloseOutSection({
   onOpenItem,
 }: {
   cockpit: CockpitState;
+  /** Planning into the running sprint: nothing to close out yet. */
+  midSprint: boolean;
+  onMoveAll: (tasks: ApiCockpitOpenTask[], nextSprintPath: string, nextSprintName: string) => Promise<void>;
   actingOn: number | null;
   expanded: Set<number>;
   onToggleExpanded: (id: number) => void;
@@ -452,16 +480,37 @@ function CloseOutSection({
   }
   const { currentSprint, nextSprint, openStories } = cockpit.data;
   const taskRemaining = openStories.reduce((s, st) => s + st.openTasks.length, 0);
+  const allOpenTasks = openStories.flatMap(st => st.openTasks);
+  // Mid-sprint the page plans into the running sprint, so there is nothing to
+  // close out: show how it stands, with no "move to next sprint" buttons.
+  const moveTo = midSprint ? null : nextSprint;
+  const sprintName = currentSprint?.name ?? 'this sprint';
 
   return (
     <section className="plan2-section">
       <SectionHead
         step={1}
-        title={currentSprint ? `Close out ${currentSprint.name}` : 'Close out current sprint'}
+        title={midSprint ? `${sprintName} so far` : `Close out ${sprintName}`}
         note={openStories.length > 0
           ? <><span className="n">{openStories.length}</span> {openStories.length === 1 ? 'story' : 'stories'} open · <span className="n">{taskRemaining}</span> {taskRemaining === 1 ? 'task' : 'tasks'} remaining</>
           : null}
       />
+      {midSprint && openStories.length > 0 && (
+        <p className="plan2-section-help">Closing out comes near the end of the sprint. Until then, this is just how it stands.</p>
+      )}
+      {moveTo && allOpenTasks.length > 1 && (
+        <div className="plan2-moveall">
+          <button
+            type="button"
+            className="plan2-act plan2-act-pull"
+            disabled={actingOn != null}
+            onClick={() => { void onMoveAll(allOpenTasks, moveTo.path, moveTo.name); }}
+          >
+            Move all {allOpenTasks.length} open tasks to {moveTo.name}
+          </button>
+          <span className="plan2-moveall-note">The stories stay here. Only their open tasks move.</span>
+        </div>
+      )}
       {openStories.length === 0 ? (
         <div className="plan2-empty">Nothing open — everything in this sprint is done.</div>
       ) : (
@@ -473,8 +522,9 @@ function CloseOutSection({
               isExpanded={expanded.has(story.id)}
               onToggle={() => onToggleExpanded(story.id)}
               actingOn={actingOn}
-              nextSprintPath={nextSprint?.path ?? null}
-              nextSprintName={nextSprint?.name ?? null}
+              nextSprintPath={moveTo?.path ?? null}
+              nextSprintName={moveTo?.name ?? null}
+              allowMove={!midSprint}
               onMoveTask={onMoveTask}
               onCloseTask={onCloseTask}
               onOpenItem={onOpenItem}
@@ -493,11 +543,13 @@ function CloseOutStoryRow({
   actingOn,
   nextSprintPath,
   nextSprintName,
+  allowMove,
   onMoveTask,
   onCloseTask,
   onOpenItem,
 }: {
   story: ApiCockpitOpenStory;
+  allowMove: boolean;
   isExpanded: boolean;
   onToggle: () => void;
   actingOn: number | null;
@@ -555,6 +607,7 @@ function CloseOutStoryRow({
                   busy={actingOn === task.id}
                   nextSprintPath={nextSprintPath}
                   nextSprintName={nextSprintName}
+                  allowMove={allowMove}
                   onMoveTask={onMoveTask}
                   onCloseTask={onCloseTask}
                   onOpenItem={onOpenItem}
@@ -573,12 +626,14 @@ function CloseOutTaskRow({
   busy,
   nextSprintPath,
   nextSprintName,
+  allowMove,
   onMoveTask,
   onCloseTask,
   onOpenItem,
 }: {
   task: ApiCockpitOpenTask;
   busy: boolean;
+  allowMove: boolean;
   nextSprintPath: string | null;
   nextSprintName: string | null;
   onMoveTask: (task: ApiCockpitOpenTask, nextSprintPath: string) => Promise<void>;
@@ -609,7 +664,7 @@ function CloseOutTaskRow({
         </span>
       </span>
       <span className="plan2-actions">
-        {nextSprintPath ? (
+        {!allowMove ? null : nextSprintPath ? (
           <button
             type="button"
             className="plan2-act plan2-act-pull"

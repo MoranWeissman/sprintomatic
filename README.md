@@ -38,6 +38,24 @@ do. sprintomatic sits between the chat and your Azure DevOps board.
   design before the stories, turn these on in Settings. Each one adds its own
   page and its own help in the chat. Both are off until you turn them on.
 
+**What it writes to your board.** So you know before you try it on a real
+team board:
+
+- **State changes.** Opening a work session on a task moves it (and its story)
+  to your "in work" state straight away, without asking. Blocking and
+  unblocking move it to Blocked and back. Closing moves it to Done.
+- **Hours.** Original Estimate when a task is made, Remaining Work as you go,
+  and Completed Work when you close it, after you agree the number.
+- **Comments.** One comment when something gets blocked (with the reason) and
+  one when it's unblocked.
+- **New items.** Tasks, stories and bugs, only when you ask for them.
+
+- **Removed.** A task that won't happen goes to Removed, with a comment, only
+  after you say yes.
+
+It never deletes anything. It works on the items the chat names, so try it on
+your own tasks first.
+
 **The board always wins.** sprintomatic never keeps its own copy of your plans
 or task states. It reads them from Azure DevOps every time. It only stores what
 the board has no place for: your notes and your time.
@@ -87,15 +105,16 @@ npx sprintomatic demo
 ```
 
 Then open http://localhost:7778. To try the chat side too, add the demo to
-Claude Code under its own name (for Copilot CLI, see
-[Use it with GitHub Copilot CLI](#use-it-with-github-copilot-cli)):
+Claude Code under its own name, for one folder only (for Copilot CLI, see
+[Use it with GitHub Copilot CLI](#use-it-with-github-copilot-cli)). Run this
+in an empty folder you'll use just for trying it:
 
 ```sh
-claude mcp add -s user sprintomatic-demo -e SPRINTOMATIC_DEMO=1 -- npx -y sprintomatic
+claude mcp add -s local sprintomatic-demo -e SPRINTOMATIC_DEMO=1 -- npx -y sprintomatic
 ```
 
 The demo keeps its data, made-up board included, in `~/.sprintomatic-demo`,
-apart from your real data. Delete that folder to start the demo over. Remove it again with `claude mcp remove -s user sprintomatic-demo`.
+apart from your real data. Delete that folder to start the demo over. Remove it again with `claude mcp remove -s local sprintomatic-demo` from that same folder. Remove the demo before you add the real one, so the chat never sees two sets of the same tools.
 
 ## Get started
 
@@ -193,7 +212,7 @@ The rest works the same way as in Claude Code:
 To work on the code, run it from a clone instead of from npm:
 
 ```sh
-git clone <the address>
+git clone <the repo address from its GitHub page>
 cd sprintomatic
 npm install
 npm run setup

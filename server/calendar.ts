@@ -47,7 +47,7 @@ async function fetchIcs(force = false): Promise<string> {
   const url = getCalendarUrl();
   if (!url) {
     throw new Error(
-      'No Outlook calendar URL is configured. Set one with the calendar_set_url MCP tool. See docs/setup/outlook-calendar.md.',
+      'No Outlook calendar URL is configured. Set one with the calendar_set_url MCP tool. See the Outlook calendar guide linked from https://www.npmjs.com/package/sprintomatic',
     );
   }
   if (!force && cache && cache.url === url && Date.now() - cache.fetchedAt < CACHE_TTL_MS) {

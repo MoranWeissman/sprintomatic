@@ -30,7 +30,6 @@
     "guard:install": "npm run build:cli && node dist-node/guard.js install",
     "guard:uninstall": "node dist-node/guard.js uninstall",
     "release-scan": "tsx scripts/release-scan.ts",
-    "export": "tsx scripts/export.ts",
     "setup": "tsx scripts/setup.ts",
     "build:cli": "rm -rf dist-node && esbuild scripts/cli.ts scripts/guard.ts --bundle --platform=node --format=esm --splitting --packages=external --target=node24 --outdir=dist-node",
     "prepublishOnly": "npm run typecheck && npm test && vite build && npm run build:cli"

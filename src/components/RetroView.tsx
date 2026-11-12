@@ -99,6 +99,7 @@ export function RetroView() {
         <div>
           <h1 className="retro-h">Retro</h1>
           <p className="retro-sub">{data.sprintLine}</p>
+          {data.earlyNote && <p className="retro-sub">{data.earlyNote}</p>}
           <p className="retro-sub">A first draft from this sprint's record. Drop what you don't want to bring up — the rest is your list for the retro meeting.</p>
         </div>
         <div className="retro-head-actions">

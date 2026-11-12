@@ -17,6 +17,8 @@ import { getDb } from './db';
 import { displayNameFor } from './display-name';
 import { listDaysOff } from './days-off';
 import { isDoneState } from './states';
+import { countWorkingDays } from './capacity';
+import { getWorkingDays } from './user-config';
 import { buildCalibration } from './estimate-anchor';
 
 /* ============================================================ */
@@ -58,7 +60,12 @@ export interface RetroInputs {
   decisionEvents: { workItemId: number; title: string; text: string }[];
   /** Confirmed days off that fall inside this sprint. */
   daysOffCount: number;
+  /** Working days left after today. Over 2, open stories aren't "carrying over" yet. */
+  workingDaysLeft?: number;
 }
+
+/** Open stories only count as carry-over this close to the end. */
+export const RETRO_WINDOW_DAYS = 2;
 
 /* ============================================================ */
 /*  The pure draft builder                                       */
@@ -169,11 +176,16 @@ export function buildRetroDraft(inputs: RetroInputs): RetroDraft {
 
   // ---- Got in the way: work still open at retro time -------------------
   const openStories = inputs.stories.filter(s => !isDoneState(s.state));
+  const daysLeft = inputs.workingDaysLeft ?? 0;
+  const midSprint = daysLeft > RETRO_WINDOW_DAYS;
   for (const s of openStories) {
     candidates.push({
       key: `open-${s.id}`,
       bucket: 'way',
-      text: `${displayNameFor(s.id, s.title)} isn't finished and will carry into the next sprint.`,
+      // Mid-sprint, "will carry over" isn't true yet. Say how it stands.
+      text: midSprint
+        ? `${displayNameFor(s.id, s.title)} is still open, ${daysLeft} working days left.`
+        : `${displayNameFor(s.id, s.title)} isn't finished and will carry into the next sprint.`,
       evidence: `Board state: ${s.state}.`,
     });
   }
@@ -293,6 +305,17 @@ export interface RetroView {
   previous: { sprintName: string; kept: { bucket: RetroBucket; text: string }[] } | null;
   /** How the user's guesses usually compare with real hours; null when the board read failed. */
   estimateHabit: string | null;
+  /** Mid-sprint: a calm line that this draft is early. Null near the end. */
+  earlyNote: string | null;
+}
+
+/** Working days after today up to the sprint's last day. */
+function workingDaysAfterToday(finishDate: string, now = new Date()): number {
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const end = new Date(finishDate);
+  if (end < tomorrow) return 0;
+  return countWorkingDays(tomorrow, end, getWorkingDays());
 }
 
 /** Build the live retro view for the current sprint. Throws when no sprint. */
@@ -368,6 +391,7 @@ export async function buildRetro(): Promise<RetroView> {
     blockerEvents: events.filter(e => e.type === 'blocker').map(withTitle),
     decisionEvents: events.filter(e => e.type === 'decision').map(withTitle),
     daysOffCount,
+    workingDaysLeft: workingDaysAfterToday(sprint.finishDate),
   });
 
   // Across the last few months, not just this sprint — one sprint is too few tasks.
@@ -391,5 +415,11 @@ export async function buildRetro(): Promise<RetroView> {
         }
       : null,
     estimateHabit,
+    earlyNote: earlyRetroNote(workingDaysAfterToday(sprint.finishDate)),
   };
+}
+
+export function earlyRetroNote(daysLeft: number): string | null {
+  if (daysLeft <= RETRO_WINDOW_DAYS) return null;
+  return `The sprint still has ${daysLeft} working days to go, so this is an early look. It fills in as the sprint ends.`;
 }

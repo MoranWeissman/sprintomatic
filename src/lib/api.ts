@@ -1056,6 +1056,7 @@ export interface ApiRetroPayload {
   savedAt: string | null;
   previous: { sprintName: string; kept: { bucket: RetroBucket; text: string }[] } | null;
   estimateHabit?: string | null;
+  earlyNote?: string | null;
 }
 
 export async function fetchRetro(): Promise<ApiRetroPayload> {

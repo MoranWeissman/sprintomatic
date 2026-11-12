@@ -4969,3 +4969,8 @@ button.r21-standup-item-head.is-toggle:hover .r21-standup-item-title { color: va
   color: var(--ink-3);
   white-space: nowrap;
 }
+
+/* Plan step 1: mid-sprint help line and the move-all button. */
+.plan2-section-help { margin: 0 0 12px 36px; font-size: 13px; color: var(--ink-2); }
+.plan2-moveall { display: flex; align-items: center; gap: 12px; margin: 0 0 12px 36px; flex-wrap: wrap; }
+.plan2-moveall-note { font-size: 13px; color: var(--ink-2); }

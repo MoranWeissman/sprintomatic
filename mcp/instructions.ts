@@ -711,7 +711,7 @@ wired in through a private published URL, stored locally and never echoed.
     Don't paraphrase tighter; that wording is the single approved place
     this sentence is generated.
   - If it's null and the user asks about capacity, the calendar isn't wired up:
-    tell them plainly and point at \`docs/setup/outlook-calendar.md\`.
+    tell them plainly and point at the "Outlook calendar" guide linked from https://www.npmjs.com/package/sprintomatic.
   - The raw \`capacity\` object is there for specific numbers ("how many
     hours of meetings?"). Otherwise prefer the summary.
   - "What can I finish today?" → call \`capacity_check\` and echo its
