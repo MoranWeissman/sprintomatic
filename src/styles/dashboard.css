@@ -5051,3 +5051,5 @@ html, body { background: var(--page); }
 .ember-glow { display: none; }
 /* A full-width page (Retro) scrolls inside the body, like Plan does. */
 .r21-pagescroll { position: absolute; inset: 0; overflow-y: auto; }
+/* Open/close all features + show/hide all tasks, right above the features. */
+.r21-daily-tools { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: -8px; }

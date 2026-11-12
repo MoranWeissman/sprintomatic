@@ -1442,28 +1442,6 @@ function DailyView({
           <span className="r21-daily-cap">DAILY · {sprintName}</span>
           <h1 className="r21-daily-title">Your stories</h1>
         </div>
-        <div className="r21-daily-head-actions">
-          {stories.length > 0 && (
-            <>
-              <button
-                type="button"
-                className="r21-daily-bulk"
-                onClick={toggleAllFeatures}
-                title={allFeaturesClosed ? 'Open every feature' : 'Close every feature down to its title'}
-              >
-                {allFeaturesClosed ? 'open all features' : 'close all features'}
-              </button>
-              <button
-                type="button"
-                className="r21-daily-bulk"
-                onClick={anyExpanded ? collapseAll : expandAll}
-                title={anyExpanded ? 'Hide the tasks on every story' : 'Show the tasks on every story'}
-              >
-                {anyExpanded ? 'hide all tasks' : 'show all tasks'}
-              </button>
-            </>
-          )}
-        </div>
       </div>
 
       {/* End-of-day wrap — appears only after work goes quiet in the
@@ -1485,6 +1463,26 @@ function DailyView({
         <p className="r21-daily-empty">No stories in this sprint yet.</p>
       ) : (
         <div className="r21-daily-features">
+          <div className="r21-daily-tools">
+            <>
+              <button
+                type="button"
+                className="r21-daily-bulk"
+                onClick={toggleAllFeatures}
+                title={allFeaturesClosed ? 'Open every feature' : 'Close every feature down to its title'}
+              >
+                {allFeaturesClosed ? 'open all features' : 'close all features'}
+              </button>
+              <button
+                type="button"
+                className="r21-daily-bulk"
+                onClick={anyExpanded ? collapseAll : expandAll}
+                title={anyExpanded ? 'Hide the tasks on every story' : 'Show the tasks on every story'}
+              >
+                {anyExpanded ? 'hide all tasks' : 'show all tasks'}
+              </button>
+            </>
+          </div>
           {featureGroups.map((g, idx) => {
             // Drop any story that IS its own feature — the section header
             // already represents it; the duplicate card was noise.
