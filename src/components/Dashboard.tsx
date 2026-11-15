@@ -1838,7 +1838,7 @@ function RailSprintTime({
 
 /**
  * One helper note + its three actions, shared by the Daily rail and Focus.
- * - Act on it: opens a one-line box, copies a deal-with-this prompt.
+ * - Copy as a chat prompt: opens a one-line box, copies a deal-with-this prompt.
  * - Keep: pins it (covers save + highlight); kept notes get an accent stripe.
  * - Done: clears it for good.
  * onChange refreshes the dashboard after a pin/unpin/dismiss write.
@@ -1888,8 +1888,15 @@ function NoteRow({ note, onChange }: { note: ApiHelperNote; onChange: () => void
         <span className="note-age">{relAgo(note.createdAt)}</span>
       </div>
       <div className="note-actions">
-        <button type="button" className="note-act" aria-expanded={composing} onClick={() => setComposing(v => !v)} disabled={busy}>
-          Act on it
+        <button
+          type="button"
+          className="note-act"
+          aria-expanded={composing}
+          onClick={() => setComposing(v => !v)}
+          disabled={busy}
+          title="Makes a prompt from this note that you paste into a chat"
+        >
+          Copy as a chat prompt
         </button>
         <button
           type="button"
@@ -1903,6 +1910,7 @@ function NoteRow({ note, onChange }: { note: ApiHelperNote; onChange: () => void
           Done
         </button>
       </div>
+      {composing && <p className="note-hint">Add a few words if you like, then copy. Paste it into a chat to deal with this note.</p>}
       {composing && (
         <div className="note-compose">
           <input

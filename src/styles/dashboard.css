@@ -3189,7 +3189,8 @@ html, body {
 .note-body { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink-1); }
 .note-age { flex: none; font-size: 12px; color: var(--ink-3); white-space: nowrap; }
 
-.note-actions { display: flex; gap: 8px; margin-top: 8px; }
+.note-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.note-hint { margin: 8px 0 0; font-size: 13px; color: var(--ink-2); }
 .note-actions button {
   font-size: 13px;
   padding: 4px 10px;
