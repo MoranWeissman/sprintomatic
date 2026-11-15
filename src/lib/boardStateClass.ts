@@ -27,3 +27,21 @@ export function boardStateClass(state: string | null | undefined): BoardStateCla
   if (kind === 'unknown') return 'waiting';
   return kind;
 }
+
+/** The plain word Daily shows for each state, so D&D says the same thing. */
+const STATE_WORD: Record<BoardStateClass, string> = {
+  going: 'in work',
+  waiting: 'not started',
+  blocked: 'stuck',
+  done: 'done',
+};
+
+/**
+ * A raw board state as the plain word the screens use, e.g. 'Closed' → 'done'.
+ * A state we have never seen keeps the board's own word: saying 'not started'
+ * there would be a status the board never gave.
+ */
+export function boardStateWord(state: string | null | undefined): string {
+  if (classifyBoardState(state) === 'unknown' && state && state.trim()) return state;
+  return STATE_WORD[boardStateClass(state)];
+}

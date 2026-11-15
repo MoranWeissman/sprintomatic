@@ -7,6 +7,8 @@ import {
 } from '../lib/api';
 import type { DndPage } from '../lib/pages';
 import { Icon } from './Icons';
+import { boardStateClass, boardStateWord } from '../lib/boardStateClass';
+import { folderName } from '../lib/folderName';
 
 const STATUS_LABEL: Record<DndStatus, string> = {
   'in-progress': 'In progress',
@@ -314,12 +316,17 @@ export function DnDView({ page, onOpenItem }: { page: DndPage; onOpenItem?: (id:
   );
 }
 
+/** A board state in the same plain word Daily uses; the board's own word is on hover. */
+function StateChip({ state }: { state: string }): JSX.Element {
+  return <span className={`dnd-chip is-${boardStateClass(state)}`} title={`board says: ${state}`}>{boardStateWord(state)}</span>;
+}
+
 /** Feature meta chips — shared by the browser cards and the reading-view rail rows. */
 function FeatureMeta(props: { feature: ApiFeatureListEntry }): JSX.Element {
   const { feature: f } = props;
   return (
     <span className="dnd-row-meta">
-      {f.boardState && <span className={`dnd-chip is-${f.boardState.toLowerCase()}`}>{f.boardState}</span>}
+      {f.boardState && <StateChip state={f.boardState} />}
       {f.readyToClose && <span className="dnd-ready">ready to close</span>}
       {f.dayLabel && <span className="dnd-day">{f.dayLabel}</span>}
     </span>
@@ -382,7 +389,7 @@ function FeatureBrowser(props: {
         <div className="dnd-browse-cap">{page.label}</div>
         <h1 className="dnd-browse-h">Your features</h1>
         {total > 0
-          ? <p className="dnd-browse-sub"><b>{summary}</b> — pick one to read its {page.reads}.</p>
+          ? <p className="dnd-browse-sub"><b>{summary}</b> — pick one to read its {page.reads}. Only features with a folder in your workspace show here.</p>
           : <p className="dnd-browse-sub">One place per feature for its {page.reads}.</p>}
       </header>
 
@@ -540,8 +547,8 @@ function FolderLine(props: { featureId: number; folderPath: string }): JSX.Eleme
   return (
     <div className="dnd-folder">
       <span className="dnd-folder-lab">Folder</span>
-      <button type="button" className="dnd-folder-path" onClick={copy} title="Click to copy the path">
-        {folderPath}
+      <button type="button" className="dnd-folder-path" onClick={copy} title={`${folderPath} — click to copy the full path`}>
+        {folderName(folderPath)}
       </button>
       <span className="dnd-folder-actions">
         <button type="button" className="dnd-folder-btn" onClick={copy}>{copied ? 'Copied' : 'Copy'}</button>
@@ -635,7 +642,7 @@ function OverviewFacet(props: { board: DiscoveryBoardPayload | null; onOpenItem?
     <div className="dnd-overview">
       {board.featureState && (
         <div className="dnd-overview-state">
-          <span className={`dnd-chip is-${board.featureState.toLowerCase()}`}>{board.featureState}</span>
+          <StateChip state={board.featureState} />
         </div>
       )}
       <h2 className="dnd-h2">What this feature is</h2>
@@ -648,7 +655,7 @@ function OverviewFacet(props: { board: DiscoveryBoardPayload | null; onOpenItem?
         : (
           <ul className="dnd-kids">
             {board.children.map((c: ApiDiscoveryChild) => (
-              <li key={c.id} className={`dnd-kid is-${(c.state || '').toLowerCase()}`}>
+              <li key={c.id} className={`dnd-kid is-${boardStateClass(c.state)}`}>
                 <button
                   type="button"
                   className="dnd-kid-btn"
@@ -657,7 +664,7 @@ function OverviewFacet(props: { board: DiscoveryBoardPayload | null; onOpenItem?
                 >
                   <span className="dnd-kid-type">{c.type}</span>
                   <span className="dnd-kid-title">{c.title} <span className="dnd-kid-id">#{c.id}</span></span>
-                  {c.state && <span className="dnd-kid-state">{c.state}</span>}
+                  {c.state && <span className="dnd-kid-state" title={`board says: ${c.state}`}>{boardStateWord(c.state)}</span>}
                 </button>
               </li>
             ))}
