@@ -6,6 +6,7 @@ import {
   type DesignPayload, type ApiDesignDoc,
 } from '../lib/api';
 import type { DndPage } from '../lib/pages';
+import { Icon } from './Icons';
 
 const STATUS_LABEL: Record<DndStatus, string> = {
   'in-progress': 'In progress',
@@ -50,7 +51,7 @@ function renderInline(s: string): (string | JSX.Element)[] {
             </a>
           );
         }
-        return <span key={i} className="dnd-fig">🖼 {alt || 'image on the board'}</span>;
+        return <span key={i} className="dnd-fig"><Icon name="image" /> {alt || 'image on the board'}</span>;
       }
       return part;
     });
@@ -1184,8 +1185,8 @@ function ArtifactView(props: { featureId: number; kind: 'walkthrough' | 'demo' |
   return (
     <div className="dnd-artifact">
       <div className="dnd-artifact-bar">
-        <a className="dnd-btn is-quiet" href={url} target="_blank" rel="noreferrer">Open in new tab</a>
-        <a className="dnd-btn is-quiet" href={url} download={downloadName}>Download</a>
+        <a className="btn-secondary" href={url} target="_blank" rel="noreferrer">Open in new tab</a>
+        <a className="btn-secondary" href={url} download={downloadName}>Download</a>
       </div>
       <iframe className="dnd-artifact-frame" src={url} title={title} sandbox="allow-scripts" loading="lazy" />
     </div>
@@ -1235,7 +1236,7 @@ function DemoFacet(props: {
           <span>Date</span>
           <input type="date" value={date} onChange={e => setDate(e.target.value)} />
         </label>
-        <button className="dnd-btn" onClick={() => markDiscoveryDemo(id, { status, date }).then(onSaved)}>Save</button>
+        <button className="btn-primary" onClick={() => markDiscoveryDemo(id, { status, date }).then(onSaved)}>Save</button>
       </div>
     </div>
   );

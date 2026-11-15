@@ -208,7 +208,7 @@ function DrawerContent({
           {item.changedBy && <> by <Mono>{item.changedBy}</Mono></>}
         </span>
         <a
-          className="ember-drawer-open"
+          className="btn-primary"
           href={item.webUrl}
           target="_blank"
           rel="noreferrer"

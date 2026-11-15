@@ -983,7 +983,7 @@ function SanityCheckSection({
       {state.status === 'ok' && shownGaps != null && shownGaps.length === 0 && (
         <div className="plan2-empty">
           Every Task and Story in the sprint you're planning has its planning fields filled in.
-          <button className="plan2-prompt-btn" onClick={onClear} style={{ marginLeft: 12 }}>Clear scan</button>
+          <button className="btn-secondary" onClick={onClear} style={{ marginLeft: 12 }}>Clear scan</button>
         </div>
       )}
 
@@ -994,10 +994,10 @@ function SanityCheckSection({
             <header className="plan2-prompt-head">
               <span className="plan2-prompt-cap">Prompt for your AI chat</span>
               <div className="plan2-prompt-actions">
-                <button className="plan2-prompt-btn is-primary" onClick={onCopy}>
+                <button className="btn-primary" onClick={onCopy}>
                   {copied ? 'Copied ✓' : 'Copy'}
                 </button>
-                <button className="plan2-prompt-btn" onClick={onClear} title="Clear the saved scan — next scan starts fresh">
+                <button className="btn-secondary" onClick={onClear} title="Clear the saved scan — next scan starts fresh">
                   Clear
                 </button>
               </div>

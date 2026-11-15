@@ -270,10 +270,10 @@ export function SettingsModal({ open, onClose, onSaved }: SettingsModalProps) {
             )}
           </div>
           <div className="schedule-modal-foot-actions">
-            <button className="schedule-btn-ghost" onClick={onClose} disabled={busy === 'save'}>
+            <button className="btn-quiet" onClick={onClose} disabled={busy === 'save'}>
               {check?.ok ? 'Close' : 'Cancel'}
             </button>
-            <button className="schedule-btn-accent" onClick={handleSave} disabled={busy !== null || !data || changed.length === 0}>
+            <button className="btn-primary" onClick={handleSave} disabled={busy !== null || !data || changed.length === 0}>
               {busy === 'save' ? 'Saving…' : busy === 'check' ? 'Checking…' : 'Save'}
             </button>
           </div>

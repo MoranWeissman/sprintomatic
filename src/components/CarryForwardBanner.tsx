@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ApiPayload } from '../lib/api';
 import { postCarryForward } from '../lib/api';
+import { Icon } from './Icons';
 
 /**
  * Unfinished tasks left behind in an earlier sprint, with a one-tap offer to
@@ -66,7 +67,7 @@ export function CarryForwardBanner({
             {noHours}
           </span>
         </div>
-        <button type="button" className="r21-carryforward-btn" onClick={pull} disabled={busy}>
+        <button type="button" className="btn-secondary" onClick={pull} disabled={busy}>
           {busy ? 'Pulling…' : `Pull ${info.count === 1 ? 'it' : 'them'} into this sprint`}
         </button>
       </div>
@@ -103,7 +104,7 @@ function StoryRow({ group, onOpenItem }: { group: Group; onOpenItem: (id: string
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
       >
-        <span className="r21-carryforward-chev" aria-hidden="true">{open ? '▾' : '▸'}</span>
+        <span className="r21-carryforward-chev" aria-hidden="true"><Icon name={open ? 'down' : 'right'} /></span>
         <span className="r21-carryforward-story-title">
           {group.storyDisplayName ? storyTitle(group.storyDisplayName) : 'Not under a story'}
         </span>
