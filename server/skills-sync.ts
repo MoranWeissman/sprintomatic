@@ -23,7 +23,7 @@
  * that resolves to the seed itself is never copied onto.
  */
 import { join, dirname, resolve, relative, sep } from 'node:path';
-import { existsSync, mkdirSync, cpSync, rmSync, renameSync, readdirSync, readFileSync, lstatSync, realpathSync } from 'node:fs';
+import { existsSync, mkdirSync, cpSync, rmSync, renameSync, readdirSync, readFileSync, writeFileSync, lstatSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dataDir } from './data-dir';
@@ -35,7 +35,28 @@ export const MANAGED_SKILLS: readonly string[] = ['demo', 'design', 'discovery',
 
 /** Where the always-on copies live (the `sprintomatic-plus` skill's subs). */
 function globalSkillsDir(): string {
-  return join(homedir(), '.claude', 'skills', 'sprintomatic-plus', 'skills');
+  return join(globalPluginDir(), 'skills');
+}
+
+function globalPluginDir(): string {
+  return join(homedir(), '.claude', 'skills', 'sprintomatic-plus');
+}
+
+/**
+ * Claude Code only reads the skills nested under `sprintomatic-plus/skills/`
+ * when that folder carries a plugin file; then they show up as
+ * `sprintomatic:demo` and so on. A new user has no such file, so write a plain
+ * one the first time. An existing file is never touched.
+ */
+export function ensureGlobalPluginFile(): void {
+  const file = join(globalPluginDir(), '.claude-plugin', 'plugin.json');
+  if (existsSync(file)) return;
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, JSON.stringify({
+    name: 'sprintomatic',
+    description: 'The step-by-step guides that come with sprintomatic.',
+    version: '1.0.0',
+  }, null, 2) + '\n');
 }
 
 /**
@@ -126,6 +147,7 @@ export function managedDestinations(): { destDirs: string[]; deadWorkspaces: str
   const deadWorkspaces = paths.filter(p => !existsSync(p));
   const live = paths.filter(p => existsSync(p));
   const copilot = copilotSkillsDir();
+  ensureGlobalPluginFile();
   const destDirs = [...live.map(p => join(p, '.claude', 'skills')), globalSkillsDir()];
   if (copilot) destDirs.push(copilot);
   return { destDirs, deadWorkspaces };

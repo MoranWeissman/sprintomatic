@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, symlinkSync, lstatSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 
 // skills-sync's drift check (Task 2) reads settings via ./timers and workspace
 // state via ./workspace's use of ./timers — mock the settings store once here.
@@ -25,6 +25,7 @@ import {
   SKILLS_SOURCE_KEY,
   managedDestinations,
   copilotSkillsDir,
+  ensureGlobalPluginFile,
 } from './skills-sync';
 import { WORKSPACE_PATHS_KEY } from './workspace';
 
@@ -372,6 +373,20 @@ describe('checkSkillsDriftNudge', () => {
     else process.env.COPILOT_HOME = OLD_COPILOT_HOME;
     vi.useRealTimers();
     rmSync(home, { recursive: true, force: true });
+  });
+
+  it('writes the plugin file Claude Code needs to find the guides', () => {
+    managedDestinations();
+    const file = join(home, '.claude', 'skills', 'sprintomatic-plus', '.claude-plugin', 'plugin.json');
+    expect(JSON.parse(readFileSync(file, 'utf8')).name).toBe('sprintomatic');
+  });
+
+  it('leaves an existing plugin file alone', () => {
+    const file = join(home, '.claude', 'skills', 'sprintomatic-plus', '.claude-plugin', 'plugin.json');
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, '{"name":"sprintomatic","version":"9"}');
+    ensureGlobalPluginFile();
+    expect(readFileSync(file, 'utf8')).toBe('{"name":"sprintomatic","version":"9"}');
   });
 
   it('returns null when every copy matches the seed', () => {

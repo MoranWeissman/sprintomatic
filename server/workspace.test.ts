@@ -204,6 +204,20 @@ describe('ensureWorkspaceScaffold', () => {
     }
   });
 
+  it('writes no settings file when the seed has no hook to run', () => {
+    const seed = mkdtempSync(join(tmpdir(), 'sh-nohook-'));
+    const ws = mkdtempSync(join(tmpdir(), 'sh-ws4-'));
+    try {
+      mkdirSync(join(seed, '_bmad'), { recursive: true });
+      store.set(SEED_KEY, seed);
+      ensureWorkspaceScaffold(ws);
+      expect(existsSync(join(ws, '.claude', 'settings.json'))).toBe(false);
+    } finally {
+      rmSync(seed, { recursive: true, force: true });
+      rmSync(ws, { recursive: true, force: true });
+    }
+  });
+
   it('reports seedMissing when the seed has no _bmad', () => {
     const emptySeed = mkdtempSync(join(tmpdir(), 'sh-noseed-'));
     const ws = mkdtempSync(join(tmpdir(), 'sh-ws3-'));

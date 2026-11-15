@@ -320,9 +320,12 @@ export function ensureWorkspaceScaffold(
     cpSync(seedHookPath, hookPath);
     created.push('hook');
   }
-  // FINDING A FIX: Write settings.json whenever absent, independent of hook status
+  // settings.json runs the hook, so write it only when the hook is there;
+  // pointing at a missing script would fail on every prompt.
   const settingsPath = join(ws, '.claude', 'settings.json');
-  if (!existsSync(settingsPath)) {
+  if (!existsSync(hookPath)) {
+    // nothing to run
+  } else if (!existsSync(settingsPath)) {
     mkdirSync(join(ws, '.claude'), { recursive: true });
     writeFileAtomicSync(settingsPath, workspaceSettingsJson(ws), writer);
   } else if (readFileSync(settingsPath, 'utf8') === OLD_SETTINGS_JSON) {

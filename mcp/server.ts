@@ -54,6 +54,7 @@ import {
   importSkills,
   ownSkillsDir,
   managedDestinations,
+  MANAGED_SKILLS,
 } from '../server/skills-sync.js';
 import { buildOrientPacket } from '../server/orient.js';
 import { getPlanningHome, isPlanningHomeCwd, setPlanningHome } from '../server/planning-home.js';
@@ -2242,7 +2243,7 @@ server.registerTool(
   {
     title: "Set a sprintomatic workspace folder",
     description:
-      "Register the folder the user opens their AI chat in (Claude Code or Copilot CLI) for non-code work (discovery, design, small demos) as a WORKSPACE. Creates the folder if needed and fills it once with BMAD, a planning CLAUDE.md, and the enforcement hook (copied from the seed). Fire when the user says 'this is my workspace' or accepts the empty-folder offer from orient. Returns which scaffold pieces were created; if the seed is missing, says so plainly.",
+      "Register the folder the user opens their AI chat in (Claude Code or Copilot CLI) for non-code work (discovery, design, small demos) as a WORKSPACE. Creates the folder if needed and puts the demo, design, discovery and walkthrough guides in it. If the user keeps a starter folder, its extra files are copied in once too. Fire when the user says 'this is my workspace' or accepts the empty-folder offer from orient. Echo `note` when set.",
     inputSchema: {
       path: z.string().min(1).describe('Absolute path to the workspace folder. `~` expands to home.'),
     },
@@ -2250,7 +2251,14 @@ server.registerTool(
   async ({ path }) => {
     try {
       const r = registerWorkspace(path);
-      return jsonResult(r);
+      const guides = syncManagedSkills(seedSkillsDir(), [joinPath(r.path, '.claude', 'skills')]);
+      const missing = guides.filter(g => g.missingSeed).map(g => g.skill);
+      return jsonResult({
+        path: r.path,
+        added: r.scaffolded,
+        guides: MANAGED_SKILLS.filter(k => !missing.includes(k)),
+        ...(missing.length ? { note: `These guides couldn't be found, so they weren't added: ${missing.join(', ')}.` } : {}),
+      });
     } catch (e) {
       return errorResult(e instanceof Error ? e.message : String(e));
     }
