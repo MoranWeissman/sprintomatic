@@ -445,14 +445,14 @@ server.registerTool(
       "Update an existing Azure DevOps work item: title, description, state (waiting/going only — close via session_end, not here), Remaining Work, Completed Work, Original Estimate (backfill only — see field), story Effort, tags, iteration path. Pass at least one field; per-field rules are on each field below.",
     inputSchema: {
       workItemId: workItemIdSchema,
-      title: z.string().min(1).optional().describe("Rename the work item (overwrites the title shown on the board). The title is visible to the user's delivery manager, so confirm the exact new wording with the user before calling — don't reword on your own."),
-      description: z.string().min(1).optional().describe("Overwrite the description shown on the board. It is visible to the user's delivery manager, so confirm the EXACT wording with the user before calling — don't reword on your own. Plain text; line breaks are kept, so acceptance criteria as Given / When / Then lines read fine."),
-      state: z.enum(['waiting', 'going']).optional().describe("Move the item between 'waiting' and 'going'. To CLOSE a task, use session_end({done:true, completedHoursAfter}) instead — that's the only path that pushes Completed Work and zeros Remaining Work in one move."),
-      remainingWork: z.number().min(0).optional().describe('Task field, in hours. The live signal — burns down as work happens. If a task is taking longer than estimated, raise this number (Original Estimate stays fixed for variance reporting).'),
-      originalEstimate: z.number().min(0).optional().describe("Task field, in hours. BACKFILL ONLY — fills the Original Estimate when it's currently blank (e.g. a task that already existed with no estimate). REFUSED if the task already has one: that value is the baseline the delivery manager compares actual hours against, set once and never rewritten. To reflect a task growing, use remainingWork. Anchor the number to history with estimate_anchor before proposing it, same as at task_create."),
-      completedWork: z.number().min(0).optional().describe('Task field, in hours. Climbs up as work happens — overwrite (not additive). The DM tracks the sprint by this field.'),
-      effort: z.number().min(0).optional().describe('Story field, in hours. Total hours the user thinks the story is. StoryPoints is derived from this automatically (1 point = 1 workday) and written in the same patch — do not try to set points separately.'),
-      addTags: z.array(z.string().min(1)).optional().describe('Tag names to add to this item (e.g. ["Blocked"]). Case-insensitive dedup against existing tags.'),
+      title: z.string().min(1).optional().describe("New title. Others see it: confirm the exact wording with the user first."),
+      description: z.string().min(1).optional().describe("New description, plain text, line breaks kept. Others see it: confirm the exact wording with the user first."),
+      state: z.enum(['waiting', 'going']).optional().describe("'waiting' or 'going' only. Close a task with session_end done:true."),
+      remainingWork: z.number().min(0).optional().describe('Task hours left. Raise it when a task runs long; Original Estimate stays fixed.'),
+      originalEstimate: z.number().min(0).optional().describe("Task hours, only when blank (refused if already set — it's set once). Propose it with estimate_anchor first. A growing task raises remainingWork."),
+      completedWork: z.number().min(0).optional().describe('Task hours spent so far. Overwrites, does not add.'),
+      effort: z.number().min(0).optional().describe('Story hours. Story points follow on their own; never pass points.'),
+      addTags: z.array(z.string().min(1)).optional().describe('Tags to add. Never Blocked — use workitem_block.'),
       removeTags: z.array(z.string().min(1)).optional().describe('Tag names to remove from this item.'),
       iterationPath: z.string().min(1).optional().describe('Where to move the item: a sprint name exactly as the board shows it (e.g. "26_21"), or a full ADO iteration path, backslash-separated (e.g. "MyProject\\\\2026\\\\Q4" for a quarter or "MyProject\\\\2026\\\\Q4\\\\26_21" for a sprint). A bare name is looked up among the team\'s sprints. PLANNING RULE (enforced server-side): a started story (any state other than New / To Do / Proposed / Approved / Ready For Dev / Accepted) never changes sprint — move its open TASKS instead, or close the story. A never-started story and any task move freely.'),
     },
@@ -575,14 +575,14 @@ server.registerTool(
   {
     title: 'Close a story',
     description:
-      "Close a User Story or Bug (move it to the team's Done/Closed state) once its work is finished. STORIES ONLY — close Tasks via session_end({done:true, completedHoursAfter}), which captures the hours; a story has no hours of its own (they live on its tasks), so it closes directly here. Guards (all enforced server-side): refuses Tasks, Features and Epics; refuses to close a story that still has open (not-done) child tasks — close or move those first. Works for a story in ANY sprint, including leftovers from a previous iteration — closing a finished story is always allowed. Use this to close out a story whose tasks are all done.",
+      "Close a finished User Story or Bug, in any sprint. Tasks close with session_end done:true instead; Features and Epics are refused. Refuses while the story has open tasks — close or move them first, or use dropOpenTasks.",
     inputSchema: {
       workItemId: workItemIdSchema,
       dropOpenTasks: z
         .boolean()
         .optional()
         .describe(
-          "Only after the user said yes to dropping them by name: move the story's open tasks to Removed with no hours left (hours already spent stay), then close the story. For tasks that were never worked or stopped on purpose — never to hide real work.",
+          "Only after the user said yes to dropping the named tasks: moves open tasks to Removed (spent hours stay), then closes. Never to hide real work.",
         ),
       dropReason: z.string().optional().describe('Why the open tasks are dropped, in the user\'s words. Written as a comment on each one.'),
     },
@@ -763,7 +763,7 @@ server.registerTool(
   {
     title: 'Change a work item between User Story and Bug',
     description:
-      "Flip an existing work item's type between User Story and Bug. ONLY these two types — refuses Tasks, Features and Epics (changing those would corrupt the hierarchy). Refuses a no-op if the item is already the requested type. The type is visible to the user's delivery manager, so CONFIRM with the user before calling — don't flip a type on your own. The item's state carries across (Story and Bug share New/Active/Closed here). Returns the item's new type and state.",
+      "Flip an existing work item's type between User Story and Bug. ONLY these two types — refuses Tasks, Features and Epics (changing those would corrupt the hierarchy). Refuses a no-op if the item is already the requested type. Others see it: CONFIRM with the user first. The item's state carries across (Story and Bug share New/Active/Closed here). Returns the item's new type and state.",
     inputSchema: {
       workItemId: workItemIdSchema,
       toType: z.enum(['story', 'bug']).describe("Target type: 'story' (User Story) or 'bug' (Bug)."),
@@ -886,15 +886,15 @@ server.registerTool(
   {
     title: 'Mark a work item blocked (state + tag + structured log)',
     description:
-      "The ONLY way to mark something blocked. Moves the item to its 'Blocked' state (a first-class state here, not just a tag), adds a redundant 'Blocked' tag, remembers the prior state so workitem_unblock can restore it, opens a session if none is open, and logs a `blocker` entry with the reason, owner and unblockCondition. Safe on an already-blocked item: the board is left alone and the reply carries a `message` — read it back as-is. NEVER set Blocked through workitem_edit; that strands the why from the what.",
+      "The only way to block. Moves the item to Blocked and always adds the Blocked tag (the tag alone where there is no such state), remembers the old state for workitem_unblock, opens a session if none is open, and logs the reason. Already blocked → board untouched; read the reply's message back as-is.",
     inputSchema: {
       workItemId: workItemIdSchema,
       reason: z.string().min(1).describe("Plain-English why it's blocked (e.g. 'NAT EIP attach is failing in prod')."),
-      owner: z.string().optional().describe("Who's holding the block, if known (e.g. 'Yosef', 'Platform team', 'waiting on Legal')."),
+      owner: z.string().optional().describe("Who's holding it, if known (e.g. 'the platform team')."),
       unblockCondition: z
         .string()
         .optional()
-        .describe('Concrete condition for unblocking (e.g. "Yosef finishes NAT EIP retry logic", "Legal sign-off on Article 12 wording").'),
+        .describe('What has to happen to clear it (e.g. "the other team ships their fix").'),
     },
   },
   async ({ workItemId, reason, owner, unblockCondition }) => {
@@ -929,7 +929,7 @@ server.registerTool(
       const text = parts.join(' · ');
       const event = logEvent({ sessionId: session!.id, type: 'blocker', text });
 
-      // Mirror the reason into ADO's Discussion so the delivery manager sees
+      // Mirror the reason into ADO's Discussion so the team sees
       // it on the board (CommentCount bumps by one). Don't fail the whole
       // block action if the comment write fails — surface it in the payload.
       let adoComment: { posted: boolean; error?: string };
@@ -953,13 +953,13 @@ server.registerTool(
   {
     title: 'Clear a block on a work item (state + log)',
     description:
-      "ONE call to clear a block — use this as the only way to unblock. Transitions the work item back to its prior state in Azure DevOps (captured when workitem_block ran — typically Active, but could be 'Waiting for Testing' or another in-progress state). Removes the 'Blocked' tag, and writes a `decision`-type entry in the item's session log explaining what got unblocked. Opens a session on the item if one isn't already open. Use this even for drive-by unblocks — the log is how the user sees later that the block went away and why. Two cases do nothing at all: the item was never blocked, or it is blocked and we never wrote down the state it came from. Then the board is untouched, no comment is posted, no clock starts, and the reply carries a `message` — read it back to the user as-is, and for the second case ask them which state to put the item on and use workitem_edit.",
+      "The only way to unblock. Puts the item back in the state it had before workitem_block, removes the Blocked tag, logs why, and opens a session if none is open. Does nothing if it was never blocked or the old state is unknown: read the reply's message back as-is; in the second case ask which state and use workitem_edit.",
     inputSchema: {
       workItemId: workItemIdSchema,
       summary: z
         .string()
         .min(1)
-        .describe("Short plain-English note: what got unblocked / what changed (e.g. 'Yosef merged the NAT EIP retry fix', 'Legal cleared Article 12')."),
+        .describe("Plain note: what changed (e.g. 'the other team merged their fix')."),
     },
   },
   async ({ workItemId, summary }) => {
@@ -1030,7 +1030,7 @@ server.registerTool(
   {
     title: 'Create an ADO task',
     description:
-      "Create a new Task in Azure DevOps, placed in its parent story's iteration when parentStoryId is given (a backlog story gets a backlog task; a story stuck in a finished sprint sends the task to the current sprint), else in the current sprint, and assigned to them. Use after sprint_check_in returned `no_match` AND the user confirmed they want this work tracked. Ask the user for their hours estimate before calling — never guess. If the user says they'll estimate it later (normal for a task under a story that isn't planned into a sprint yet), pass estimateHours 0: that leaves Original Estimate and Remaining Work BLANK on the board, so it reads as 'not estimated yet' — and orient's missing-estimate count only looks at the current sprint, so it won't nag until the story is pulled in. Otherwise the number sets Original Estimate AND Remaining Work so the hours left start honest. Pass `adHoc: true` for the quick 1–2 hour case (tags it 'ad-hoc'). Pass `parentStoryId` to nest under an existing user story when known. Returns the new task's id and URL.",
+      "Create a Task assigned to the user: in its parent story's sprint when parentStoryId is given (a story in a finished sprint sends it to the current one), else in the current sprint. Use after sprint_check_in said no_match and the user wants it tracked. PROPOSE estimateHours with estimate_anchor and get the user's yes first — never call with a number they didn't confirm. adHoc: true tags a quick 1-2 hour task.",
     inputSchema: {
       title: z.string().min(1).describe('Task title — short and specific.'),
       description: z.string().optional().describe('Optional details. Plain text or simple HTML.'),
@@ -1043,7 +1043,7 @@ server.registerTool(
       estimateHours: z
         .number()
         .min(0)
-        .describe("REQUIRED. The user's own hours estimate — ask them. 0 means 'no estimate yet' (leaves both hour fields blank); any other number sets Original Estimate and Remaining Work."),
+        .describe("REQUIRED. Hours the user agreed to; sets Original and Remaining. 0 = the user will estimate later (both left blank)."),
       adHoc: z
         .boolean()
         .optional()
@@ -1072,14 +1072,14 @@ server.registerTool(
   {
     title: 'Create an ADO user story in the current sprint',
     description:
-      "Create a new User Story in Azure DevOps, placed in the user's current sprint and assigned to them. ALWAYS propose effortHours (see EFFORT in the instructions) and get the user's yes before calling — never call with a number they didn't confirm, never skip. Effort is the single planning field the POM delivery manager reads; Story Points are derived from it automatically (1 point = 1 workday, rounded to the nearest half) and written in the same patch. Pass `parentFeatureId` to nest under an existing Feature/Epic if the user has one. Returns the new story's id and URL.",
+      "Create a User Story in the current sprint, assigned to the user. PROPOSE effortHours (EFFORT in the instructions) and get the user's yes first — never call with a number they didn't confirm. Story points follow from effort. parentFeatureId nests it under a Feature or Epic.",
     inputSchema: {
       title: z.string().min(1).describe('Story title — short and specific.'),
       description: z.string().optional().describe('Optional details. Plain text or simple HTML.'),
       effortHours: z
         .number()
         .min(0)
-        .describe('REQUIRED. Total hours the user thinks this story is. Ask them for it before calling. StoryPoints is derived from this automatically (1 point = 1 workday) — do not pass points separately.'),
+        .describe('REQUIRED. Hours the user agreed to. Points follow on their own.'),
       parentFeatureId: z
         .number()
         .int()
@@ -1109,17 +1109,17 @@ server.registerTool(
   {
     title: 'Create an ADO Feature to group stories under',
     description:
-      "Create a new Feature in Azure DevOps, assigned to the user. Fire when the user wants a Feature to gather stories the user already wrote. NO effort or story-point questions — a Feature carries neither here. It lands at the backlog level above the current sprint. Pass `adoptStoryIds` to pull existing stories under it in the same call. `kind` is REQUIRED with no default — ASK THEM before calling; guessing means nagging about a discovery that was never needed, or skipping one that was. Returns the new Feature's id, URL and what happened to each adopted story.",
+      "Create a Feature assigned to the user, above the sprint. No hours or points. adoptStoryIds moves existing stories under it in the same call. kind is REQUIRED — ask the user, never guess.",
     inputSchema: {
       title: z.string().min(1).describe('Feature title — short and specific.'),
       description: z.string().optional().describe('Optional details. Plain text or simple HTML.'),
       kind: z
         .enum(['handed', 'grouping'])
-        .describe("REQUIRED — ask the user, never assume. 'grouping' = the user wrote the stories first and this Feature gathers them; there is nothing to discover or design and sprintomatic will never nudge about either. 'handed' = somebody gave them the problem to work out, so it goes the full way: discovery, then design, then the stories. The user can change it later with feature_kind_set."),
+        .describe("What the user said. 'grouping' = gathers stories they already wrote, no discovery or design. 'handed' = given a problem to work out. Changeable with feature_kind_set."),
       adoptStoryIds: z
         .array(z.number().int().positive())
         .optional()
-        .describe('Optional ids of stories that already exist and should move under this new Feature. Saves one workitem_reparent call each. A story that fails to move does not fail the call — the result says which moved and which did not.'),
+        .describe('Existing stories to move under it. The result says which moved.'),
       parentEpicId: z
         .number()
         .int()
@@ -1231,7 +1231,7 @@ server.registerTool(
             title: s.title,
             // When the design wrote board text for this story, that IS the
             // board description — no "Why this estimate" tail, that's for the
-            // design record, not for the delivery manager.
+            // design record, not for the team.
             description: s.boardDescription ?? `${s.covers}\n\nWhy this estimate: ${s.why}`,
             effortHours: s.estimateHours,
             parentFeatureId: active.id,
@@ -1301,14 +1301,14 @@ server.registerTool(
   {
     title: "Share a feature's docs to the team's architect repo",
     description:
-      "Fire when the user asks to share or publish a feature's docs to the team repo. Copies the readable set (discovery + design markdown, meetings, diagrams, demo and walkthrough html, story docs — NEVER transcripts or the .json files) into <docs folder>/<feature folder> on a branch for the feature (reuses one carrying the id, else creates feature-<id> off origin/main; NEVER main), commits, pushes and opens a PR. REFUSES on a dirty docs repo. If it asks for the docs repo path, ask the user where that repo is cloned and call again with docsRepoPath. TWO STEPS, ALWAYS: the plain call only shows the plan and writes nothing — read it back, ask them straight out, and only on their yes call again with confirmPush=true. Never send confirmPush=true on your own.",
+      "Share a feature's readable docs (never transcripts or .json) to the team docs repo on a feature branch (never main), then push and open a PR. Refuses a dirty docs repo. If it asks for the repo path, ask the user and pass docsRepoPath. TWO STEPS: the plain call only shows the plan; read it back and only on the user's yes call again with confirmPush=true.",
     inputSchema: {
       workItemId: z.number().int().positive().optional().describe('The feature id. Defaults to the active feature.'),
-      docsRepoPath: z.string().min(1).optional().describe('Absolute path of the cloned team docs repo. Only pass it when answering the first-time question; it is stored for next time.'),
+      docsRepoPath: z.string().min(1).optional().describe('Path of the cloned team docs repo; only when asked. Remembered.'),
       confirmPush: z
         .boolean()
         .optional()
-        .describe("Leave this out to preview: you get the branch, the folder and the file list, and nothing is written. Pass true ONLY after the user has seen that plan and said yes — true is what checks out the branch, copies the files, commits, pushes and opens the pull request in the team's repo."),
+        .describe("Leave out to preview. true ONLY after the user saw the plan and said yes."),
     },
   },
   async ({ workItemId, docsRepoPath, confirmPush }) => {
@@ -1364,14 +1364,14 @@ server.registerTool(
   {
     title: 'Create an ADO bug in the current sprint',
     description:
-      "Create a new Bug in Azure DevOps, placed in the user's current sprint and assigned to them. The twin of story_create — same flow: ALWAYS ask the user for effortHours before calling (never guess, never skip). Story Points are derived from it automatically (1 point = 1 workday). Pass `parentFeatureId` to nest under a Feature/Epic. Use this when the work is a defect rather than new scope. Note: Bugs have no 'Blocked' state in this tenant — workitem_block falls back to a tag for bugs. Returns the new bug's id and URL.",
+      "Create a Bug in the current sprint, assigned to the user — for a defect, not new work. Same flow as story_create: PROPOSE effortHours and get the user's yes first. parentFeatureId nests it under a Feature or Epic.",
     inputSchema: {
       title: z.string().min(1).describe('Bug title — short and specific.'),
       description: z.string().optional().describe('Optional details. Plain text or simple HTML.'),
       effortHours: z
         .number()
         .min(0)
-        .describe('REQUIRED. Total hours the user thinks this bug is. Ask them for it before calling. StoryPoints is derived from this automatically — do not pass points separately.'),
+        .describe('REQUIRED. Hours the user agreed to. Points follow on their own.'),
       parentFeatureId: z
         .number()
         .int()
@@ -1404,14 +1404,14 @@ server.registerTool(
   {
     title: 'Anchor an hour estimate on real past actuals',
     description:
-      "Pull real estimate-vs-actual data from the user's closed Azure DevOps tasks so you propose hour estimates anchored to history, not to gut. Call this BEFORE proposing OriginalEstimate for any new task (in task_create or workitem_edit). Returns: (1) siblings — closed tasks under the SAME parent story with their estimate / actual / ratio; (2) calibration — the user's recent closed tasks across the project with median/average actual-over-estimate ratios. The AI picks the most semantically similar siblings (read titles + types) and uses them as the primary anchor; the calibration ratio is a fallback multiplier when sibling data is sparse. calibration.summary is a ready plain sentence about how the user's guesses usually land (or that there are too few finished tasks yet) — paste it word for word when you propose the number. If isColdStart is true (no usable history at all), say so plainly to the user — propose a labeled gut estimate and ask if it feels right.",
+      "Real guessed-vs-actual hours from the user's finished tasks. Call BEFORE proposing any new estimate. siblings = finished tasks under the same parent (use the most similar as the anchor); calibration = how their guesses usually land. Paste calibration.summary word for word with your number. isColdStart → say there's no history and label the number a guess.",
     inputSchema: {
       parentId: z
         .number()
         .int()
         .positive()
         .optional()
-        .describe('Parent User Story id (or Feature/Epic if no story above). Sharper sibling anchor with it; without it, only the global calibration ratio comes back.'),
+        .describe('Parent story id (a Feature or Epic for a new story). Without it, only calibration comes back.'),
     },
   },
   async ({ parentId }) => {
@@ -1447,7 +1447,7 @@ server.registerTool(
   {
     title: 'Set the pre-plan goals from the PM email',
     description:
-      "Set the sprint goals shown on the user's PRIVATE Plan page — local only, never writes to Azure DevOps. Use it when the user pastes the delivery manager's goals email or says 'set my goals'. Before calling: confirm the email's sprint is the current one (ask them if it names another); take ONLY the current-sprint goal rows, dropping the header row, owner-name-only lines and any previous-sprint 'Is Achieved' table; capture each goal's `text` and `owner`; set `isMine` when the goal lines up with one of THEIR current-sprint stories (check sprint_snapshot), falling back to the owner name. If the pasted text isn't a goals email, say so and don't call this at all — never save junk. Each call REPLACES the whole goal set, so pass the full cleaned list. After saving, tell them the goals now show on the Plan page.",
+      "Save the sprint goals for the user's Plan page (local only). For a pasted goals email or 'set my goals'. Check the email is for the current sprint (ask if not). Keep only this sprint's goal rows — drop headers, name-only lines and last sprint's results. Each goal gets text and owner; isMine when it matches one of their sprint stories (sprint_snapshot), else by owner name. Not a goals email → say so, don't call. Each call replaces all goals. Then tell them it's on the Plan page.",
     inputSchema: {
       goals: z
         .array(
@@ -1457,7 +1457,7 @@ server.registerTool(
             isMine: z.boolean().optional().describe("True when this goal is the user's (story-match first, owner-name fallback). Defaults false."),
           }),
         )
-        .describe('The full, cleaned list of current-sprint goals. Replaces any existing goals for the sprint.'),
+        .describe('The full cleaned list; replaces what is saved.'),
     },
   },
   async ({ goals }) => {
@@ -1532,7 +1532,7 @@ server.registerTool(
   {
     title: 'Start a work session',
     description:
-      "Open a session against a TASK (or a Bug) — never a container. Passing a User Story / Feature / Epic REFUSES and returns its open tasks; pick one (or ask the user which) and call again with that id. Returns a sessionId for later session_log / session_end calls, and is idempotent: an already-open session comes back as-is. AUTO-FLIPS the item from a waiting state (New / To Do / Proposed) to going (Active / In Progress), and flips its parent Story too when the item is a Task. Silent, no prompt. Reports `stateFlip` and `parentStoryFlip` so you can mention it casually. REFUSES a task that is not in the current sprint (an old sprint, a quarter, the backlog) — work on it would land where no sprint board shows it. Ask the user: move it in first, or pass outsideSprintOk: true to work on it where it is. REFUSES a Task with no Original Estimate — anchor with estimate_anchor, agree a number with the user, then call again with estimateHours.",
+      "Open a session on a TASK or Bug. A story, feature or epic is refused with its open tasks: pick one or ask. Returns a sessionId; an open session comes back as-is. Flips a not-started task (and its story) to in work and reports stateFlip / parentStoryFlip. Refuses a task outside the current sprint: ask the user to move it in, or pass outsideSprintOk. Refuses a task with no Original Estimate: propose one with estimate_anchor, get a yes, call again with estimateHours.",
     inputSchema: {
       workItemId: workItemIdSchema,
       outsideSprintOk: z
@@ -1543,15 +1543,15 @@ server.registerTool(
         .number()
         .gt(0)
         .optional()
-        .describe("Only when the task has no Original Estimate yet (session_start refuses such a task). The hours the user agreed to — anchor with estimate_anchor first. Fills Original Estimate, and Remaining Work if that's blank too."),
+        .describe("Only for a task with no Original Estimate: the hours the user agreed to. Fills Original (and Remaining if blank)."),
       client: z
         .string()
         .optional()
-        .describe('Leave this out — the chat app (Claude Code, Copilot CLI) is detected automatically. Only used when detection finds nothing.'),
+        .describe('Leave out; detected automatically.'),
       cwd: z
         .string()
         .optional()
-        .describe("This chat's current working directory (absolute path), read from your environment — the same value you pass to story_match. Binds the session to this chat's folder so other chats can tell whose session it is. Omit only if genuinely unknown."),
+        .describe("This chat's folder (absolute path), same as for story_match. Ties the session to this chat."),
     },
   },
   async ({ workItemId, client, cwd, outsideSprintOk, estimateHours }) => {
@@ -1697,7 +1697,7 @@ server.registerTool(
   {
     title: 'Log a session event (and optionally burn down RemainingWork)',
     description:
-      "Record an event in an open session. Types: 'focus' (switching attention), 'progress' (what got done so far), 'blocker' (something getting in the way), 'decision' (a tradeoff the user chose), 'note' (anything else). These surface in their Day dashboard. PLUS — for 'progress' events that completed a substantial chunk of work, pass `remainingHoursAfter` to burn down RemainingWork on the task in the same call. Single tool call replaces logEvent + workitem_edit; you cannot forget the second step. Skip the field for small tweaks or non-progress events.",
+      "Log a checkpoint in an open session (local only, shown on the dashboard). Types: focus, progress, blocker, decision, note. On a progress log that finished a real chunk, pass remainingHoursAfter to update Remaining in the same call.",
     inputSchema: {
       sessionId: z.string().describe('Session id returned by session_start.'),
       type: z.enum(['focus', 'progress', 'blocker', 'decision', 'note']),
@@ -1707,19 +1707,19 @@ server.registerTool(
         .min(1)
         .optional()
         .describe(
-          "1-2 sentence read-this-tomorrow blurb for the standup card. REQUIRED on `progress` and `blocker` events — the tool refuses those without it. It's what the user sees on their Yesterday/Today rows when the user opens the dashboard. PLAIN, NON-TECHNICAL gist — what it MEANT in human terms, ≤200 chars: 'what I got done (and the next step, if obvious)' or 'what's stuck and who unblocks it'. NO file names, paths, branch/commit/PR/ticket references, schema or config names, or product/tool/cluster names — those belong in `text`, not here. Optional on `focus`, `decision`, and `note` events, which don't surface on the standup card.",
+          "REQUIRED on progress and blocker. 1-2 plain sentences (≤200 chars) the user would say at the Daily: what got done, or what's stuck and who can clear it. No file names, paths, branches, commits, ids or tool names — those go in text.",
         ),
       remainingHoursAfter: z
         .number()
         .gt(0)
         .optional()
         .describe(
-          "Honest estimate of how many hours of work are LEFT on this task after this progress event. MUST be strictly > 0 — if the task is done, call session_end with done=true instead, which runs the proper close-the-loop (push CompletedWork, close the task). Setting RemainingWork to 0 via session_log leaves the task in a broken state (Remaining=0 but session still open, CompletedWork not pushed). If set, sprintomatic writes RemainingWork on the work item in the same call. Only include when the event represents a substantial chunk of work landing (not for tweaks, focus shifts, blockers, or pure notes). The whole point is keeping the burn-down honest without forcing a separate tool call.",
+          "Honest hours LEFT after this chunk; written to Remaining. Must be > 0 — a finished task closes with session_end done:true. Only for a real chunk landing.",
         ),
       cwd: z
         .string()
         .optional()
-        .describe("This chat's current working directory (absolute path), read from your environment. Lets sprintomatic warn you if you're logging against a session another chat (a different repo) started. Omit only if unknown."),
+        .describe("This chat's folder (absolute path). Warns if the session is another chat's."),
     },
   },
   async ({ sessionId, type, text: rawText, standupSummary: rawStandupSummary, remainingHoursAfter, cwd }) => {
@@ -1845,19 +1845,19 @@ server.registerTool(
   {
     title: 'End a work session',
     description:
-      'Close a session with a one-line summary. done=true ONLY after the user confirms the task is finished AND confirms the Completed hours — it pushes CompletedWork, sets RemainingWork=0 and moves the state to Done. Omit done when the user is just stopping: the timer pauses, nothing reaches Azure DevOps. Azure DevOps is written first and the session closes only if that all goes through, so a failed push leaves the session open and re-calling with the same numbers is safe. With done=true it REFUSES a task that is not in the current sprint — ask the user: move it in first, or pass outsideSprintOk: true to close it where it is.',
+      'Close a session with a one-line summary. done=true ONLY after the user confirms the task is finished AND the Completed hours: writes Completed, Remaining 0 and Done. Without done it is a pause: the timer stops, and only remainingHoursAfter (if passed) is written. The board is written first; a failed write leaves the session open, so calling again is safe. done=true refuses a task outside the current sprint: ask the user to move it in, or pass outsideSprintOk.',
     inputSchema: {
       sessionId: z.string(),
       summary: z.string().optional(),
       done: z
         .boolean()
         .optional()
-        .describe('True only when the user has explicitly confirmed the task is complete. Pushes CompletedWork + RemainingWork=0 + state=Done to Azure DevOps.'),
+        .describe('Only after the user said the task is finished.'),
       completedHoursAfter: z
         .number()
         .gt(0)
         .optional()
-        .describe('REQUIRED when done=true. The CompletedWork hours to push, from OriginalEstimate − new RemainingWork (adjusted for an overrun), matching the number the user confirmed in chat.'),
+        .describe('REQUIRED with done=true: the Completed hours the user confirmed (Original − Remaining, or the real hours if it ran over).'),
       outsideSprintOk: z
         .boolean()
         .optional()
@@ -1866,17 +1866,17 @@ server.registerTool(
         .number()
         .gt(0)
         .optional()
-        .describe("PAUSE path only (ignored when done=true). Honest hours LEFT on the task, written to RemainingWork so the board doesn't go stale. Required if you logged progress this session but never burned Remaining down; pass the same number if it genuinely hasn't moved."),
+        .describe("Pause only: honest hours left, written to Remaining. Required if this session logged progress but never updated Remaining; pass the same number if it has not moved."),
       cwd: z
         .string()
         .optional()
-        .describe("This chat's current working directory (absolute path), read from your environment. Lets sprintomatic warn you if you're closing a session another chat (a different repo) started. Omit only if unknown."),
+        .describe("This chat's folder (absolute path). Warns if the session is another chat's."),
     },
   },
   async ({ sessionId, summary, done, completedHoursAfter, remainingHoursAfter, cwd, outsideSprintOk }) => {
     if (done && completedHoursAfter === undefined) {
       return errorResult(
-        'completedHoursAfter is required when done=true. Propose the number using the formula (CompletedWork = OriginalEstimate − new RemainingWork, adjusted for overrun), confirm with the user in chat, then pass it as completedHoursAfter. Closing a task without an explicit Completed value leaves CompletedWork at its historical value on Azure DevOps — usually 0 — which is the wrong signal for the delivery manager.',
+        'completedHoursAfter is required when done=true: propose Original − Remaining (or the real hours if it ran over), get the user\'s yes, then pass it.',
       );
     }
 
@@ -2487,14 +2487,14 @@ server.registerTool(
   {
     title: 'Start work on a feature (folder + board visibility)',
     description:
-      "Fire when the user names a feature to start non-code work on ('let's work on feature #NNNNNN'). Reads the feature title, creates a subfolder for it inside their workspace, records the feature as one they're driving, AND marks it the ACTIVE feature (so a resumed or compacted session re-anchors on the right folder via orient). Naming a different feature later just calls this again — that overwrites the active feature; that's how the user switches. Returns the folder path — write discovery/design docs there. The user stays in the workspace root chat. REFUSES while a session started in this workspace is still open: ask the user whether to stop it, finish it, or leave it running, then act on their answer (see leaveSessionRunning).",
+      "When the user names a feature to work on in their workspace. Makes its subfolder and makes it the active feature (calling again with another feature switches). Returns the folder path for its docs. Refuses while a session from this workspace is open: ask the user to stop it, finish it, or leave it running.",
     inputSchema: {
       workItemId: z.number().int().positive().describe('The Azure DevOps feature id.'),
       cwd: z.string().min(1).describe('The chat cwd from your environment.'),
       leaveSessionRunning: z
         .boolean()
         .optional()
-        .describe("Pass true ONLY after the user has been told a session is still open in this workspace and has said to leave it running anyway. Skips the open-session check. Never set it on your own — the whole point is that the user decides where their hours land."),
+        .describe("true ONLY after the user said to leave the open session running."),
     },
   },
   async ({ workItemId, cwd, leaveSessionRunning }) => {
@@ -2614,12 +2614,12 @@ server.registerTool(
   {
     title: 'Say which kind of feature this is',
     description:
-      "Record which of the two ways a feature arrived. Call this right after the user answers the question — either because `workspace_feature_folder` refused for not knowing, or because orient reported `featureKindUnknown`, or because they're changing their mind about one the user already answered. 'grouping' = the user wrote the stories first and the feature gathers them: no discovery, no design, and sprintomatic never nudges about either. 'handed' = somebody gave them the problem to work out: discovery, then design, then the stories. Changeable any time — a grouping feature can turn out to need a real design, and a day-one answer isn't binding. NEVER call this with a kind the user didn't say.",
+      "Save the feature's kind right after the user answers (a refusal or featureKindUnknown asked, or they changed their mind). Changeable any time. NEVER a kind the user didn't say.",
     inputSchema: {
       workItemId: z.number().int().positive().describe('The Azure DevOps feature id.'),
       kind: z
         .enum(['handed', 'grouping'])
-        .describe("What the user said. 'handed' = given to them to work out. 'grouping' = the user made it to gather stories the user already wrote."),
+        .describe("'handed' = given a problem to work out. 'grouping' = gathers stories they already wrote."),
     },
   },
   async ({ workItemId, kind }) => {
@@ -2705,11 +2705,11 @@ server.registerTool(
   {
     title: 'Match a chat to a sprint story',
     description:
-      "Given the chat's cwd (plus optional git remote and recent commit subjects), rank current-sprint stories by relevance. Returns three things: `learnedMatch` (a previously-confirmed story for this cwd in this sprint, if any), `topMatch` (the strongest heuristic candidate above the confidence threshold, or null), and `allStories` (every open sprint story sorted by score descending so the assistant can show alternatives). Call this on first activity in a chat to identify which story to attach to, BEFORE asking the user to pick — and show them the top guess alongside the full list so the user can override.",
+      "Rank this sprint's stories for this chat's folder. Returns learnedMatch (confirmed before), topMatch (best guess or null) and allStories. Call before asking the user which story.",
     inputSchema: {
       cwd: z.string().min(1).describe("The chat's current working directory (absolute path). Strongest signal for matching."),
       gitRemote: z.string().optional().describe('Optional: the chat\'s git remote URL or short name. The last path segment is used.'),
-      recentCommits: z.array(z.string()).optional().describe('Optional: recent commit subject lines for this repo, newest first. Bounded to ~10 for relevance.'),
+      recentCommits: z.array(z.string()).optional().describe('Recent commit subjects, newest first, up to ~10.'),
       recentFiles: z.array(z.string()).optional().describe('Optional: file paths recently touched in this chat. Basenames are used.'),
     },
   },
@@ -2784,12 +2784,12 @@ server.registerTool(
   {
     title: 'Declare what a repo serves',
     description:
-      "Write `.sprintomatic/link.json` at this repo's root, saying which board feature(s) — or loose stories — this repo is for. Fires when the user SAYS it ('this repo belongs to feature X', 'link this repo to the CD feature'), never from a menu. The file holds ids only; orient works out the live picture from them every time. It is kept out of the team's git through the repo's local exclude list. Every id is checked against the board first — a typo must never become a lasting link.",
+      "Record which features or stories this repo is for (.sprintomatic/link.json, ids only, kept out of git). Only when the user says it. Every id is checked first.",
     inputSchema: {
       cwd: z
         .string()
         .min(1)
-        .describe("This chat's working directory (full path, starting with \"/\"). The tool walks up to the git root and writes there."),
+        .describe("This chat's folder (absolute path)."),
       featureIds: z
         .array(workItemIdSchema)
         .optional()
