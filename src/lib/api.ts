@@ -698,9 +698,18 @@ export interface ApiWorkItemComment {
   createdDate: string;
 }
 
+/** What only this app knows about the item: its timer and the chats' log. */
+export interface ApiWorkItemLocal {
+  timeSpentSeconds: number;
+  timerRunning: boolean;
+  /** Newest first. */
+  activity: { type: string; text: string; createdAt: string }[];
+}
+
 export interface ApiWorkItemDetailResponse {
   item: ApiWorkItemDetail;
   comments: ApiWorkItemComment[];
+  local?: ApiWorkItemLocal;
 }
 
 export type WorkItemFetchState =
@@ -750,23 +759,25 @@ export function nameFromEmail(email: string): string {
 /*  Work item edits                                                           */
 /* -------------------------------------------------------------------------- */
 
-/** Block a work item (Task / User Story). Returns the new ADO state. */
-export async function postWorkItemBlock(workItemId: string): Promise<{ state: string }> {
-  return postBlockAction(workItemId, 'block');
+/** Block a work item (Task / User Story) with a reason. Returns the new ADO state. */
+export async function postWorkItemBlock(workItemId: string, reason: string): Promise<{ state: string }> {
+  return postBlockAction(workItemId, 'block', { reason });
 }
 
 /** Clear a block on a work item. Returns the new ADO state. */
-export async function postWorkItemUnblock(workItemId: string): Promise<{ state: string }> {
-  return postBlockAction(workItemId, 'unblock');
+export async function postWorkItemUnblock(workItemId: string, summary?: string): Promise<{ state: string }> {
+  return postBlockAction(workItemId, 'unblock', { summary });
 }
 
 async function postBlockAction(
   workItemId: string,
   action: 'block' | 'unblock',
+  payload: Record<string, unknown>,
 ): Promise<{ state: string }> {
   const r = await fetch(`/api/workitem/${encodeURIComponent(workItemId)}/${action}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
   });
   const body = await r.json();
   if (!r.ok || 'error' in body) {
@@ -961,16 +972,25 @@ export async function moveWorkItemToIteration(workItemId: number, iterationPath:
   }
 }
 
-export async function markWorkItemDone(workItemId: number, completedHours: number): Promise<void> {
+/** Thrown when the task sits outside the current sprint; resend with outsideSprintOk. */
+export class OutsideSprintError extends Error {}
+
+export async function markWorkItemDone(
+  workItemId: number,
+  completedHours: number,
+  outsideSprintOk = false,
+): Promise<{ storyCloseSuggestion?: { workItemId: number; displayName: string } }> {
   const r = await fetch(`/api/workitem/${workItemId}/edit`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ state: 'done', completedHours }),
+    body: JSON.stringify({ state: 'done', completedHours, outsideSprintOk }),
   });
   const body = await r.json().catch(() => ({}));
   if (!r.ok || (body && 'error' in body)) {
-    throw new Error((body && body.error) || 'Could not close the work item');
+    const msg = (body && body.error) || 'Could not close the work item';
+    throw body && body.outsideSprint ? new OutsideSprintError(msg) : new Error(msg);
   }
+  return body.applied ?? {};
 }
 
 /* -------------------------------------------------------------------------- */

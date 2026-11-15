@@ -8,7 +8,10 @@ import {
   type ApiWorkItemDetail,
   type ApiWorkItemRef,
   type ApiWorkItemComment,
+  type ApiWorkItemLocal,
 } from '../lib/api';
+import { fmtSpent, undoDoubleEscape, unusualMeta } from '../lib/drawerBits';
+import { AskForm } from './AskForm';
 import { Mono } from './Mono';
 
 // ADO descriptions arrive in two flavors: HTML (from rich-text editing) and
@@ -56,7 +59,6 @@ export function WorkItemDrawer({ itemId, onClose, onNavigate }: WorkItemDrawerPr
             <Mono>#{itemId}</Mono>
           </span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {state.status === 'ok' && <BlockButton item={state.data.item} onChanged={refresh} />}
             <button className="ember-sync" onClick={refresh} title="Refresh from Azure DevOps">
               <span className="ember-sync-icon">↻</span>
             </button>
@@ -73,7 +75,9 @@ export function WorkItemDrawer({ itemId, onClose, onNavigate }: WorkItemDrawerPr
             <DrawerContent
               item={state.data.item}
               comments={state.data.comments}
+              local={state.data.local}
               onNavigate={onNavigate}
+              onChanged={refresh}
             />
           )}
         </div>
@@ -102,12 +106,19 @@ function DrawerError({ error }: { error: string }) {
 function DrawerContent({
   item,
   comments,
+  local,
   onNavigate,
+  onChanged,
 }: {
   item: ApiWorkItemDetail;
   comments: ApiWorkItemComment[];
+  local?: ApiWorkItemLocal;
   onNavigate: (id: string) => void;
+  onChanged: () => void;
 }) {
+  const extra = unusualMeta(item);
+  const spentSec = local?.timeSpentSeconds ?? 0;
+  const activity = local?.activity ?? [];
   return (
     <>
       {/* Title + metadata */}
@@ -115,22 +126,42 @@ function DrawerContent({
 
       <div className="ember-drawer-meta">
         <MetaPill label="State" value={item.state} accent />
-        {item.assignedTo && <MetaPill label="Assigned to" value={item.assignedTo} />}
         <MetaPill label="Iteration" value={lastSegment(item.iterationPath)} />
-        <MetaPill label="Area" value={lastSegment(item.areaPath)} />
-        {item.priority != null && <MetaPill label="Priority" value={String(item.priority)} />}
+        {extra.assignedTo && <MetaPill label="Assigned to" value={extra.assignedTo} />}
+        {extra.area && <MetaPill label="Area" value={extra.area} />}
+        {extra.priority != null && <MetaPill label="Priority" value={String(extra.priority)} />}
         {item.tags && <MetaPill label="Tags" value={item.tags} />}
       </div>
 
-      {/* Effort numbers */}
-      {(item.originalEstimate != null ||
+      {/* Effort numbers. "Time spent" is this app's timer; "written to the
+          board" is the board's Completed field. Two names for two things. */}
+      {(spentSec > 0 ||
+        item.originalEstimate != null ||
         item.completedWork != null ||
         item.remainingWork != null) && (
         <div className="ember-drawer-effort">
-          <EffortBlock label="logged" value={item.completedWork ?? 0} accent />
+          <div className="ember-drawer-effort-block">
+            <Mono className="accent">{fmtSpent(spentSec)}</Mono>
+            <span className="dim-small">time spent{local?.timerRunning ? ' · timer on' : ''}</span>
+          </div>
+          <EffortBlock label="written to the board" value={item.completedWork ?? 0} />
           <EffortBlock label="estimate" value={item.originalEstimate ?? 0} dim />
           <EffortBlock label="remaining" value={item.remainingWork ?? 0} dim />
         </div>
+      )}
+
+      {/* What the chats did on this task — only this app knows it. */}
+      {activity.length > 0 && (
+        <Section title="What happened">
+          <ul className="ember-drawer-activity">
+            {activity.map((e, i) => (
+              <li key={i} className={`ev-${e.type}`}>
+                <time className="dim-small">{formatTimestamp(e.createdAt)}</time>
+                <span>{e.text}</span>
+              </li>
+            ))}
+          </ul>
+        </Section>
       )}
 
       {/* Parent */}
@@ -197,6 +228,8 @@ function DrawerContent({
           </div>
         </Section>
       )}
+
+      <BlockButton key={item.id} item={item} onChanged={onChanged} />
 
       {/* Footer */}
       <footer className="ember-drawer-foot">
@@ -279,7 +312,7 @@ function SafeHtml({ html }: { html: string }) {
     // Render through markdown-it first so markdown bodies become real HTML.
     // HTML inputs pass through (html:true), then DOMPurify enforces the
     // tag/attr allow-list.
-    const rendered = md.render(html);
+    const rendered = undoDoubleEscape(md.render(html));
     return DOMPurify.sanitize(rendered, {
       ALLOWED_TAGS: [
         'p', 'div', 'span', 'br', 'hr',
@@ -314,18 +347,19 @@ function isBlockedNow(state: string, tags?: string): boolean {
 
 function BlockButton({ item, onChanged }: { item: ApiWorkItemDetail; onChanged: () => void }) {
   const [pending, setPending] = useState(false);
+  const [asking, setAsking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!BLOCKABLE_TYPES.has(item.type.trim().toLowerCase())) return null;
 
   const blocked = isBlockedNow(item.state, item.tags);
 
-  async function toggle() {
+  async function run(action: () => Promise<unknown>) {
     setPending(true);
     setError(null);
     try {
-      if (blocked) await postWorkItemUnblock(String(item.id));
-      else await postWorkItemBlock(String(item.id));
+      await action();
+      setAsking(false);
       onChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'failed');
@@ -335,17 +369,27 @@ function BlockButton({ item, onChanged }: { item: ApiWorkItemDetail; onChanged: 
   }
 
   return (
-    <span className="ember-drawer-block">
+    <div className="ember-drawer-block">
+      {asking ? (
+        <AskForm
+          label="Why is it blocked? This is saved on the board too."
+          placeholder="Waiting for the other team's fix"
+          submitText={pending ? 'Saving…' : 'Mark blocked'}
+          onSubmit={reason => void run(() => postWorkItemBlock(String(item.id), reason))}
+          onCancel={() => { setAsking(false); setError(null); }}
+        />
+      ) : (
+        <button
+          className="ember-block-btn"
+          onClick={() => (blocked ? void run(() => postWorkItemUnblock(String(item.id))) : setAsking(true))}
+          disabled={pending}
+          title={blocked ? 'Clear the block on the board' : 'Mark it blocked on the board, with a reason'}
+        >
+          {pending ? '…' : blocked ? 'Clear the block' : 'Mark as blocked…'}
+        </button>
+      )}
       {error && <span className="ember-block-error dim-small">{error}</span>}
-      <button
-        className={`ember-block-btn ${blocked ? 'is-blocked' : ''}`}
-        onClick={toggle}
-        disabled={pending}
-        title={blocked ? 'Clear the block in Azure DevOps' : 'Mark blocked in Azure DevOps'}
-      >
-        {pending ? '…' : blocked ? 'Unblock' : 'Block'}
-      </button>
-    </span>
+    </div>
   );
 }
 

@@ -7,6 +7,7 @@ import {
   fetchPrePlan,
   markWorkItemDone,
   moveWorkItemToIteration,
+  OutsideSprintError,
   postCarryForward,
   type ApiCockpitBacklogStory,
   type ApiCockpitCapacity,
@@ -21,6 +22,8 @@ import {
   type ApiPrePlanGoal,
 } from '../lib/api';
 import { boardStateClass } from '../lib/boardStateClass';
+import { parseHours } from '../lib/drawerBits';
+import { AskForm } from './AskForm';
 
 type ScanState =
   | { status: 'idle' }
@@ -96,6 +99,10 @@ export function PlanView({ onOpenItem, onScanComplete }: PlanViewProps) {
   const [cockpit, setCockpit] = useState<CockpitState>({ status: 'loading' });
   const [actingOn, setActingOn] = useState<number | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  // A plain note after closing a task: its story can close too.
+  const [actionNote, setActionNote] = useState<string | null>(null);
+  // A close that stopped because the task sits outside the current sprint.
+  const [outsideAsk, setOutsideAsk] = useState<{ taskId: number; hours: number; message: string } | null>(null);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   // Session-local tally of effort/hours pulled into the next sprint via the
   // pull buttons. Resets when Plan re-mounts. The meter reads this against
@@ -181,14 +188,23 @@ export function PlanView({ onOpenItem, onScanComplete }: PlanViewProps) {
     await refreshCockpit();
   };
 
-  const onCloseTask = async (taskId: number, completedHours: number) => {
+  // Same server path as closing in a chat: the timer stops, the open
+  // session closes, and a task outside the sprint asks first.
+  const onCloseTask = async (taskId: number, completedHours: number, outsideSprintOk = false) => {
     setActingOn(taskId);
     setActionError(null);
+    setActionNote(null);
+    setOutsideAsk(null);
     try {
-      await markWorkItemDone(taskId, completedHours);
+      const done = await markWorkItemDone(taskId, completedHours, outsideSprintOk);
+      const story = done.storyCloseSuggestion;
+      if (story) {
+        setActionNote(`That was the last open task of ${story.displayName.replace(/\*\*/g, '')}. You can close the story too.`);
+      }
       await refreshCockpit();
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Close failed');
+      if (err instanceof OutsideSprintError) setOutsideAsk({ taskId, hours: completedHours, message: err.message });
+      else setActionError(err instanceof Error ? err.message : 'Close failed');
     } finally {
       setActingOn(null);
     }
@@ -266,6 +282,19 @@ export function PlanView({ onOpenItem, onScanComplete }: PlanViewProps) {
         <div className="plan2-error" role="alert">
           {actionError}
           <button onClick={() => setActionError(null)}>dismiss</button>
+        </div>
+      )}
+      {outsideAsk && (
+        <div className="plan2-note" role="alert">
+          {outsideAsk.message}
+          <button onClick={() => void onCloseTask(outsideAsk.taskId, outsideAsk.hours, true)}>Close it there anyway</button>
+          <button onClick={() => setOutsideAsk(null)}>Cancel</button>
+        </div>
+      )}
+      {actionNote && (
+        <div className="plan2-note" role="status">
+          {actionNote}
+          <button onClick={() => setActionNote(null)}>dismiss</button>
         </div>
       )}
 
@@ -640,10 +669,13 @@ function CloseOutTaskRow({
   onCloseTask: (taskId: number, completedHours: number) => Promise<void>;
   onOpenItem?: (id: string) => void;
 }) {
+  const [askingHours, setAskingHours] = useState(false);
   const stateClass = boardStateClass(task.state);
   const rem = task.remainingWork != null ? `${Math.round(task.remainingWork)}h` : '—';
   const remMissing = task.remainingWork == null;
+  const def = task.originalEstimate ?? task.remainingWork ?? null;
   return (
+    <>
     <li className={`plan2-subrow plan2-row is-${stateClass}`}>
       <KindBadge kind={kindFromType(task.type)} />
       <StateChip state={task.state} />
@@ -685,25 +717,29 @@ function CloseOutTaskRow({
           type="button"
           className="plan2-act plan2-act-done"
           disabled={busy}
-          onClick={() => {
-            const def = task.originalEstimate ?? task.remainingWork ?? null;
-            const raw = window.prompt(
-              `Mark "${task.title}" done.\nHow many hours did it actually take? Saved to Azure DevOps as Completed.`,
-              def != null ? String(def) : '',
-            );
-            if (raw == null) return; // cancelled
-            const hours = Number(raw.trim());
-            if (!Number.isFinite(hours) || hours <= 0 || hours > 999) {
-              window.alert('Enter the hours it took as a number greater than 0 (max 999).');
-              return;
-            }
-            void onCloseTask(task.id, hours);
-          }}
+          onClick={() => setAskingHours(a => !a)}
         >
           ✓ done
         </button>
       </span>
     </li>
+    {askingHours && (
+      <li className="plan2-ask">
+        <AskForm
+          label={`How many hours did "${task.title}" really take? This is written to the board.`}
+          initial={def != null ? String(def) : ''}
+          inputMode="decimal"
+          submitText="Mark done"
+          check={v => (parseHours(v) == null ? 'Type the hours as a number above 0 (999 at most).' : null)}
+          onSubmit={v => {
+            setAskingHours(false);
+            void onCloseTask(task.id, parseHours(v)!);
+          }}
+          onCancel={() => setAskingHours(false)}
+        />
+      </li>
+    )}
+    </>
   );
 }
 
