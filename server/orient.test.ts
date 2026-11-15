@@ -442,6 +442,9 @@ describe('nextLineFrom', () => {
   it('ignores Next in the middle of a sentence', () => {
     expect(nextLineFrom(['The Next: step is unclear'])).toBeNull();
   });
+  it('skips an empty Next line and drops a closing bold mark', () => {
+    expect(nextLineFrom(['Next:   \nmore text', '**Next: ship it**'])).toBe('Next: ship it');
+  });
   it('returns null with no logs', () => {
     expect(nextLineFrom([])).toBeNull();
   });

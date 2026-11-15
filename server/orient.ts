@@ -522,7 +522,7 @@ export function pickLastSession(
   return { row: rows[0], fromThisRepo: false, repoRows: [] };
 }
 
-const NEXT_LINE = /^\s*(?:[-*]\s+)?(?:\*\*)?Next:(?:\*\*)?\s*(.+?)\s*$/gim;
+const NEXT_LINE = /^[ \t]*(?:[-*][ \t]+)?(?:\*\*)?Next:(?:\*\*)?[ \t]*(\S.*?)(?:\*\*)?[ \t]*$/gim;
 
 /** The newest "Next: …" line in log texts given newest first. Within one
  *  text the last such line wins. */

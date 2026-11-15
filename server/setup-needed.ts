@@ -20,4 +20,4 @@ export function isSetupNeeded(err: unknown): boolean {
  *  returns it on a first run and setup prints it. */
 export const NO_SPRINT_STEP =
   'Your team has no sprint that covers today. In Azure DevOps open Project settings → '
-  + 'Team configuration → Iterations, pick a sprint for your team with dates that cover today.';
+  + 'Team configuration → Iterations and pick a sprint for your team with dates that cover today.';
