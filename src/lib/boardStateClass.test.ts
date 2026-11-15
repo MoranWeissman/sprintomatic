@@ -50,4 +50,7 @@ describe('boardStateWord', () => {
     expect(boardStateWord('Blocked')).toBe('stuck');
     expect(boardStateWord('Closed')).toBe('done');
   });
+  it('keeps the board word for a state it does not know', () => {
+    expect(boardStateWord('Under Review')).toBe('Under Review');
+  });
 });

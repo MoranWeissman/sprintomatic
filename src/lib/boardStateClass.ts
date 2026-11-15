@@ -36,7 +36,12 @@ const STATE_WORD: Record<BoardStateClass, string> = {
   done: 'done',
 };
 
-/** A raw board state as the plain word the screens use, e.g. 'Closed' → 'done'. */
+/**
+ * A raw board state as the plain word the screens use, e.g. 'Closed' → 'done'.
+ * A state we have never seen keeps the board's own word: saying 'not started'
+ * there would be a status the board never gave.
+ */
 export function boardStateWord(state: string | null | undefined): string {
+  if (classifyBoardState(state) === 'unknown' && state && state.trim()) return state;
   return STATE_WORD[boardStateClass(state)];
 }
