@@ -16,6 +16,10 @@ describe('hoursAnswer', () => {
     expect(hoursAnswer({ loggedSeconds: 9 * H, guessHours: 8, leftHours: 1 })).toBe('9h spent of an 8h guess');
   });
 
+  it('drops the left half when the board hours are past the guess, like the over-estimate line', () => {
+    expect(hoursAnswer({ loggedSeconds: 2 * H, guessHours: 8, leftHours: 1, completedHours: 9 })).toBe('2h spent of an 8h guess');
+  });
+
   it('drops the left half when the board has no hours left set', () => {
     expect(hoursAnswer({ loggedSeconds: 3 * H, guessHours: 6, leftHours: null })).toBe('3h spent of a 6h guess');
   });

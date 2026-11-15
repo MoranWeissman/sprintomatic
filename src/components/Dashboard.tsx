@@ -1347,7 +1347,7 @@ function FocusTaskDrill({
         </span>
       </div>
       <p className="r21-answer">
-        {hoursAnswer({ loggedSeconds: loggedSec, guessHours: task.originalEstimate, leftHours: task.remainingWork })}
+        {hoursAnswer({ loggedSeconds: loggedSec, guessHours: task.originalEstimate, leftHours: task.remainingWork, completedHours: task.completedWork })}
       </p>
       <OverEstimateLine task={task} />
 

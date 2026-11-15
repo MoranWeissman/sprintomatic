@@ -1,3 +1,5 @@
+import { overEstimate } from '../../server/over-estimate';
+
 /** "3h 10m", "45m", "0m". */
 function hm(seconds: number): string {
   const min = Math.round(seconds / 60);
@@ -24,6 +26,8 @@ export function hoursAnswer(opts: {
   loggedSeconds: number;
   guessHours: number | null | undefined;
   leftHours: number | null | undefined;
+  /** The board's Completed Work, so "past the guess" matches the over-estimate line. */
+  completedHours?: number | null;
 }): string {
   const spent = `${hm(opts.loggedSeconds)} spent`;
   const guess = opts.guessHours != null && opts.guessHours > 0 ? opts.guessHours : null;
@@ -34,7 +38,8 @@ export function hoursAnswer(opts: {
   const intPart = String(Math.floor(guess));
   const article = intPart.startsWith('8') || intPart === '11' || intPart === '18' ? 'an' : 'a';
   const head = `${spent} of ${article} ${num(guess)}h guess`;
-  if (opts.loggedSeconds / 3600 > guess) return head;
+  const over = overEstimate({ originalEstimate: guess, completedWork: opts.completedHours, loggedSeconds: opts.loggedSeconds });
+  if (over) return head;
   if (opts.leftHours == null) return head;
   return `${head} · about ${num(opts.leftHours)}h left`;
 }
