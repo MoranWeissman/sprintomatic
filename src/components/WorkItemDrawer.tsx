@@ -375,6 +375,7 @@ function BlockButton({ item, onChanged }: { item: ApiWorkItemDetail; onChanged: 
           label="Why is it blocked? This is saved on the board too."
           placeholder="Waiting for the other team's fix"
           submitText={pending ? 'Saving…' : 'Mark blocked'}
+          busy={pending}
           onSubmit={reason => void run(() => postWorkItemBlock(String(item.id), reason))}
           onCancel={() => { setAsking(false); setError(null); }}
         />

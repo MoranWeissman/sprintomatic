@@ -11,6 +11,7 @@ export function AskForm({
   placeholder,
   submitText,
   inputMode,
+  busy = false,
   check,
   onSubmit,
   onCancel,
@@ -20,6 +21,8 @@ export function AskForm({
   placeholder?: string;
   submitText: string;
   inputMode?: 'decimal' | 'text';
+  /** True while the answer is being saved: the buttons wait, so it can't go twice. */
+  busy?: boolean;
   check?: (value: string) => string | null;
   onSubmit: (value: string) => void;
   onCancel: () => void;
@@ -31,6 +34,7 @@ export function AskForm({
       className="ask-form"
       onSubmit={e => {
         e.preventDefault();
+        if (busy) return;
         const v = value.trim();
         const problem = check ? check(v) : v ? null : 'Please fill this in.';
         if (problem) return setError(problem);
@@ -59,7 +63,7 @@ export function AskForm({
       </label>
       {error && <span className="ask-form-error">{error}</span>}
       <span className="ask-form-buttons">
-        <button type="submit" className="ask-form-ok">{submitText}</button>
+        <button type="submit" className="ask-form-ok" disabled={busy}>{submitText}</button>
         <button type="button" className="ask-form-cancel" onClick={onCancel}>Cancel</button>
       </span>
     </form>
