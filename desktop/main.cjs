@@ -5,7 +5,7 @@
 // thing a chat's orient does) when it isn't, and shows it in a window. The
 // dashboard keeps running when the app quits, just like when a chat starts
 // it, so chats never lose it.
-const { app, BrowserWindow, Menu, Tray, nativeImage, nativeTheme, shell } = require('electron');
+const { app, BrowserWindow, Menu, Notification, Tray, nativeImage, nativeTheme, shell } = require('electron');
 const { execFile, spawn } = require('node:child_process');
 const { mkdirSync, openSync, readFileSync, writeFileSync } = require('node:fs');
 const { homedir } = require('node:os');
@@ -231,6 +231,53 @@ async function pollChats() {
   renderTray(chats);
 }
 
+// ------------------------------------------------------------------
+// Mac notices. The dashboard decides what is due (GET /api/notices, off in
+// Settings → Mac notices). Here each one is shown once, ever: the keys
+// already shown are saved, so a restart doesn't repeat them.
+// ------------------------------------------------------------------
+const NOTICE_POLL_MS = 30_000;
+const noticesFile = () => join(app.getPath('userData'), 'notices-shown.json');
+let shownNotices = null;
+const liveNotices = new Set(); // keeps each notice alive so its click still works
+
+function loadShown() {
+  try {
+    const list = JSON.parse(readFileSync(noticesFile(), 'utf8'));
+    return Array.isArray(list) ? list.filter(k => typeof k === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+async function pollNotices() {
+  if (!Notification.isSupported()) return;
+  let due = [];
+  try {
+    const res = await fetch(DASH_URL + 'api/notices', { signal: AbortSignal.timeout(5000) });
+    if (res.ok) due = await res.json();
+  } catch {
+    return; // the dashboard is down or restarting
+  }
+  if (!shownNotices) shownNotices = loadShown();
+  const fresh = due.filter(n => n && typeof n.key === 'string' && !shownNotices.includes(n.key));
+  if (!fresh.length) return;
+  for (const n of fresh) {
+    const note = new Notification({ title: n.title, body: n.body, silent: true });
+    liveNotices.add(note);
+    note.on('click', () => (n.tty ? jumpToChat(n.tty) : showWindow()));
+    note.on('close', () => liveNotices.delete(note));
+    note.show();
+    shownNotices.push(n.key);
+  }
+  shownNotices = shownNotices.slice(-300);
+  try {
+    writeFileSync(noticesFile(), JSON.stringify(shownNotices));
+  } catch {
+    // Can't save: worst case a notice shows again after a restart.
+  }
+}
+
 /** The robot logo, black on clear. The "Template" name tells macOS to colour
  *  it to match the menu bar; the @2x file is picked up on its own. */
 function trayIcon() {
@@ -242,6 +289,8 @@ function startTray() {
   renderTray({ waiting: [], working: [] });
   void pollChats();
   setInterval(pollChats, POLL_MS);
+  setTimeout(pollNotices, 10_000);
+  setInterval(pollNotices, NOTICE_POLL_MS);
 }
 
 if (!app.requestSingleInstanceLock()) {

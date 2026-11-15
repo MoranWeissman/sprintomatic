@@ -266,6 +266,15 @@ const DEFS: SettingDef[] = [
 
   // ---- other ----
   {
+    key: 'mac_notices', env: 'SPRINTOMATIC_MAC_NOTICES', group: 'other', kind: 'choice',
+    label: 'Mac notices',
+    help: 'The Mac app tells you, once each: Daily in 15 minutes, a timer still on after your workday, a chat waiting 5 minutes for you.',
+    choices: [{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }],
+    defaultLabel: 'On',
+    defaultValue: 'on',
+    clean: raw => onOff('mac_notices', raw),
+  },
+  {
     key: 'max_parallel_sessions', env: 'SPRINTOMATIC_MAX_PARALLEL_SESSIONS', group: 'other', kind: 'number',
     label: 'Most tasks open at once',
     help: 'How many work sessions can run at the same time before a new one is refused.',

@@ -1442,7 +1442,18 @@ function DailyView({
   // Which feature sections are collapsed (hide all the story cards under them).
   // Default is expanded for every feature — the user collapses ones they're not
   // touching this sprint to reduce visual load.
-  const [featuresCollapsed, setFeaturesCollapsed] = useState<Set<string>>(new Set());
+  // Remembered across reloads, so a closed feature stays closed.
+  const [featuresCollapsed, setFeaturesCollapsed] = useState<Set<string>>(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem('sh.features.collapsed') ?? '[]');
+      return new Set(Array.isArray(saved) ? saved.filter((x): x is string => typeof x === 'string') : []);
+    } catch {
+      return new Set();
+    }
+  });
+  useEffect(() => {
+    window.localStorage.setItem('sh.features.collapsed', JSON.stringify([...featuresCollapsed]));
+  }, [featuresCollapsed]);
   // Features whose done stories are opened up (folded away by default).
   const [doneShown, setDoneShown] = useState<Set<string>>(new Set());
   const toggleDoneShown = (id: string) =>

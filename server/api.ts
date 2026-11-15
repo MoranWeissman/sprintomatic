@@ -233,6 +233,13 @@ export function createApi(): ApiHandler {
     res.end(JSON.stringify({ ok }));
   });
 
+  api.use('/api/notices', async (_req, res) => {
+    const { noticesNow } = await import('./notices');
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'no-store');
+    res.end(JSON.stringify(await noticesNow()));
+  });
+
   api.use('/api/chats', async (_req, res) => {
     const { chatsNow } = await import('./chats');
     res.setHeader('Content-Type', 'application/json');
