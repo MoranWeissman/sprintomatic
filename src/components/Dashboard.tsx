@@ -35,6 +35,7 @@ import {
   writeFocusPicks,
   reconcilePicks,
   MAX_FOCUS_PANELS,
+  autoPickTask,
 } from '../lib/focusPicks';
 import { focusPanelTasks } from '../lib/focusTasks';
 import { buildNotePrompt } from '../lib/notePrompt';
@@ -226,10 +227,8 @@ function DashboardLive({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveItems]);
   // Derive what the panels show: the reconciled picks, or — when empty — an
-  // auto-pick of one live task.
-  // The auto-pick skips a stuck task: its clock is stopped, so it is not
-  // what the user is working on.
-  const autoPick = liveItems.find(w => boardStateClass(w.state) !== 'blocked') ?? liveItems[0];
+  // auto-pick of one live task that is not stuck.
+  const autoPick = autoPickTask(liveItems);
   const panelIds = picks.length > 0 ? picks : autoPick ? [autoPick.id] : [];
   const panelTasks = panelIds.map(id => liveItems.find(w => w.id === id)).filter(Boolean) as ApiWorkItem[];
   // Backwards-compatible single-task focal view for isFocus check.
