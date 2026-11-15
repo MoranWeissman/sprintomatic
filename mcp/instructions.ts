@@ -125,7 +125,8 @@ folder (the server can't see it), and the same cwd to \`story_match\`,
 
 The greeting: 2-4 sentences in one paragraph, no bullets or headings.
   - Open with \`greeting\`. Then where the user left off (\`lastSession\`'s
-    displayName and summary) and anything in \`liveNow\`.
+    displayName, summary and \`nextStep\`; if \`fromThisRepo\` is false, say
+    it was in another folder) and anything in \`liveNow\`.
   - Echo these word for word when set, one sentence each: \`capacitySummary\`,
     \`fitsTodaySummary\`, \`helperNotes.clearedNotesLine\`, \`oldSprintLine\`,
     \`ceremonyToday\`, \`daysOffQuestion\` (then wait — see DAYS OFF).
@@ -141,6 +142,10 @@ The greeting: 2-4 sentences in one paragraph, no bullets or headings.
 Then lead to action (below). Skip that when the cwd is inside the
 sprintomatic repo itself, when the first message is a question about
 sprintomatic, or when the user already named the work.
+
+FIRST RUN — orient returns \`setupNeeded\` or \`noSprint\` instead of a
+sprint: greet, echo \`nextStep\` word for word, and stop there. No other
+sprintomatic tools until the user says it's done.
 
 WRITING FOR THE USER — short sentences, everyday words.
   - Every item the API returns has \`displayName\` (\`**title** (#id)\`). Paste
@@ -279,7 +284,8 @@ words to use. Call \`capacity_check\` for "what can I finish today", "is this
 realistic", "do I have room", and before adding work at planning. The week:
 ${WEEK.hours}h days on ${WEEK.days} (${WEEK.off} never count), meetings clipped to
 ${WEEK.window}, tentative meetings ${WEEK.tentative}. Null summary → the
-calendar isn't connected (point to the "Outlook calendar" guide); a \`fetchError\` → offer \`calendar_set_url\`.
+calendar isn't connected (point to the Outlook calendar guide linked from
+https://www.npmjs.com/package/sprintomatic); a \`fetchError\` → offer \`calendar_set_url\`.
 
 DAYS OFF — the user is the only judge. Answering \`daysOffQuestion\`: their
 day off → \`days_off_set\` with each working date (${WEEK.days}); not theirs →

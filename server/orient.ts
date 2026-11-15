@@ -46,6 +46,9 @@ import type {
   RepoLinkStoryInput,
 } from './repo-link-view';
 import { STALE_IDLE_MINUTES } from './session-activity';
+import { isSetupNeeded, NO_SPRINT_STEP } from './setup-needed';
+
+export { NO_SPRINT_STEP };
 import { getPages, getWorkingDays } from './user-config';
 import {
   getLastEventTimestampMap,
@@ -77,8 +80,9 @@ export interface OrientLiveSession {
   minutesOpen: number;
   /**
    * Minutes since the most recent `session_log` event against this session,
-   * or `minutesOpen` if no events have been logged yet. R7c uses this to
-   * surface sessions that may have been left open by accident.
+   * or `minutesOpen` if no events have been logged yet. Used to surface
+   * sessions that may have been left open by accident (SERVER_INSTRUCTIONS →
+   * STALE LIVE SESSION).
    */
   idleMinutes: number;
   /**
@@ -89,8 +93,9 @@ export interface OrientLiveSession {
   mayBeStale: boolean;
   /**
    * Id of the parent story (or feature) the live task hangs under, if any.
-   * R7d uses this so the assistant can compare against `story_match.topMatch`
-   * and ask once if the chat's cwd seems to be on a different story now.
+   * The assistant compares it against `story_match.topMatch` and asks once if
+   * the chat's cwd seems to be on a different story now (SERVER_INSTRUCTIONS →
+   * STORY DRIFT).
    */
   parentStoryId: number | null;
   /**
@@ -123,6 +128,32 @@ export interface OrientLastSession {
   endedAt: string;
   summary: string | null;
   minutesAgo: number;
+  /**
+   * True when this session was started from THIS chat's repo. False when no
+   * session from this repo was found and this is the last one closed anywhere
+   * on the machine — the greeting should say it was in another folder.
+   */
+  fromThisRepo: boolean;
+  /**
+   * The last "Next: …" line from this repo's session logs (or from this
+   * session's logs when the repo is unknown), ready to echo. Null when none.
+   */
+  nextStep: string | null;
+}
+
+/**
+ * What orient returns when there is nothing to greet about yet: sprintomatic
+ * isn't set up, or the team has no sprint covering today. A normal answer,
+ * not an error, so the very first "hi" still gets a calm reply with one plain
+ * next step. See SERVER_INSTRUCTIONS → FIRST RUN.
+ */
+export interface OrientFirstRun {
+  greeting: string;
+  fetchedAt: string;
+  setupNeeded: boolean;
+  noSprint: boolean;
+  /** One plain sentence: the single thing the user does next. Echo it. */
+  nextStep: string;
 }
 
 export interface OrientPacket {
@@ -215,8 +246,8 @@ export interface OrientPacket {
    * Where the user's sprintomatic planning home folder lives. The model
    * compares this against the chat's cwd: when they match (or a
    * `.sprintomatic-home` marker file is in the cwd), the model skips the
-   * story-anchor ritual and runs sprint-wide skills. See SERVER_INSTRUCTIONS
-   * → PLANNING HOME.
+   * story-matching steps (SERVER_INSTRUCTIONS → WHICH STORY IS THIS CHAT ON)
+   * and works on the whole sprint. See SERVER_INSTRUCTIONS → PLANNING HOME.
    */
   planningHome: OrientPlanningHome;
   /**
@@ -368,12 +399,6 @@ async function buildDaysOffQuestion(
   return { question: daysOffQuestionFor(candidates, unbacked), candidates };
 }
 
-/**
- * One-line nudge for the assistant when NO work session is open. Naming
- * `session_start` here is also what prompts the assistant to reach for that
- * (possibly deferred) tool. Returns null when a session is already open —
- * don't nag. See SERVER_INSTRUCTIONS → OPENING GREETING.
- */
 export function oldSprintLineFor(cf: CarryForwardSummary | null | undefined): string | null {
   if (!cf || cf.count === 0) return null;
   const names = cf.groups.map(g => g.storyDisplayName ?? 'a task with no story');
@@ -383,6 +408,12 @@ export function oldSprintLineFor(cf: CarryForwardSummary | null | undefined): st
   return `You still have ${tasks} in a sprint that already ended (${cf.fromLabel}), under ${list}. Move them into this sprint or close them, so the board shows where the work really is.`;
 }
 
+/**
+ * One-line nudge for the assistant when NO work session is open. Naming
+ * `session_start` here is also what prompts the assistant to reach for that
+ * (possibly deferred) tool. Returns null when a session is already open —
+ * don't nag. See SERVER_INSTRUCTIONS → OPENING GREETING.
+ */
 export function sessionReminderFor(liveSessionCount: number): string | null {
   if (liveSessionCount > 0) return null;
   return "You don't have a work session open. When you start working a task, call session_start on it so your progress gets recorded.";
@@ -456,17 +487,81 @@ function minutesSince(iso: string, now: Date): number {
   return Math.max(0, Math.floor((now.getTime() - new Date(iso).getTime()) / MS_PER_MIN));
 }
 
-function getLastEndedSession(): SessionRow | null {
-  return (
-    getDb()
-      .prepare<[], SessionRow>(
-        `SELECT * FROM sessions
-         WHERE ended_at IS NOT NULL
-         ORDER BY datetime(ended_at) DESC, id DESC
-         LIMIT 1`,
-      )
-      .get() ?? null
-  );
+/** The calm answer for a first run. `setupMessage` is the plain reason from
+ *  a SetupNeededError (what is missing); it already says where to fill it in. */
+export function firstRunPacket(
+  kind: 'setup' | 'noSprint',
+  now: Date,
+  setupMessage = '',
+): OrientFirstRun {
+  const nextStep = kind === 'noSprint'
+    ? `${NO_SPRINT_STEP} Then say hi again.`
+    : `${setupMessage.trim() || "Sprintomatic isn't connected to your board yet."} `
+      + 'The quickest fix is to run `npx sprintomatic setup` in a terminal, then say hi again.';
+  return {
+    greeting: greetingFor(now),
+    fetchedAt: now.toISOString(),
+    setupNeeded: kind === 'setup',
+    noSprint: kind === 'noSprint',
+    nextStep,
+  };
+}
+
+/**
+ * "Where was I": the last closed session from THIS chat's repo (newest
+ * first in `rows`). With no match — or no cwd — the last one closed anywhere,
+ * marked as not from this repo.
+ */
+export function pickLastSession(
+  rows: SessionRow[],
+  chatCwd: string | null,
+): { row: SessionRow; fromThisRepo: boolean; repoRows: SessionRow[] } | null {
+  const repoRows = chatCwd ? rows.filter(r => sessionOwnershipHint(r.cwd, chatCwd) === 'mine') : [];
+  if (repoRows.length > 0) return { row: repoRows[0], fromThisRepo: true, repoRows };
+  if (rows.length === 0) return null;
+  return { row: rows[0], fromThisRepo: false, repoRows: [] };
+}
+
+const NEXT_LINE = /^\s*(?:[-*]\s+)?(?:\*\*)?Next:(?:\*\*)?\s*(.+?)\s*$/gim;
+
+/** The newest "Next: …" line in log texts given newest first. Within one
+ *  text the last such line wins. */
+export function nextLineFrom(texts: string[]): string | null {
+  for (const text of texts) {
+    const found = [...text.matchAll(NEXT_LINE)];
+    const rest = found.length > 0 ? found[found.length - 1][1] : '';
+    if (rest) return `Next: ${rest}`;
+  }
+  return null;
+}
+
+/** How many recent closed sessions "where was I" looks through. */
+const LAST_SESSION_LOOKBACK = 50;
+
+function getRecentEndedSessions(): SessionRow[] {
+  return getDb()
+    .prepare<[number], SessionRow>(
+      `SELECT * FROM sessions
+       WHERE ended_at IS NOT NULL
+       ORDER BY datetime(ended_at) DESC, id DESC
+       LIMIT ?`,
+    )
+    .all(LAST_SESSION_LOOKBACK);
+}
+
+/** Log texts of these sessions, newest first. */
+function getEventTexts(sessionIds: string[]): string[] {
+  if (sessionIds.length === 0) return [];
+  const marks = sessionIds.map(() => '?').join(',');
+  return getDb()
+    .prepare<string[], { text: string }>(
+      `SELECT text FROM session_events
+       WHERE session_id IN (${marks})
+       ORDER BY datetime(created_at) DESC, id DESC
+       LIMIT 200`,
+    )
+    .all(...sessionIds)
+    .map(r => r.text);
 }
 
 /** Cap so a link file edited by hand can't turn one greeting into a long row
@@ -589,13 +684,21 @@ export async function repoLinkFor(
   return repoLinkBlock(features, stories, notes);
 }
 
-export async function buildOrientPacket(chatCwd: string | null = null): Promise<OrientPacket> {
-  const { payload } = await buildDashboardCached();
-  if (!payload.sprint) {
-    throw new Error('No current sprint — set a sprint first.');
-  }
-  const sprint = payload.sprint;
+export async function buildOrientPacket(
+  chatCwd: string | null = null,
+): Promise<OrientPacket | OrientFirstRun> {
   const now = new Date();
+  let payload: Awaited<ReturnType<typeof buildDashboardCached>>['payload'];
+  try {
+    ({ payload } = await buildDashboardCached());
+  } catch (err) {
+    // Not set up yet is a first run, not a failure. Anything else (sign-in
+    // ran out, board down) stays an error with its own plain fix.
+    if (isSetupNeeded(err)) return firstRunPacket('setup', now, (err as Error).message);
+    throw err;
+  }
+  if (!payload.sprint) return firstRunPacket('noSprint', now);
+  const sprint = payload.sprint;
 
   const titleById = new Map<number, string>();
   const parentByTaskId = new Map<number, { id: number; title: string }>();
@@ -640,10 +743,12 @@ export async function buildOrientPacket(chatCwd: string | null = null): Promise<
     };
   });
 
-  const lastRow = getLastEndedSession();
-  const lastSession: OrientLastSession | null = lastRow
+  const picked = pickLastSession(getRecentEndedSessions(), chatCwd);
+  const lastSession: OrientLastSession | null = picked
     ? (() => {
+        const lastRow = picked.row;
         const title = titleById.get(lastRow.work_item_id) ?? `#${lastRow.work_item_id}`;
+        const logSessions = picked.fromThisRepo ? picked.repoRows : [lastRow];
         return {
           workItemId: lastRow.work_item_id,
           title,
@@ -651,6 +756,8 @@ export async function buildOrientPacket(chatCwd: string | null = null): Promise<
           endedAt: lastRow.ended_at as string,
           summary: lastRow.summary,
           minutesAgo: minutesSince(lastRow.ended_at as string, now),
+          fromThisRepo: picked.fromThisRepo,
+          nextStep: nextLineFrom(getEventTexts(logSessions.map(r => r.id))),
         };
       })()
     : null;

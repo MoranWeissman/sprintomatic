@@ -15,3 +15,9 @@ export class SetupNeededError extends Error {
 export function isSetupNeeded(err: unknown): boolean {
   return !!err && typeof err === 'object' && (err as { setupNeeded?: unknown }).setupNeeded === true;
 }
+
+/** The one next step when the team has no sprint covering today. Orient
+ *  returns it on a first run and setup prints it. */
+export const NO_SPRINT_STEP =
+  'Your team has no sprint that covers today. In Azure DevOps open Project settings → '
+  + 'Team configuration → Iterations, pick a sprint for your team with dates that cover today.';
