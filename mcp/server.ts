@@ -57,6 +57,7 @@ import {
   MANAGED_SKILLS,
 } from '../server/skills-sync.js';
 import { buildOrientPacket } from '../server/orient.js';
+import { WAITING_PR_TAG, cleanPrUrl, addTaskPr, removeTaskPrs, taskPrCount, checkTaskPrs } from '../server/task-prs.js';
 import { getPlanningHome, isPlanningHomeCwd, setPlanningHome } from '../server/planning-home.js';
 import { findGaps } from '../server/planning.js';
 import { currentSprintGoals, saveGoals, normalizeGoals } from '../server/preplan.js';
@@ -325,7 +326,8 @@ server.registerTool(
     const dashboard = await ensureDashboardRunning(process.cwd());
     try {
       const packet = await buildOrientPacket(chatCwdKey(cwd));
-      return jsonResult({ ...packet, dashboard }, { fromBoard: true });
+      const prs = 'setupNeeded' in packet ? null : await prLines();
+      return jsonResult({ ...packet, ...(prs ? { prs } : {}), dashboard }, { fromBoard: true });
     } catch (e) {
       return errorResult(e instanceof Error ? e.message : String(e));
     }
@@ -1915,6 +1917,7 @@ server.registerTool(
         timerService.pause(openWorkItemId);
         const session = endSession({ sessionId, summary })!;
         afterSessionClosed();
+        const prTagNote = await clearPrMarkOnClose(openWorkItemId);
 
         // If this was the story's last open task, suggest closing the story
         // too so a finished story doesn't linger on New/Active.
@@ -1926,6 +1929,7 @@ server.registerTool(
           completedHoursPushed: completedHoursAfter,
           remainingHoursPushed: 0,
           newState: board.newState,
+          ...(prTagNote ? { prTagNote } : {}),
           ...(storyCloseSuggestion ? { storyCloseSuggestion } : {}),
           ...(unfinished ? { unfinishedBoardChanges: unfinished } : {}),
           ...(cwdWarning ? { cwdWarning } : {}),
@@ -2003,13 +2007,102 @@ server.registerTool(
       const board = await timerService.closeTaskOnBoard({ workItemId, completedHours });
       if (!board.ok) return errorResult(board.message!);
       markPendingChangesApplied(workItemId);
+      const prTagNote = await clearPrMarkOnClose(workItemId);
       invalidateDashboardCache();
       const storyCloseSuggestion = await suggestStoryClose(workItemId);
       return jsonResult({
+        ...(prTagNote ? { prTagNote } : {}),
         closed: name,
         completedHoursPushed: completedHours,
         newState: board.newState,
         ...(storyCloseSuggestion ? { storyCloseSuggestion } : {}),
+      }, { fromBoard: true });
+    } catch (e) {
+      return errorResult(e instanceof Error ? e.message : String(e));
+    }
+  },
+);
+
+/**
+ * What orient says about tasks waiting for a PR. A task someone already
+ * closed on the board is forgotten quietly instead of asked about. Null when
+ * there is nothing to say.
+ */
+async function prLines(): Promise<{ merged: string[]; closedUnmerged: string[]; checkError: string | null } | null> {
+  try {
+    const r = await checkTaskPrs();
+    let merged = r.merged;
+    if (merged.length > 0) {
+      const items = await getWorkItemsByIds(merged.map(m => m.workItemId)).catch(() => null);
+      if (items) {
+        const done = new Set(items.filter(w => isDoneState(w.state)).map(w => Number(w.id)));
+        for (const id of done) removeTaskPrs(id);
+        merged = merged.filter(m => !done.has(m.workItemId));
+      }
+    }
+    if (merged.length === 0 && r.closed.length === 0 && !r.checkError) return null;
+    return { merged: merged.map(m => m.line), closedUnmerged: r.closed.map(m => m.line), checkError: r.checkError };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A task that closed doesn't wait on anything: forget its PRs and take the
+ * "Waiting for PR" tag off. Best effort; a failed tag write is said, not thrown.
+ */
+async function clearPrMarkOnClose(workItemId: number): Promise<string | undefined> {
+  if (taskPrCount(workItemId) === 0) return undefined;
+  removeTaskPrs(workItemId);
+  try {
+    await updateTags(workItemId, { remove: [WAITING_PR_TAG] });
+    return undefined;
+  } catch (e) {
+    return `The task closed, but the "${WAITING_PR_TAG}" tag is still on it: ${e instanceof Error ? e.message : String(e)}`;
+  }
+}
+
+server.registerTool(
+  'task_pr_set',
+  {
+    title: 'Mark a task as waiting for a PR',
+    description:
+      "Record that a task waits for a GitHub pull request to merge. Call it on your own right after you open a PR for the task, or when the user says the task waits on one. Adds the \"Waiting for PR\" tag (the board shows it on the card), posts the link as a comment, and keeps the link so orient can say when it merged. The task stays in work. clear: true forgets the PR (or all of the task's PRs with no prUrl) and takes the tag off when none are left. Closing the task clears it on its own.",
+    inputSchema: {
+      workItemId: workItemIdSchema,
+      prUrl: z.string().optional().describe('The PR link, like https://github.com/owner/repo/pull/12. Required unless clear is true.'),
+      clear: z.boolean().optional().describe('Forget the PR: it was dropped, or the task no longer waits on it.'),
+    },
+  },
+  async ({ workItemId, prUrl, clear }) => {
+    try {
+      const url = prUrl != null ? cleanPrUrl(prUrl) : null;
+      if (prUrl != null && !url) return errorResult(`That isn't a GitHub PR link: ${prUrl}. It should look like https://github.com/owner/repo/pull/12.`);
+      const task = await getWorkItem(workItemId);
+      const name = displayNameFor(task.id, task.title);
+      if (clear) {
+        const left = removeTaskPrs(workItemId, url ?? undefined);
+        if (left === 0) await updateTags(workItemId, { remove: [WAITING_PR_TAG] });
+        invalidateDashboardCache();
+        return jsonResult({ cleared: name, prsLeft: left }, { fromBoard: true });
+      }
+      if (!url) return errorResult('Pass prUrl: the link of the PR the task waits on.');
+      if (isDoneState(task.state)) return errorResult(`${name} is already closed, so it isn't waiting for anything.`);
+      if (task.type !== 'Task' && task.type !== 'Bug') return errorResult(`${name} is a ${task.type}. Mark the task the PR belongs to.`);
+      const tags = await updateTags(workItemId, { add: [WAITING_PR_TAG] });
+      addTaskPr(workItemId, task.title, url);
+      let commentError: string | undefined;
+      try {
+        await addWorkItemComment(workItemId, `Waiting for this PR to merge: ${url}`);
+      } catch (e) {
+        commentError = e instanceof Error ? e.message : String(e);
+      }
+      invalidateDashboardCache();
+      return jsonResult({
+        waiting: name,
+        prUrl: url,
+        tags,
+        ...(commentError ? { commentNotPosted: commentError } : {}),
       }, { fromBoard: true });
     } catch (e) {
       return errorResult(e instanceof Error ? e.message : String(e));

@@ -97,6 +97,18 @@ function migrate(db: DB) {
     CREATE INDEX IF NOT EXISTS idx_pending_open
       ON pending_changes(work_item_id) WHERE applied_at IS NULL;
 
+    -- A PR a task waits on (task_pr_set). pr_state is the last answer from
+    -- GitHub: OPEN, MERGED or CLOSED; null before the first check.
+    CREATE TABLE IF NOT EXISTS task_prs (
+      work_item_id INTEGER NOT NULL,
+      pr_url       TEXT NOT NULL,
+      title        TEXT NOT NULL,
+      added_at     TEXT NOT NULL,
+      checked_at   TEXT,
+      pr_state     TEXT,
+      PRIMARY KEY (work_item_id, pr_url)
+    );
+
     CREATE TABLE IF NOT EXISTS settings (
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL

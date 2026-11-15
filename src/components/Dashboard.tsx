@@ -18,6 +18,7 @@ import {
   type ModeId,
 } from '../lib/api';
 import { boardStateClass } from '../lib/boardStateClass';
+import { chipWord } from '../lib/prWait';
 import { noGuessLine } from '../lib/noGuess';
 import { oldNoteLine } from '../lib/noteAge';
 import { boldParts } from '../lib/boldParts';
@@ -1257,7 +1258,7 @@ function FocusPanel({
                     <span className="a-task-title">{t.title}</span>
                     <Mono className="a-id">#{t.id}</Mono>
                     <span className="r21-grow" />
-                    {isLive && !liveStuck ? <StateChip state="work" text="on it now" /> : <StateChip state={st} text={STATE_WORD[st]} />}
+                    {isLive && !liveStuck ? <StateChip state="work" text="on it now" /> : <StateChip state={st} text={chipWord(st, STATE_WORD[st], t.tags)} />}
                     <span className="a-task-num">logged <b>{fmtHours(t.localLoggedSeconds)}</b></span>
                     <span className="a-task-num">guess <b>{estimateFor(t)}</b></span>
                     <span className="a-task-num">left <b>{isDone ? '0h' : t.remainingWork != null ? `${fmtNum(t.remainingWork)}h` : '—'}</b></span>
@@ -2099,7 +2100,7 @@ function DailyStoryCard({
                   </span>
                   <Mono className="a-id">#{t.id}</Mono>
                   <span className="r21-grow" />
-                  <StateChip state={st} text={STATE_WORD[st]} />
+                  <StateChip state={st} text={chipWord(st, STATE_WORD[st], t.tags)} />
                   <span className="a-task-num">logged <b>{fmtHours(t.localLoggedSeconds)}</b></span>
                   <span className="a-task-num">guess <b>{t.originalEstimate != null ? `${fmtNum(t.originalEstimate)}h` : '—'}</b></span>
                   <span className="a-task-num">left <b>{isDone ? '0h' : left != null ? `${fmtNum(left)}h` : '—'}</b></span>

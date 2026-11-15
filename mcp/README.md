@@ -95,6 +95,7 @@ to `~/.copilot/hooks/`. `skills_sync` copies the managed skills to
 | `workitem_unblock` | Clear a block and record why it lifted. |
 | `story_close` | Move a finished story or bug to the team's done state. Stories only — tasks close through `session_end` or `task_close`. |
 | `task_close` | Close a finished task that has no open session, with the real hours it took. |
+| `task_pr_set` | Mark a task as waiting for a PR (or clear it). The greeting then says when the PR merges. |
 
 ### Creating and planning
 
