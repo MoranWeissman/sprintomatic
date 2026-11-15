@@ -306,8 +306,8 @@ function DashboardLive({
                   The Plan page works on the live current → next sprint and the
                   Retro page always looks at the current sprint, so both ignore
                   this choice — hide it there rather than leave a control that
-                  does nothing. */}
-              {mode !== 'plan' && mode !== 'retro' && (
+                  does nothing. D&D reads features, not a sprint, so same. */}
+              {mode !== 'plan' && mode !== 'retro' && mode !== 'dnd' && (
                 <SprintPicker
                   options={data.sprintOptions}
                   currentName={selectedSprintName ?? sprintLabel}

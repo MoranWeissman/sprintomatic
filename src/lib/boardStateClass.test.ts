@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { boardStateClass } from './boardStateClass';
+import { boardStateClass, boardStateWord } from './boardStateClass';
 
 describe('boardStateClass', () => {
   it('says going for the states that mean somebody is working on it', () => {
@@ -40,5 +40,14 @@ describe('boardStateClass', () => {
     expect(boardStateClass('Needs Review')).toBe('waiting');
     expect(boardStateClass('')).toBe('waiting');
     expect(boardStateClass(undefined)).toBe('waiting');
+  });
+});
+
+describe('boardStateWord', () => {
+  it('uses the same plain words as Daily', () => {
+    expect(boardStateWord('Active')).toBe('in work');
+    expect(boardStateWord('New')).toBe('not started');
+    expect(boardStateWord('Blocked')).toBe('stuck');
+    expect(boardStateWord('Closed')).toBe('done');
   });
 });

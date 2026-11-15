@@ -4213,8 +4213,8 @@ button.r21-standup-item-head.is-toggle:hover .r21-standup-item-title { color: va
   font-size: 11.5px; font-weight: 500; padding: 3px 9px; border-radius: 999px; white-space: nowrap;
   background: var(--bg-1); color: var(--ink-2);
 }
-.dnd-chip.is-active, .dnd-chip.is-committed, .dnd-chip.is-new { background: var(--st-going-bg); color: var(--st-going); }
-.dnd-chip.is-closed, .dnd-chip.is-done, .dnd-chip.is-resolved { background: var(--st-done-bg); color: var(--st-done); }
+.dnd-chip.is-going { background: var(--st-going-bg); color: var(--st-going); }
+.dnd-chip.is-done { background: var(--st-done-bg); color: var(--st-done); }
 .dnd-chip.is-blocked { background: var(--st-blocked-bg); color: var(--st-blocked); }
 .dnd-ready { font-size: 11.5px; color: var(--ev-progress); }
 .dnd-day { font-size: 12px; color: var(--ink-4); }
@@ -4495,7 +4495,11 @@ button.r21-standup-item-head.is-toggle:hover .r21-standup-item-title { color: va
   display: block; width: 100%; max-width: 900px; height: auto;
   margin-top: 12px;
   border: 1px solid var(--line-hair); border-radius: 10px; background: var(--surface-2);
+  /* Most diagrams are drawn on white. Dim them so they don't flash bright
+     inside the dark page; full brightness on hover to read fine detail. */
+  filter: brightness(0.8);
 }
+.dnd-diagram:hover { filter: none; }
 .dnd-hours { font-size: 12px; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
 
 /* Overview facet */
@@ -4564,8 +4568,8 @@ button.r21-standup-item-head.is-toggle:hover .r21-standup-item-title { color: va
   border-radius: 12px;
   overflow: hidden;
 }
-.dnd-kid.is-active, .dnd-kid.is-committed, .dnd-kid.is-new { border-left-color: var(--st-going); }
-.dnd-kid.is-closed, .dnd-kid.is-done, .dnd-kid.is-resolved { border-left-color: var(--st-done); }
+.dnd-kid.is-going { border-left-color: var(--st-going); }
+.dnd-kid.is-done { border-left-color: var(--st-done); }
 .dnd-kid.is-blocked { border-left-color: var(--ev-blocker); }
 /* the whole row is a button — opens the work item like Plan/Pre-plan do */
 .dnd-kid-btn {
@@ -4592,8 +4596,8 @@ button.r21-standup-item-head.is-toggle:hover .r21-standup-item-title { color: va
   padding: 3px 10px; border-radius: 6px; white-space: nowrap;
   color: var(--ink-1); background: var(--bg-3);
 }
-.dnd-kid.is-active .dnd-kid-state, .dnd-kid.is-committed .dnd-kid-state, .dnd-kid.is-new .dnd-kid-state { color: var(--st-going); background: color-mix(in oklch, var(--st-going) 16%, transparent); }
-.dnd-kid.is-closed .dnd-kid-state, .dnd-kid.is-done .dnd-kid-state, .dnd-kid.is-resolved .dnd-kid-state { color: var(--st-done); background: color-mix(in oklch, var(--st-done) 16%, transparent); }
+.dnd-kid.is-going .dnd-kid-state { color: var(--st-going); background: color-mix(in oklch, var(--st-going) 16%, transparent); }
+.dnd-kid.is-done .dnd-kid-state { color: var(--st-done); background: color-mix(in oklch, var(--st-done) 16%, transparent); }
 .dnd-kid.is-blocked .dnd-kid-state { color: var(--ev-blocker); background: color-mix(in oklch, var(--ev-blocker) 16%, transparent); }
 
 /* Demo facet + placeholder */
