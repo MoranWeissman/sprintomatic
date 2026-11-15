@@ -35,9 +35,11 @@ import {
   writeFocusPicks,
   reconcilePicks,
   MAX_FOCUS_PANELS,
+  autoPickTask,
 } from '../lib/focusPicks';
 import { focusPanelTasks } from '../lib/focusTasks';
 import { buildNotePrompt } from '../lib/notePrompt';
+import { hoursAnswer } from '../lib/hoursAnswer';
 import type { SprintContext } from '../lib/types';
 import { CarryForwardBanner } from './CarryForwardBanner';
 import { DnDView } from './DnDView';
@@ -226,10 +228,8 @@ function DashboardLive({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveItems]);
   // Derive what the panels show: the reconciled picks, or — when empty — an
-  // auto-pick of one live task.
-  // The auto-pick skips a stuck task: its clock is stopped, so it is not
-  // what the user is working on.
-  const autoPick = liveItems.find(w => boardStateClass(w.state) !== 'blocked') ?? liveItems[0];
+  // auto-pick of one live task that is not stuck.
+  const autoPick = autoPickTask(liveItems);
   const panelIds = picks.length > 0 ? picks : autoPick ? [autoPick.id] : [];
   const panelTasks = panelIds.map(id => liveItems.find(w => w.id === id)).filter(Boolean) as ApiWorkItem[];
   // Backwards-compatible single-task focal view for isFocus check.
@@ -347,7 +347,7 @@ function DashboardLive({
                 <span className="dim-small">updates by itself</span>&nbsp;<span className="ember-sync-icon">↻</span>
               </button>
               <button className="r21-escape" onClick={() => setShowBoard(true)} title="Show the whole board — your work keeps logging">
-                <span><span className="v">{Math.max(0, storyOnlyAll.length - 1)}</span> more in sprint</span>
+                <span>All stories <span className="v">{storyOnlyAll.length}</span></span>
                 <span className="arr">↗</span>
               </button>
             </span>
@@ -637,7 +637,7 @@ function R21Sidebar({
   now: Date;
   sprintLabel: string;
   totalDays: number;
-  railDays: Array<{ index: number; state: string; label: string; isOff: boolean }>;
+  railDays: Array<{ index: number; state: string; label: string; isOff: boolean; dateLabel: string }>;
   view: 'daily' | 'focus';
   hasLive: boolean;
   onPickDaily: () => void;
@@ -711,6 +711,7 @@ function R21Sidebar({
                   <span
                     key={d.index}
                     className={`r21-side-week-cell ${d.isOff ? 'is-off' : ''} ${d.state === 'past' ? 'is-past' : d.state === 'today' ? 'is-today' : 'is-future'}`}
+                    title={`${d.dateLabel}${d.state === 'today' ? ' (today)' : ''}${d.isOff ? ' (day off)' : ''}`}
                   >
                     {d.label}
                   </span>
@@ -1331,20 +1332,23 @@ function FocusTaskDrill({
       <div className="r21-focal-meta">
         {startedAt && <span className="r21-since">started <span className="v">{startedAt}</span></span>}
         <span className="r21-grow" />
-        <span className="r21-num">
-          <span className="cap">TIME SPENT</span>
+        <span className="r21-num" title="Time your chats counted on this task">
+          <span className="cap">Time spent</span>
           <span className="val">{logged}</span>
           {task.sessionCount > 0 && <span className="sub">· {task.sessionCount} session{task.sessionCount === 1 ? '' : 's'}</span>}
         </span>
-        <span className="r21-num">
-          <span className="cap">ESTIMATE</span>
+        <span className="r21-num" title="The first guess, set once">
+          <span className="cap">Guess</span>
           <span className="val">{estimateFor(task)}</span>
         </span>
-        <span className="r21-num">
-          <span className="cap">REMAINING</span>
+        <span className="r21-num" title="Hours the board says are left">
+          <span className="cap">Left</span>
           <span className={`val ${task.remainingWork == null ? 'is-missing' : ''}`}>{remaining}</span>
         </span>
       </div>
+      <p className="r21-answer">
+        {hoursAnswer({ loggedSeconds: loggedSec, guessHours: task.originalEstimate, leftHours: task.remainingWork, completedHours: task.completedWork })}
+      </p>
       <OverEstimateLine task={task} />
 
       <div className="r21-feed">
@@ -1839,7 +1843,7 @@ function RailSprintTime({
 
 /**
  * One helper note + its three actions, shared by the Daily rail and Focus.
- * - Act on it: opens a one-line box, copies a deal-with-this prompt.
+ * - Copy as a chat prompt: opens a one-line box, copies a deal-with-this prompt.
  * - Keep: pins it (covers save + highlight); kept notes get an accent stripe.
  * - Done: clears it for good.
  * onChange refreshes the dashboard after a pin/unpin/dismiss write.
@@ -1889,8 +1893,15 @@ function NoteRow({ note, onChange }: { note: ApiHelperNote; onChange: () => void
         <span className="note-age">{relAgo(note.createdAt)}</span>
       </div>
       <div className="note-actions">
-        <button type="button" className="note-act" aria-expanded={composing} onClick={() => setComposing(v => !v)} disabled={busy}>
-          Act on it
+        <button
+          type="button"
+          className="note-act"
+          aria-expanded={composing}
+          onClick={() => setComposing(v => !v)}
+          disabled={busy}
+          title="Makes a prompt from this note that you paste into a chat"
+        >
+          Copy as a chat prompt
         </button>
         <button
           type="button"
@@ -1904,6 +1915,7 @@ function NoteRow({ note, onChange }: { note: ApiHelperNote; onChange: () => void
           Done
         </button>
       </div>
+      {composing && <p className="note-hint">Add a few words if you like, then copy. Paste it into a chat to deal with this note.</p>}
       {composing && (
         <div className="note-compose">
           <input

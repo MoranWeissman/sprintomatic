@@ -1,5 +1,5 @@
 /**
- * Build the paste-into-a-chat prompt for a helper note's "Act on it" button.
+ * Build the paste-into-a-chat prompt for a helper note's "Copy as a chat prompt" button.
  * Pure string assembly — no network, no React. The note body keeps its
  * `**title** (#id)` formatting so the chat can find the work item.
  */

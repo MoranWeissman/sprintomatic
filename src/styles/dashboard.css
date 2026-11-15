@@ -1808,6 +1808,7 @@ html, body {
 .r21-focal-current-title { font-size: 22px; line-height: 1.25; color: var(--ink-0); font-weight: 400; }
 .r21-focal-current .r21-focal-meta { margin-top: 6px; padding-bottom: 0; border-bottom: 0; }
 .r21-over { margin: 10px 0 0; font-size: 13px; color: var(--ink-2); }
+.r21-answer { margin: 10px 0 0; font-size: 15px; color: var(--ink-1); }
 
 /* "Tasks in this story" — every sibling task under the story, with the
    live one spotlighted. */
@@ -3216,7 +3217,8 @@ html, body {
 .note-body { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink-1); }
 .note-age { flex: none; font-size: 12px; color: var(--ink-3); white-space: nowrap; }
 
-.note-actions { display: flex; gap: 8px; margin-top: 8px; }
+.note-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.note-hint { margin: 8px 0 0; font-size: 13px; color: var(--ink-2); }
 .note-actions button {
   font-size: 13px;
   padding: 4px 10px;

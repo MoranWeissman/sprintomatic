@@ -1,5 +1,17 @@
+import { boardStateClass } from './boardStateClass';
+
 /** Focus can show 1–4 self-chosen panels. This owns the sticky pick list. */
 export const MAX_FOCUS_PANELS = 4;
+
+/**
+ * The task Focus shows when the user has picked none: the first live task
+ * that is not stuck. A stuck task keeps its session open but its clock is
+ * stopped, so it is not what the user is working on. Only when every live
+ * task is stuck does a stuck one get the main card.
+ */
+export function autoPickTask<T extends { state: string }>(liveItems: T[]): T | undefined {
+  return liveItems.find(w => boardStateClass(w.state) !== 'blocked') ?? liveItems[0];
+}
 
 const KEY = 'sh.focus.picks';
 const LEGACY_KEY = 'sh.focus.pick';
