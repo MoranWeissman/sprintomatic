@@ -35,7 +35,6 @@ import { homedir } from 'node:os';
 import { basename, dirname, join as joinPath, relative } from 'node:path';
 import { promisify } from 'node:util';
 
-import { mirrorSprintSummary, mirrorStandupForToday, mirrorTaskFile } from '../server/archive.js';
 import { getCalendarUrl, setCalendarUrl } from '../server/calendar.js';
 import { computeCapacity } from '../server/capacity.js';
 import { buildDashboard } from '../server/dashboard.js';
@@ -57,7 +56,7 @@ import {
 import { buildOrientPacket } from '../server/orient.js';
 import { getPlanningHome, isPlanningHomeCwd, setPlanningHome } from '../server/planning-home.js';
 import { findGaps } from '../server/planning.js';
-import { buildPrePlanPayload, getPrePlanState, savePrePlanState, setGoals, normalizeGoals } from '../server/preplan.js';
+import { currentSprintGoals, saveGoals, normalizeGoals } from '../server/preplan.js';
 import { findRepoRoot, readRepoLink, writeRepoLink } from '../server/repo-link.js';
 import { catchUpLogRequired } from '../server/session-close.js';
 import { isDoneState } from '../server/states.js';
@@ -655,7 +654,6 @@ server.registerTool(
       }
       const toState = await setStateBucket(workItemId, 'done');
       invalidateDashboardCache();
-      void mirrorSprintSummary();
       return jsonResult(
         {
           closed: { id: d.id, displayName: displayNameFor(d.id, d.title), toState },
@@ -701,7 +699,6 @@ server.registerTool(
       const toState = await removeWorkItem(d.id);
       await addWorkItemComment(d.id, removalComment(reason)).catch(() => undefined);
       invalidateDashboardCache();
-      void mirrorSprintSummary();
       return jsonResult(
         {
           removed: { id: d.id, displayName: displayNameFor(d.id, d.title), toState },
@@ -1461,14 +1458,12 @@ server.registerTool(
     },
   },
   async ({ goals }) => {
-    const payload = await buildPrePlanPayload();
-    const sprintName = payload.sprintName;
+    const { sprintName } = await currentSprintGoals();
     if (!sprintName) return errorResult('No current sprint — set a sprint first.');
     const cleaned = normalizeGoals(
       goals.map(g => ({ text: g.text, owner: g.owner ?? null, isMine: g.isMine ?? false })),
     );
-    const next = setGoals(getPrePlanState(sprintName), cleaned);
-    savePrePlanState(sprintName, next);
+    saveGoals(sprintName, cleaned);
     return jsonResult({ saved: cleaned.length, sprintName }, { fromBoard: true });
   },
 );
@@ -1645,7 +1640,6 @@ server.registerTool(
 
     const session = startSession({ workItemId, client: detectedClient() ?? client, cwd: chatCwdKey(cwd), tty: ownChatTty() });
     timerService.start(workItemId); // silent time tracking begins with the session
-    void mirrorTaskFile(workItemId); // background — keep the archive file fresh
 
     // Opening a session changes activeSession / timer state on the dashboard,
     // even when no ADO state flip happens (item was already Active). Always
@@ -1752,7 +1746,6 @@ server.registerTool(
     const cwdWarning = buildCwdWarning(getSession(sessionId), chatCwdKey(cwd));
     const event = logEvent({ sessionId, type, text, standupSummary });
     if (!event) return errorResult(`Session not found: ${sessionId}`);
-    void mirrorTaskFile(event.workItemId); // background — keep the archive file fresh
 
     // Events surface in the dashboard's recentEvents map and shape the
     // story-state / Day view. Drop the cache so the next read picks them up.
@@ -1825,19 +1818,15 @@ function buildCwdWarning(session: Session | null, chatCwd: string | null): strin
  * Housekeeping that runs once a session has actually been closed. Ending a
  * session is the single most cache-invalidating event we have — the active
  * session turns off, the clock stops, the Day view re-shapes — so the cached
- * dashboard is dropped here and the archive files are refreshed in the
- * background.
+ * dashboard is dropped here.
  */
-function afterSessionClosed(workItemId: number): void {
+function afterSessionClosed(): void {
   invalidateDashboardCache();
   // Closing a session is the natural quiet moment to fold the write-ahead log
   // back into data.db. Without it the main file can sit days out of date while
   // everything recent lives in the sidecar, so anyone copying data.db alone
   // gets a stale store. A busy checkpoint is a normal outcome, not an error.
   checkpointWal(getDb());
-  void mirrorTaskFile(workItemId); // background — keep the archive file fresh
-  void mirrorSprintSummary(); // and refresh the sprint overview
-  void mirrorStandupForToday(); // and the standup notes for today
 }
 
 server.registerTool(
@@ -1991,7 +1980,7 @@ server.registerTool(
         // board from the clock) and close the session.
         timerService.pause(openWorkItemId);
         const session = endSession({ sessionId, summary })!;
-        afterSessionClosed(session.workItemId);
+        afterSessionClosed();
 
         // If this was the story's last open task, suggest closing the story
         // too so a finished story doesn't linger on New/Active.
@@ -2025,7 +2014,7 @@ server.registerTool(
       }
       const timer = timerService.pause(openWorkItemId);
       const session = endSession({ sessionId, summary })!;
-      afterSessionClosed(session.workItemId);
+      afterSessionClosed();
       const unfinished = describeUnfinishedBoardChanges();
       return jsonResult({
         session,

@@ -11,8 +11,7 @@
  *     explicit signal — the user can `touch .sprintomatic-home` in any folder.
  *  2. The configured path in `settings.planning_home_path` equals (or is a
  *     prefix of) the cwd. Default value: `~/.sprintomatic/home/` — sits
- *     under the same hidden root as `data.db` and the markdown archive
- *     (consolidation 2026-06-03).
+ *     under the same hidden root as `data.db`.
  *
  * The model receives both signals via `orient.planningHome` and decides.
  * Nothing here writes to Azure DevOps.

@@ -697,38 +697,13 @@ export function createApi(): ApiHandler {
     }
   });
 
-  api.use('/api/preplan', async (req, res) => {
+  // GET only: the sprint goals shown on the Plan page.
+  api.use('/api/preplan', async (_req, res) => {
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'no-store');
     try {
-      const {
-        buildPrePlanPayload,
-        getPrePlanState,
-        savePrePlanState,
-      } = await import('./preplan');
-
-      if (req.method === 'POST') {
-        const body = (await readJsonBody(req)) as {
-          story?: { id: string; call?: unknown; goalIndex?: number | null };
-        };
-        // Resolve the current sprint name server-side (don't trust the client).
-        const current = await buildPrePlanPayload();
-        const sprintName = current.sprintName;
-        const state = getPrePlanState(sprintName);
-        if (body.story && typeof body.story.id === 'string') {
-          const prev = state.stories[body.story.id];
-          state.stories[body.story.id] = {
-            call: body.story.call !== undefined ? (body.story.call as never) : prev?.call,
-            goalIndex:
-              body.story.goalIndex !== undefined ? body.story.goalIndex : prev?.goalIndex,
-          };
-        }
-        savePrePlanState(sprintName, state);
-        res.end(JSON.stringify(await buildPrePlanPayload()));
-        return;
-      }
-
-      res.end(JSON.stringify(await buildPrePlanPayload()));
+      const { currentSprintGoals } = await import('./preplan');
+      res.end(JSON.stringify(await currentSprintGoals()));
     } catch (err) {
       const message = err instanceof Error ? err.message : 'unknown error';
       res.statusCode = 500;

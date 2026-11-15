@@ -5,9 +5,8 @@
  * so a crash or a full disk in the middle of a write leaves either the whole
  * old file or the whole new one — never half of either.
  *
- * This started life inside server/archive.ts. It was lifted here so the
- * discovery and design documents — the user's own writing, and the only copy
- * of it — get the same protection instead of being overwritten in place.
+ * The discovery and design documents are the user's own writing and the
+ * only copy of it, so they must never be overwritten in place.
  *
  * The `writer` parameter is only there so tests can make a write fail on
  * purpose; real callers leave it out.

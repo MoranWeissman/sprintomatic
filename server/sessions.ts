@@ -414,20 +414,7 @@ export function listActiveSessions(): Session[] {
     .map(toSession);
 }
 
-/**
- * All sessions for a work item (open + closed), newest-started first.
- * Used by the markdown archive (R8) so each task's history mirrors fully.
- */
-export function listSessionsForWorkItem(workItemId: number): Session[] {
-  return getDb()
-    .prepare<[number], SessionRow>(
-      `SELECT * FROM sessions WHERE work_item_id = ? ORDER BY datetime(started_at) ASC`,
-    )
-    .all(workItemId)
-    .map(toSession);
-}
-
-/** All events for a session, oldest-first. Used by the archive mirror. */
+/** All events for a session, oldest-first. */
 export function listEventsForSession(sessionId: string): SessionEvent[] {
   return getDb()
     .prepare<[string], SessionEventRow>(
