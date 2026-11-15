@@ -19,10 +19,14 @@ import {
   checkSkillsDriftNudge,
   SKILLS_DRIFT_CHECKED_KEY,
   seedSkillsDir,
+  shippedSkillsDir,
+  importSkills,
+  ownSkillsDir,
+  SKILLS_SOURCE_KEY,
   managedDestinations,
   copilotSkillsDir,
 } from './skills-sync';
-import { SEED_KEY, WORKSPACE_PATHS_KEY } from './workspace';
+import { WORKSPACE_PATHS_KEY } from './workspace';
 
 let root: string;
 beforeEach(() => {
@@ -255,7 +259,7 @@ describe('formatSyncReport', () => {
     );
     expect(text).toContain('demo: updated in 2 places');
     expect(text).toContain('discovery: already current everywhere');
-    expect(text).toContain('walkthrough: missing from the seed — skipped');
+    expect(text).toContain('walkthrough: missing from the source copy — skipped');
     expect(text).toContain('/dead/ws');
   });
 
@@ -289,15 +293,25 @@ describe('formatSyncReport', () => {
 });
 
 describe('seedSkillsDir / managedDestinations', () => {
-  it('point at the seed and every live destination, skipping dead workspaces', () => {
-    const seedRoot = join(root, 'seed-root');
+  it('the source is the shipped copy until the user has their own', () => {
+    expect(seedSkillsDir()).toBe(shippedSkillsDir());
+    store.set(SKILLS_SOURCE_KEY, join(root, 'own'));
+    expect(seedSkillsDir()).toBe(join(root, 'own'));
+    store.set(SKILLS_SOURCE_KEY, '');
+    expect(seedSkillsDir()).toBe(shippedSkillsDir());
+  });
+
+  it('the shipped copy has all four skills', () => {
+    for (const s of MANAGED_SKILLS) {
+      expect(existsSync(join(shippedSkillsDir(), s, 'SKILL.md'))).toBe(true);
+    }
+  });
+
+  it('point at every live destination, skipping dead workspaces', () => {
     const ws = join(root, 'ws');
     mkdirSync(ws, { recursive: true });
     const deadWs = join(root, 'gone');
-    store.set(SEED_KEY, seedRoot);
     store.set(WORKSPACE_PATHS_KEY, JSON.stringify([ws, deadWs]));
-
-    expect(seedSkillsDir()).toBe(join(seedRoot, '.claude', 'skills'));
 
     const { destDirs, deadWorkspaces } = managedDestinations();
     expect(destDirs).toContain(join(ws, '.claude', 'skills'));
@@ -340,7 +354,7 @@ describe('checkSkillsDriftNudge', () => {
     delete process.env.COPILOT_HOME;
     seedRoot = join(root, 'seed-root');
     ws = join(root, 'ws');
-    store.set(SEED_KEY, seedRoot);
+    store.set(SKILLS_SOURCE_KEY, join(seedRoot, '.claude', 'skills'));
     store.set(WORKSPACE_PATHS_KEY, JSON.stringify([ws]));
     mkdirSync(ws, { recursive: true });
     for (const s of MANAGED_SKILLS) {
@@ -410,5 +424,68 @@ describe('checkSkillsDriftNudge', () => {
     const nudge = checkSkillsDriftNudge();
     expect(nudge).toContain('design');
     expect(nudge).not.toContain('demo');
+  });
+});
+
+describe('importSkills', () => {
+  const OLD_HOME = process.env.HOME;
+  let home: string;
+  beforeEach(() => {
+    home = mkdtempSync(join(tmpdir(), 'skills-import-home-'));
+    process.env.HOME = home;
+  });
+  afterEach(() => {
+    process.env.HOME = OLD_HOME;
+    rmSync(home, { recursive: true, force: true });
+  });
+  const when = new Date('2026-11-15T10:20:30.000Z');
+
+  it('copies the four skills in, makes them the source, and leaves the backup alone', () => {
+    const backup = join(root, 'backup');
+    for (const s of MANAGED_SKILLS) makeSkill(backup, s, { 'SKILL.md': `mine ${s}` });
+    makeSkill(backup, 'not-managed', { 'SKILL.md': 'x' });
+
+    const r = importSkills(backup, when);
+    expect(r).toEqual({ backedUpTo: null, missing: [], usingShipped: false });
+    expect(seedSkillsDir()).toBe(ownSkillsDir());
+    expect(readFileSync(join(ownSkillsDir(), 'demo', 'SKILL.md'), 'utf8')).toBe('mine demo');
+    expect(existsSync(join(ownSkillsDir(), 'not-managed'))).toBe(false);
+    expect(existsSync(join(backup, 'demo', 'SKILL.md'))).toBe(true);
+  });
+
+  it('also takes a folder that holds .claude/skills', () => {
+    const seed = join(root, 'seed');
+    makeSkill(join(seed, '.claude', 'skills'), 'design', { 'SKILL.md': 'd' });
+    const r = importSkills(seed, when);
+    expect(r.missing).toEqual(['demo', 'discovery', 'walkthrough']);
+    expect(existsSync(join(ownSkillsDir(), 'design', 'SKILL.md'))).toBe(true);
+  });
+
+  it('backs up the own copy before replacing it', () => {
+    const a = join(root, 'a');
+    const b = join(root, 'b');
+    makeSkill(a, 'demo', { 'SKILL.md': 'first' });
+    makeSkill(b, 'demo', { 'SKILL.md': 'second' });
+    importSkills(a, when);
+    const r = importSkills(b, when);
+    expect(r.backedUpTo).toBe(join(home, '.sprintomatic', 'backups', 'skills-2026-11-15-10-20-30'));
+    expect(readFileSync(join(r.backedUpTo!, 'demo', 'SKILL.md'), 'utf8')).toBe('first');
+    expect(readFileSync(join(ownSkillsDir(), 'demo', 'SKILL.md'), 'utf8')).toBe('second');
+  });
+
+  it("'shipped' goes back to the clean copy and keeps a backup of the own one", () => {
+    const a = join(root, 'a');
+    makeSkill(a, 'demo', { 'SKILL.md': 'mine' });
+    importSkills(a, when);
+    const r = importSkills('shipped', when);
+    expect(r.usingShipped).toBe(true);
+    expect(r.backedUpTo).not.toBeNull();
+    expect(seedSkillsDir()).toBe(shippedSkillsDir());
+  });
+
+  it('refuses a folder with no skills in it, and changes nothing', () => {
+    mkdirSync(join(root, 'empty'));
+    expect(() => importSkills(join(root, 'empty'), when)).toThrow(/No skills found/);
+    expect(seedSkillsDir()).toBe(shippedSkillsDir());
   });
 });

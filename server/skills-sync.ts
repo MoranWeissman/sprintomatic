@@ -1,9 +1,11 @@
 /**
  * Managed-skill sync. The four workspace-craft skills (demo, design,
- * discovery, walkthrough) live as COPIES: seed → every registered workspace → the global
- * Claude Code skills folder → the global GitHub Copilot CLI skills folder (when
- * Copilot is installed). The seed is the only place to EDIT them; the `skills_sync`
- * MCP tool fans the seed version out. A throttled drift check (Task 2) rides
+ * discovery, walkthrough) live as COPIES: one source copy → every registered
+ * workspace → the global Claude Code skills folder → the global GitHub Copilot
+ * CLI skills folder (when Copilot is installed). The source (here called "the
+ * seed") is the clean copy shipped in the package's `skills/` folder, or the
+ * user's own copy once they import one (`importSkills`). It is the only place to
+ * EDIT them; the `skills_sync` MCP tool fans it out. A throttled drift check (Task 2) rides
  * the every-tool-response nudge pipe so hand-edited copies can't silently
  * diverge. Sessions read skill bodies from disk on use, so fixing the files
  * fixes every session at once — no restart.
@@ -23,9 +25,11 @@
 import { join, dirname, resolve, relative, sep } from 'node:path';
 import { existsSync, mkdirSync, cpSync, rmSync, renameSync, readdirSync, readFileSync, lstatSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
+import { fileURLToPath } from 'node:url';
+import { dataDir } from './data-dir';
 import { createHash } from 'node:crypto';
 import { getSetting, setSetting } from './timers';
-import { getSeedPath, getWorkspaces, expandHome } from './workspace';
+import { getWorkspaces, expandHome } from './workspace';
 
 export const MANAGED_SKILLS: readonly string[] = ['demo', 'design', 'discovery', 'walkthrough'];
 
@@ -45,9 +49,75 @@ export function copilotSkillsDir(): string | null {
   return existsSync(home) ? join(home, 'skills') : null;
 }
 
-/** The seed's skills folder — the single place managed skills get edited. */
+/** The clean copy that ships in the npm package (`skills/` at its root). */
+export function shippedSkillsDir(): string {
+  return fileURLToPath(new URL('../skills/', import.meta.url));
+}
+
+/** Setting: the folder the user's own copy lives in. Unset → the shipped copy. */
+export const SKILLS_SOURCE_KEY = 'skills_source_dir';
+
+/** Where the user's own copy goes when they import one. */
+export function ownSkillsDir(): string {
+  return join(dataDir(), 'skills');
+}
+
+/**
+ * Where every copy is synced FROM — the single place the managed skills get
+ * edited. The shipped clean copy, unless the user imported their own.
+ */
 export function seedSkillsDir(): string {
-  return join(resolve(expandHome(getSeedPath())), '.claude', 'skills');
+  const own = getSetting(SKILLS_SOURCE_KEY);
+  return own ? resolve(expandHome(own)) : shippedSkillsDir();
+}
+
+export interface ImportResult {
+  /** Where the copy that was replaced went, when there was an own copy. */
+  backedUpTo: string | null;
+  /** Managed skills the folder did not have; they were left out. */
+  missing: string[];
+  usingShipped: boolean;
+}
+
+/**
+ * Make `from` the user's own copy (or go back to the shipped one when `from`
+ * is 'shipped'). A replaced own copy is backed up first, never deleted.
+ * Copies only the four managed skills. Run `syncManagedSkills` after.
+ */
+export function importSkills(from: string, now = new Date()): ImportResult {
+  const ownDir = ownSkillsDir();
+  const stamp = now.toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  let backedUpTo: string | null = null;
+  const backUpOwn = () => {
+    if (!existsSync(ownDir)) return;
+    backedUpTo = join(dataDir(), 'backups', `skills-${stamp}`);
+    mkdirSync(dirname(backedUpTo), { recursive: true });
+    cpSync(ownDir, backedUpTo, { recursive: true });
+  };
+
+  if (from.trim().toLowerCase() === 'shipped') {
+    backUpOwn();
+    setSetting(SKILLS_SOURCE_KEY, '');
+    return { backedUpTo, missing: [], usingShipped: true };
+  }
+
+  const src = resolve(expandHome(from.trim()));
+  // Accept the skills folder itself or a folder holding `.claude/skills`.
+  const nested = join(src, '.claude', 'skills');
+  const dir = MANAGED_SKILLS.some(k => existsSync(join(src, k))) ? src : nested;
+  const present = MANAGED_SKILLS.filter(k => existsSync(join(dir, k, 'SKILL.md')));
+  if (present.length === 0) {
+    throw new Error(`No skills found in ${src}. It needs folders like demo/SKILL.md or design/SKILL.md.`);
+  }
+  if (realOrSelf(dir) === realOrSelf(ownDir)) {
+    throw new Error('That folder is already your own copy.');
+  }
+  backUpOwn();
+  rmSync(ownDir, { recursive: true, force: true });
+  mkdirSync(ownDir, { recursive: true });
+  for (const k of present) cpSync(join(dir, k), join(ownDir, k), { recursive: true });
+  setSetting(SKILLS_SOURCE_KEY, ownDir);
+  return { backedUpTo, missing: MANAGED_SKILLS.filter(k => !present.includes(k)), usingShipped: false };
 }
 
 /** Destination skills dirs (live workspaces + global) and dead workspace roots. */
@@ -207,7 +277,7 @@ export function formatSyncReport(
   const lines: string[] = [];
   for (const o of outcomes) {
     if (o.missingSeed) {
-      lines.push(`${o.skill}: missing from the seed — skipped (nothing was deleted)`);
+      lines.push(`${o.skill}: missing from the source copy — skipped (nothing was deleted)`);
     } else if (o.updated.length === 0 && (o.failed?.length ?? 0) === 0) {
       lines.push(`${o.skill}: already current everywhere`);
     } else if (o.updated.length > 0) {
@@ -261,8 +331,8 @@ export function checkSkillsDriftNudge(): string | null {
     const names = drifted.join(', ');
     return [
       '',
-      `🧰 SKILL COPIES OUT OF SYNC — the ${names} skill${drifted.length === 1 ? "'s copies don't" : " copies don't"} all match the seed.`,
-      'Run the `skills_sync` tool to fan the seed version out to every workspace and the global folder.',
+      `🧰 SKILL COPIES OUT OF SYNC — the ${names} skill${drifted.length === 1 ? "'s copies don't" : " copies don't"} all match the source copy.`,
+      'Run the `skills_sync` tool to copy the source version to every workspace and the global folder.',
       'This check runs at most once an hour.',
     ].join('\n');
   } catch {

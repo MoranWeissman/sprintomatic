@@ -51,6 +51,8 @@ import {
   formatSyncReport,
   checkSkillsDriftNudge,
   seedSkillsDir,
+  importSkills,
+  ownSkillsDir,
   managedDestinations,
 } from '../server/skills-sync.js';
 import { buildOrientPacket } from '../server/orient.js';
@@ -186,7 +188,7 @@ const DESIGN_TOOLS = ['design_sync', 'design_push_stories'];
 const FEATURE_TOOLS = [
   ...DESIGN_TOOLS,
   'workspace_set', 'workspace_decline', 'workspace_status', 'workspace_feature_folder',
-  'feature_share', 'feature_kind_set', 'feature_unmanage', 'skills_sync',
+  'feature_share', 'feature_kind_set', 'feature_unmanage', 'skills_sync', 'skills_import',
 ];
 const HIDDEN_TOOLS: ReadonlySet<string> = (() => {
   const pages = getPages();
@@ -258,7 +260,7 @@ function jsonResult(value: unknown, opts?: { fromBoard?: boolean }) {
   if (nudge) blocks.push({ type: 'text', text: nudge });
   const noSession = checkNoSessionNudge(currentTool);
   if (noSession) blocks.push({ type: 'text', text: noSession });
-  const drift = checkSkillsDriftNudge();
+  const drift = HIDDEN_TOOLS.has('skills_sync') ? null : checkSkillsDriftNudge();
   if (drift) blocks.push({ type: 'text', text: drift });
   const over = checkOverEstimateNudge();
   if (over) blocks.push({ type: 'text', text: over });
@@ -278,7 +280,7 @@ function errorResult(message: string, opts?: { fromBoard?: boolean }) {
   if (nudge) blocks.push({ type: 'text', text: nudge });
   const noSession = checkNoSessionNudge(currentTool);
   if (noSession) blocks.push({ type: 'text', text: noSession });
-  const drift = checkSkillsDriftNudge();
+  const drift = HIDDEN_TOOLS.has('skills_sync') ? null : checkSkillsDriftNudge();
   if (drift) blocks.push({ type: 'text', text: drift });
   const over = checkOverEstimateNudge();
   if (over) blocks.push({ type: 'text', text: over });
@@ -2356,7 +2358,7 @@ server.registerTool(
   {
     title: 'Sync the managed skills from the seed to every copy',
     description:
-      "Fan the three managed workspace skills (demo, discovery, walkthrough) out from the seed folder to every registered workspace and the global skills folder, overwriting stale copies. The seed is the ONLY place these skills get edited — after any edit there, call this. One run fixes every chat at once (skills are read from disk when used; no restart). Fire when the user asks to sync/update the skills, or when a tool response carries the out-of-sync nudge. Returns a plain-English report — echo it verbatim.",
+      "Copy the four managed skills (demo, design, discovery, walkthrough) from their source copy to every workspace and the global skills folders, replacing stale copies. The source is the ONLY place they get edited; call this after any edit there, when the user asks, or on the out-of-sync note. No restart needed. Echo the report word for word.",
     inputSchema: {},
   },
   async () => {
@@ -2364,6 +2366,39 @@ server.registerTool(
       const { destDirs, deadWorkspaces } = managedDestinations();
       const outcomes = syncManagedSkills(seedSkillsDir(), destDirs);
       return jsonResult({ report: formatSyncReport(outcomes, deadWorkspaces) });
+    } catch (e) {
+      return errorResult(e instanceof Error ? e.message : String(e));
+    }
+  },
+);
+
+server.registerTool(
+  'skills_import',
+  {
+    title: 'Use your own copy of the managed skills, or go back to the shipped one',
+    description:
+      "When the user wants their own versions of the demo, design, discovery and walkthrough skills (for example from a backup), or wants the shipped ones back. Copies the folder in as their own copy, backs up any own copy it replaces, makes it the source, and syncs. Echo the report word for word.",
+    inputSchema: {
+      from: z
+        .string()
+        .min(1)
+        .describe("A folder holding demo/, design/, … (or one with .claude/skills inside), or the word 'shipped'."),
+    },
+  },
+  async ({ from }) => {
+    try {
+      const r = importSkills(from);
+      const { destDirs, deadWorkspaces } = managedDestinations();
+      const outcomes = syncManagedSkills(seedSkillsDir(), destDirs);
+      const lines = [
+        r.usingShipped
+          ? 'Now using the skills that ship with sprintomatic.'
+          : `Now using your own copy, kept in ${ownSkillsDir()}. Edit the skills there.`,
+      ];
+      if (r.missing.length) lines.push(`Your folder had no ${r.missing.join(', ')}, so ${r.missing.length === 1 ? 'that one is' : 'those are'} left out.`);
+      if (r.backedUpTo) lines.push(`Your earlier own copy is backed up in ${r.backedUpTo}.`);
+      lines.push(formatSyncReport(outcomes, deadWorkspaces));
+      return jsonResult({ report: lines.join('\n') });
     } catch (e) {
       return errorResult(e instanceof Error ? e.message : String(e));
     }

@@ -128,8 +128,8 @@ async function main() {
 
   console.log('\nFeature work. Some people work out a problem first (discovery) and write a');
   console.log('design before the stories. Turning one on adds its page to the dashboard and');
-  console.log('its tools to the chat. The step-by-step chat guides for them are not part of the');
-  console.log('npm package yet. Turn on what you do. Both can stay off.');
+  console.log('its tools and step-by-step guides to the chat. Turn on what you do. Both can');
+  console.log('stay off.');
   console.log('  1 = on, 2 = off');
   await ask('use_discovery', '1 or 2');
   await ask('use_design', '1 or 2');

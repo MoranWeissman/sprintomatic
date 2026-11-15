@@ -1,0 +1,130 @@
+<!-- ==========================================================================
+     Slide pieces — copy the markup you need into walkthrough-template.html.
+     This file is a reference. It is never built and never shown.
+
+     The writing rule sits above every piece, because the markup is the easy
+     part and the words are what gets sent back.
+     ========================================================================== -->
+
+
+<!-- ── 1. INTRO SLIDE ────────────────────────────────────────────────────────
+     Feature title, the name, the team. Nothing else. No date, no subtitle,
+     no summary line.
+-->
+<section class="slide" data-title="Intro">
+  <div class="kicker">Design · Feature #100001</div>
+  <h2 class="slide-title">Add a dark mode to the settings page</h2>
+  <div class="presenter"><div class="pname">Your Name</div><div class="pteam">Your Team</div></div>
+</section>
+
+
+<!-- ── 2. WHAT THIS FEATURE IS ABOUT (slide 2, always) ───────────────────────
+     Key-point cards, never paragraphs. Two columns.
+     Card title = the plain name of the thing.
+     3 to 4 bullets per card. Not 6. Around 8-9 words each.
+     There is no "why this feature exists" slide, and don't open with what
+     is wrong today.
+-->
+<section class="slide" data-title="What it's about">
+  <div class="kicker">The feature in short</div>
+  <h2 class="slide-title">What this feature is about</h2>
+  <div class="cards heads">
+    <div class="tcard"><b>A dark mode switch in settings</b><ul>
+      <li>adds one switch to the settings page</li>
+      <li>saves the choice for each user</li>
+    </ul></div>
+    <div class="tcard"><b>Every page follows the choice</b><ul>
+      <li>reads the saved choice when a page opens</li>
+      <li>keeps the light look as the default</li>
+    </ul></div>
+  </div>
+</section>
+
+
+<!-- ── 3. A DRAWING SLIDE ────────────────────────────────────────────────────
+     class="slide diag" makes the picture fill the slide area.
+     src is the drawing's FILE NAME, never a number — the build script
+     pastes the picture in. The file must sit in diagrams/.
+     The .diaghint paragraph underneath is the ONE place a full sentence is
+     allowed: it is what you say while the room looks at the picture.
+-->
+<section class="slide diag" data-title="The big picture">
+  <div class="kicker">The big picture</div>
+  <h2 class="slide-title">From the switch to every page</h2>
+  <div class="diagram-wrap">
+    <img src="{{diagram:architecture.svg}}" alt="From the switch to every page">
+    <button class="fs">⤢ full screen</button>
+  </div>
+  <p class="diaghint">A user flips the switch, the choice is saved, and every page reads it when it opens. When saving fails the page stays light and shows a short note.</p>
+</section>
+
+
+<!-- ── 4. A PATH ACROSS THE TOP ──────────────────────────────────────────────
+     .steps — equal boxes joined by arrows. One short line per box, centered.
+     Use it to show a short path before the cards explain it.
+-->
+<section class="slide" data-title="Way 1 — the server holds it">
+  <div class="kicker">Option 1 of 3</div>
+  <h2 class="slide-title">The server holds the choice</h2>
+  <div class="steps">
+    <div class="step">a page opens</div><div class="arr">→</div>
+    <div class="step">it asks the server for the choice</div><div class="arr">→</div>
+    <div class="step">it draws in the right colours</div>
+  </div>
+  <!-- the good-versus-catch pair. Same shape on EVERY option slide, so the
+       room compares like with like. Green = what it buys, amber = the cost. -->
+  <div class="cards two">
+    <div class="tcard green"><b>What it buys</b><ul>
+      <li>follows the user to every device</li>
+      <li>keeps the choice in one place</li>
+    </ul></div>
+    <div class="tcard amber"><b>What it costs</b><ul>
+      <li>adds one more call when a page opens</li>
+      <li>a slow server makes the page flash light first</li>
+    </ul></div>
+  </div>
+</section>
+
+
+<!-- ── 5. THREE PARTS OF ONE IDEA ────────────────────────────────────────────
+     .cards.trio — three columns.
+-->
+<section class="slide" data-title="Where it shows">
+  <div class="kicker">Where it shows</div>
+  <h2 class="slide-title">Three places the switch changes</h2>
+  <div class="cards trio">
+    <div class="tcard"><b>The settings page</b><ul>
+      <li>shows the switch and what it is set to</li>
+    </ul></div>
+    <div class="tcard"><b>Every other page</b><ul>
+      <li>reads the choice when it opens</li>
+    </ul></div>
+    <div class="tcard"><b>The emails</b><ul>
+      <li>keeps the light look for now</li>
+    </ul></div>
+  </div>
+</section>
+
+
+<!-- ── 6. A TABLE (stories, hours) ───────────────────────────────────────────
+     .group-row splits sections. Chips: .good green, .warn amber, .bad red.
+-->
+<section class="slide" data-title="The stories">
+  <div class="kicker">What gets built</div>
+  <h2 class="slide-title">The stories and their hours</h2>
+  <table>
+    <tr><th>Story</th><th>Hours</th><th>Why that number</th></tr>
+    <tr><td><b>Dark mode switch on settings page</b></td><td class="n">8</td><td>touches the saved user settings, which the discovery flagged as a risk</td></tr>
+  </table>
+  <p class="foot">Hours are a proposal. They change when the story changes.</p>
+</section>
+
+
+<!-- ── 7. OPENING AND CLOSING BOXES ──────────────────────────────────────────
+     .box.intro (accent edge) opens. .box.summary (green edge) closes.
+-->
+<section class="slide" data-title="Where we landed">
+  <div class="kicker">Closing</div>
+  <h2 class="slide-title">Where we landed</h2>
+  <div class="box summary"><p class="lead">Two parts have a yes. The rest come back to this room one at a time.</p></div>
+</section>

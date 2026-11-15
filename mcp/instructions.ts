@@ -96,8 +96,9 @@ DESIGN PHASE — everything lives in the feature's \`design/design.json\`.
     the user's yes call again with \`confirmPush: true\`.
 
 SKILLS — the demo, design, discovery and walkthrough skills are copies of one
-seed folder. Edit only the seed, then run \`skills_sync\`. When a tool answer
-says the copies are out of sync, run \`skills_sync\` and echo its report.
+source copy: the one that ships with sprintomatic, or the user's own after
+\`skills_import\`. Edit only the source, then run \`skills_sync\`. When a tool
+answer says the copies are out of sync, run \`skills_sync\` and echo its report.
 
 `
   : `DISCOVERY AND DESIGN are both turned off. Never offer feature folders, a

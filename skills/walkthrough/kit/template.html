@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design walkthrough — FEATURE TITLE</title>
+<style>
+{{HOUSE_STYLE}}
+
+/* Feature-only tweaks go below this line. Keep them few. If you find
+   yourself writing a lot here, the piece probably belongs in the kit. */
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="side" id="nav">
+  <div class="brand">
+    <span class="pill">Design walkthrough</span>
+    <h1>FEATURE TITLE <span style="color:var(--dim)">#FEATURE-ID</span></h1>
+  </div>
+</nav>
+<main class="stage">
+  <div class="progress"><i id="bar"></i></div>
+  <div class="slidewrap" id="wrap">
+
+  <!-- ====================================================================
+       SLIDES GO HERE.
+
+       data-title is the LEFT MENU name — short and real ("Where it shows",
+       "Way 1 — the server holds it"). Not the slide title, never a number.
+
+       Copy the markup for each kind of slide from slide-pieces.html.
+       ==================================================================== -->
+
+  <section class="slide" data-title="Intro">
+    <div class="kicker">Design · Feature #FEATURE-ID</div>
+    <h2 class="slide-title">FEATURE TITLE</h2>
+    <div class="presenter"><div class="pname">Your Name</div><div class="pteam">Your Team</div></div>
+  </section>
+
+  <!-- ====================================================================
+       NOT SHOWN YET — parts that have no yes from the user.
+
+       The deck is presented part by part while the design is still being
+       agreed. Slides for parts not yet agreed stay in this file, inside
+       this comment block, so nothing is lost and nothing is rewritten.
+
+       To bring one back: move the <section> above this block. If it holds
+       a drawing, put its placeholder back too — src="{{diagram:name.svg}}".
+       A drawing inside this block must NOT keep a live placeholder, or the
+       build will paste a picture into a comment and grow the file.
+  -->
+
+  </div>
+  <div class="pager">
+    <button id="prev">← Back</button>
+    <span class="count" id="count">1 / 1</span>
+    <button id="next">Next →</button>
+  </div>
+</main>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="canvas" id="canvas"><img id="overlayImg" src="" alt=""></div>
+  <div class="bar">
+    <button id="zin">+</button><button id="zout">−</button><button id="zreset">1:1</button><button id="zclose">✕ close</button>
+  </div>
+  <div class="hint">wheel = zoom · drag = move · double-click = zoom in · Esc = close</div>
+</div>
+
+<script>
+/* Slide navigation. The left menu builds itself from each slide's data-title. */
+var slides=[].slice.call(document.querySelectorAll('.slide'));
+var nav=document.getElementById('nav');
+slides.forEach(function(s,i){
+  var a=document.createElement('a'); a.href='#';
+  a.innerHTML='<span class="num">'+String(i+1).padStart(2,'0')+'</span> '+s.dataset.title;
+  a.addEventListener('click',function(e){e.preventDefault(); show(i);});
+  nav.appendChild(a);
+});
+var links=[].slice.call(nav.querySelectorAll('a'));
+var cur=0, bar=document.getElementById('bar'), count=document.getElementById('count');
+var prev=document.getElementById('prev'), next=document.getElementById('next');
+function show(n){
+  cur=Math.max(0,Math.min(slides.length-1,n));
+  slides.forEach(function(s,i){s.classList.toggle('active',i===cur)});
+  links.forEach(function(a,i){a.classList.toggle('active',i===cur)});
+  count.textContent=(cur+1)+' / '+slides.length;
+  bar.style.width=((cur+1)/slides.length*100)+'%';
+  prev.disabled=cur===0; next.disabled=cur===slides.length-1;
+}
+prev.addEventListener('click',function(){show(cur-1)});
+next.addEventListener('click',function(){show(cur+1)});
+
+/* Full screen picture: zoom with the wheel, drag to move, Esc to close.
+   This gets used live, in the room, when someone asks about a corner. */
+var overlay=document.getElementById('overlay'), canvas=document.getElementById('canvas'), overlayImg=document.getElementById('overlayImg');
+overlayImg.draggable=false;
+document.addEventListener('keydown',function(e){
+  if(overlay.classList.contains('on')){ if(e.key==='Escape'){zClose();} return; }
+  if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' '){e.preventDefault(); show(cur+1);}
+  if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault(); show(cur-1);}
+});
+var zs=1, ztx=0, zty=0, dragging=false, dx=0, dy=0;
+function zApply(){
+  zs=Math.min(10,Math.max(1,zs));
+  var lim=(zs-1)*Math.max(canvas.clientWidth,canvas.clientHeight)/2;
+  ztx=Math.min(lim,Math.max(-lim,ztx)); zty=Math.min(lim,Math.max(-lim,zty));
+  overlayImg.style.transform='translate('+ztx+'px,'+zty+'px) scale('+zs+')';
+}
+function zAt(cx,cy,f){
+  var r=canvas.getBoundingClientRect();
+  var px=cx-r.left-r.width/2, py=cy-r.top-r.height/2;
+  var ns=Math.min(10,Math.max(1,zs*f)); var k=ns/zs;
+  ztx=px-(px-ztx)*k; zty=py-(py-zty)*k; zs=ns; zApply();
+}
+function zOpen(src){ overlayImg.src=src; zs=1; ztx=0; zty=0; zApply(); overlay.classList.add('on'); }
+function zClose(){ overlay.classList.remove('on'); }
+document.querySelectorAll('.diagram-wrap').forEach(function(w){
+  var img=w.querySelector('img'), b=w.querySelector('.fs');
+  img.addEventListener('click',function(){zOpen(img.src)});
+  if(b) b.addEventListener('click',function(){zOpen(img.src)});
+});
+document.getElementById('zclose').addEventListener('click',zClose);
+document.getElementById('zin').addEventListener('click',function(){zs*=1.4; zApply();});
+document.getElementById('zout').addEventListener('click',function(){zs/=1.4; zApply();});
+document.getElementById('zreset').addEventListener('click',function(){zs=1; ztx=0; zty=0; zApply();});
+canvas.addEventListener('wheel',function(e){e.preventDefault(); zAt(e.clientX,e.clientY,e.deltaY<0?1.15:1/1.15);},{passive:false});
+canvas.addEventListener('dblclick',function(e){zAt(e.clientX,e.clientY,1.6);});
+canvas.addEventListener('mousedown',function(e){e.preventDefault(); dragging=true; dx=e.clientX-ztx; dy=e.clientY-zty; canvas.style.cursor='grabbing';});
+window.addEventListener('mousemove',function(e){if(dragging){ztx=e.clientX-dx; zty=e.clientY-dy; zApply();}});
+window.addEventListener('mouseup',function(){dragging=false; canvas.style.cursor='grab';});
+show(0);
+</script>
+</body>
+</html>

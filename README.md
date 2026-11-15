@@ -195,6 +195,11 @@ The rest works the same way as in Claude Code:
 - The `skills_sync` tool copies the Discovery and Design skills to
   `~/.copilot/skills/` too.
 
+**Your own skills.** The demo, design, discovery and walkthrough skills ship
+with sprintomatic. To use your own versions instead, ask the chat to import
+them from a folder (`skills_import`). It keeps a backup of whatever it
+replaces. Ask for "the shipped skills" to go back.
+
 ## Good to know
 
 - **Your data stays on your computer.** Everything lives in a `.sprintomatic`

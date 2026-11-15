@@ -15,7 +15,8 @@
   },
   "files": [
     "dist/",
-    "dist-node/"
+    "dist-node/",
+    "skills/"
   ],
   "scripts": {
     "dev": "vite",
