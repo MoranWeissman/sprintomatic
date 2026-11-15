@@ -171,7 +171,7 @@ describe('checkNoSessionNudge', () => {
 
   it('says nothing for tools that legitimately need no session', () => {
     vi.setSystemTime(at(0));
-    for (const tool of ['orient', 'planning_gaps', 'retro_get', 'design_sync', 'capacity_check', 'facts_list']) {
+    for (const tool of ['orient', 'planning_gaps', 'retro_get', 'design_sync', 'capacity_check']) {
       expect(checkNoSessionNudge(tool)).toBeNull();
     }
   });

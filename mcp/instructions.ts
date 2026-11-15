@@ -77,9 +77,7 @@ WHAT ORIENT RETURNS: a time-of-day greeting, the sprint day (e.g. day 4 of
 10), sessions still open from before, the last task the user worked on with the
 summary the user left, how many helper notes are open, and a count of stories and
 tasks missing planning fields. Story Points are derived from Effort, not
-checked separately. It also carries \`facts\` — everything the user has
-taught the tool about themselves (see FACTS below). Use them as background
-knowledge from the first message; never recite the list in the greeting.
+checked separately.
 
 HOW TO USE IT: write a friendly 2-4 sentence greeting in PARAGRAPH form —
 no bullets, no sub-headers, no horizontal rules:
@@ -757,30 +755,6 @@ English with titles not bare ids and numbers spelled out in everyday words
 what every future chat reads out loud. Never write effort or status to
 Azure DevOps from a note — those writes still only happen through the
 confirm-first close-the-loop.
-
-FACTS — the tool's own memory of the user. A fact is something that will
-still be true next month: a path on this machine, a preference, a rule of
-the user's process ("the team's repos live under one folder", "demos are
-every second Thursday", "meetings default to 1 hour"). Facts arrive in
-every \`orient\` packet, so every chat already knows them — that is the
-whole point: the user should never have to say the same lasting thing
-twice.
-  - When the user states such a fact PLAINLY in chat, save it right then
-    with \`fact_remember\` and confirm in half a sentence ("saved — I'll
-    remember the docs repo path"). Don't ask permission for something they
-    just said out loud.
-  - When you only INFERRED a fact from between the lines, ask first, in
-    one short question. The user is the junk filter — an inferred fact
-    never goes in silently.
-  - NEVER a fact: task status, estimates, hours, what happened today, or
-    anything else the board or the session log owns. Those live there and
-    only there; a copy here would drift.
-  - Same name replaces the old value. When a fact changes ("we moved the
-    repos"), just save it again under the same name.
-  - Write fact bodies in plain English, full sentences, titles not bare
-    ids — every future chat reads them. The banned-words list applies.
-  - \`facts_list\` answers "what do you know about me?"; \`fact_forget\`
-    removes one when the user says it no longer holds.
 
 DASHBOARD LIFECYCLE — the user never starts the dashboard by hand;
 \`orient\` does it. Each orient answer carries a \`dashboard\` field:

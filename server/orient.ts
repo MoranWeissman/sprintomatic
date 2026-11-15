@@ -39,7 +39,6 @@ import {
 import { getPlanningHome } from './planning-home';
 import { readRepoLink } from './repo-link';
 import { repoLinkBlock, stageFor } from './repo-link-view';
-import { factsForOrient } from './facts';
 import type {
   FeatureStage,
   OrientRepoLink,
@@ -256,13 +255,6 @@ export interface OrientPacket {
    * file. Read fresh every time; nothing here is stored.
    */
   repoLink: OrientRepoLink | null;
-  /**
-   * Long-lived facts the user taught the tool ("the team's repos live under
-   * <folder>", "demos are every second Thursday"). Background knowledge for
-   * the model — never recited in the greeting. Saved via `fact_remember`,
-   * removed via `fact_forget`. Empty array when nothing is stored yet.
-   */
-  facts: { name: string; body: string }[];
 }
 
 
@@ -800,15 +792,6 @@ export async function buildOrientPacket(chatCwd: string | null = null): Promise<
     ceremonyToday = null;
   }
 
-  // Same belt and braces: a surprise from the facts table must not cost the
-  // greeting. An empty list reads exactly like "nothing stored yet".
-  let facts: { name: string; body: string }[] = [];
-  try {
-    facts = factsForOrient();
-  } catch {
-    facts = [];
-  }
-
   return {
     greeting: greetingFor(now),
     fetchedAt: now.toISOString(),
@@ -844,6 +827,5 @@ export async function buildOrientPacket(chatCwd: string | null = null): Promise<
     discovery,
     featureKindUnknown,
     repoLink,
-    facts,
   };
 }

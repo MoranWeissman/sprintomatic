@@ -10,8 +10,6 @@
  *  - helper_notes: the assistant's plain-English nudges (R3); soft-dismissed.
  *  - sh_created_items: items the MCP itself created (Task / Story); local
  *    marker only, never reaches Azure DevOps.
- *  - facts: long-lived facts about the user (paths, preferences, process
- *    rules) saved once from chat and carried into every orient packet.
  *
  * Connection is opened lazily and cached for the life of the process.
  */
@@ -155,13 +153,6 @@ function migrate(db: DB) {
 
     CREATE INDEX IF NOT EXISTS idx_sh_created_kind
       ON sh_created_items(kind);
-
-    CREATE TABLE IF NOT EXISTS facts (
-      name       TEXT PRIMARY KEY,
-      body       TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
   `);
 
   // Idempotent ADD COLUMN for session_events.standup_summary (R22, 2026-06-04).

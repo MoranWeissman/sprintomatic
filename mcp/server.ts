@@ -12,7 +12,6 @@
  *  - blocking:  workitem_block, workitem_unblock
  *  - sessions:  session_start, session_log, session_end
  *  - notes:     helper_notes_get, helper_note_add
- *  - facts:     fact_remember, facts_list, fact_forget
  *  - dashboard: started by orient when down; dashboard_stop
  *  - days off:  days_off_set, days_off_remove, days_off_dismiss, days_off_list
  *  - calendar:  calendar_set_url, calendar_status, capacity_check
@@ -43,7 +42,6 @@ import { buildDashboard } from '../server/dashboard.js';
 import { buildDashboardCached, invalidateDashboardCache } from '../server/dashboard-cache.js';
 import { sprintCheckIn } from '../server/guardrail.js';
 import { addNote, dismissNote, reviewNotesAgainstBoard } from '../server/helper-notes.js';
-import { rememberFact, forgetFact, listFacts } from '../server/facts.js';
 import { ensureDashboardRunning, stopDashboard } from '../server/dashboard-process.js';
 import { addDaysOff, removeDaysOff, listDaysOff, listDismissedRanges, dismissRange } from '../server/days-off.js';
 import { buildEstimateAnchor } from '../server/estimate-anchor.js';
@@ -2132,72 +2130,6 @@ server.registerTool(
   async () => {
     const { buildRetro } = await import('../server/retro.js');
     return jsonResult(await buildRetro());
-  },
-);
-
-/* ============================================================ */
-/*  Facts — the tool's own memory of the user                    */
-/* ============================================================ */
-
-server.registerTool(
-  'fact_remember',
-  {
-    title: 'Remember a lasting fact about the user',
-    description:
-      'Save one fact that will still be true next month — a path, a preference, a rule of the user\'s process. It rides into every future orient packet, so no chat asks for it again. If the user said it plainly, save right away and confirm in half a sentence; if you only inferred it, ask first. NEVER status, estimates, hours or anything the board or session log owns. Same name replaces the old value. Full rules: SERVER_INSTRUCTIONS → FACTS.',
-    inputSchema: {
-      name: z
-        .string()
-        .min(1)
-        .describe('Short stable name for the fact, like "docs-repo" or "demo-day". Saving the same name again replaces the value.'),
-      fact: z
-        .string()
-        .min(1)
-        .describe('The fact as one plain-English sentence, written for a future chat that knows nothing yet.'),
-    },
-  },
-  async ({ name, fact }) => {
-    const body = stripToolCallJunk(fact);
-    if (body === '') return errorResult('The fact came through empty. Say it again in one plain sentence.');
-    try {
-      return jsonResult(rememberFact(name, body));
-    } catch (err) {
-      return errorResult(err instanceof Error ? err.message : String(err));
-    }
-  },
-);
-
-server.registerTool(
-  'facts_list',
-  {
-    title: 'List everything the tool remembers about the user',
-    description:
-      'Every stored fact, by name. Call when the user asks "what do you know about me?", before saving (to reuse an existing name instead of inventing a near-duplicate), or when the facts list is full and needs cleaning.',
-    inputSchema: {},
-  },
-  async () => jsonResult(listFacts()),
-);
-
-server.registerTool(
-  'fact_forget',
-  {
-    title: 'Forget a stored fact',
-    description:
-      'Delete one fact by name, for real, when the user says it no longer holds. Not for facts that changed — for those just call fact_remember with the same name and the new value.',
-    inputSchema: {
-      name: z.string().min(1).describe('The name of the fact to delete, as shown by facts_list.'),
-    },
-  },
-  async ({ name }) => {
-    try {
-      const removed = forgetFact(name);
-      if (!removed) {
-        return errorResult('Nothing is stored under that name. Call facts_list to see the names that exist.');
-      }
-      return jsonResult({ ok: true, forgotten: name });
-    } catch (err) {
-      return errorResult(err instanceof Error ? err.message : String(err));
-    }
   },
 );
 

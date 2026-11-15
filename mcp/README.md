@@ -135,9 +135,6 @@ With a half turned off, its tools answer that it is turned off.
 
 | Tool | What it does |
 |---|---|
-| `fact_remember` | Save a fact that stays true for weeks — a path, a preference, a rule of the user's process. Every new chat gets it. |
-| `facts_list` | List every saved fact. |
-| `fact_forget` | Remove a saved fact. |
 
 ### Days off
 
