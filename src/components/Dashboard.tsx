@@ -18,6 +18,7 @@ import {
   type ModeId,
 } from '../lib/api';
 import { boardStateClass } from '../lib/boardStateClass';
+import { oldNoteLine } from '../lib/noteAge';
 import { boldParts } from '../lib/boldParts';
 import {
   fmtEstimate,
@@ -1856,6 +1857,7 @@ function NoteRow({ note, onChange }: { note: ApiHelperNote; onChange: () => void
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const kept = note.pinnedAt != null;
+  const oldLine = oldNoteLine(note.body, note.createdAt);
 
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
@@ -1893,6 +1895,7 @@ function NoteRow({ note, onChange }: { note: ApiHelperNote; onChange: () => void
         </p>
         <span className="note-age">{relAgo(note.createdAt)}</span>
       </div>
+      {oldLine && <p className="note-old">{oldLine}</p>}
       <div className="note-actions">
         <button
           type="button"

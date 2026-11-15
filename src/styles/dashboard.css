@@ -1952,6 +1952,7 @@ html, body {
 
 .note-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .note-hint { margin: 8px 0 0; font-size: var(--fs-sm); color: var(--ink-2); }
+.note-old { margin: 6px 0 0; font-size: var(--fs-sm); color: var(--ink-2); }
 .note-actions button {
   font-size: var(--fs-sm);
   padding: 4px 10px;
