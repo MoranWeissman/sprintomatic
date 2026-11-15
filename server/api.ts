@@ -267,26 +267,28 @@ export function createApi(): ApiHandler {
           res.end(JSON.stringify({ error: 'POST only' }));
           return;
         }
-        // One-click block/unblock from the drawer. No reason captured (the
-        // 'why' lives in the chat-driven workitem_block tool); this is the
-        // lightweight twin. The Blocked tag is added/removed alongside the
-        // state flip so a drawer-blocked item looks identical on the board.
-        const { transitionToBlocked, transitionFromBlocked, updateTags } = await import('./writes');
-        let state: string;
+        // Block/unblock from the drawer runs the same code as the
+        // workitem_block / workitem_unblock chat tools: state, tag, the
+        // reason in the log and on the board, timer stopped or started.
+        const body = (await readJsonBody(req)) as { reason?: unknown; summary?: unknown };
+        const { blockItem, unblockItem } = await import('./item-actions');
+        let result;
         if (action === 'block') {
-          const change = await transitionToBlocked(id);
-          await updateTags(id, { add: ['Blocked'] });
-          state = change.toState;
+          const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
+          if (!reason) {
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: 'Say in a few words why it is blocked.' }));
+            return;
+          }
+          result = await blockItem({ workItemId: id, reason });
         } else {
-          const change = await transitionFromBlocked(id);
-          await updateTags(id, { remove: ['Blocked'] });
-          state = change.toState;
+          const summary = typeof body.summary === 'string' && body.summary.trim() ? body.summary.trim() : 'Cleared from the dashboard.';
+          result = await unblockItem({ workItemId: id, summary });
         }
-        const { invalidateDashboardCache } = await import('./dashboard-cache');
-        invalidateDashboardCache();
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Cache-Control', 'no-store');
-        res.end(JSON.stringify({ state }));
+        res.end(JSON.stringify({ state: result.stateChange.toState, message: result.message }));
         return;
       }
 
@@ -300,6 +302,7 @@ export function createApi(): ApiHandler {
         const body = (await readJsonBody(req)) as {
           state?: 'waiting' | 'going' | 'done';
           completedHours?: number;
+          outsideSprintOk?: boolean;
           originalEstimate?: number;
           remainingWork?: number;
           iterationPath?: string;
@@ -313,7 +316,7 @@ export function createApi(): ApiHandler {
           res.end(JSON.stringify({ error: 'Original Estimate is set once when a task is created and cannot be edited afterwards.' }));
           return;
         }
-        const { setCompletedWork, setIterationPath, setRemaining, setStateBucket } = await import('./writes');
+        const { setIterationPath, setRemaining, setStateBucket } = await import('./writes');
         const applied: Record<string, unknown> = {};
         if (body.state) {
           if (!['waiting', 'going', 'done'].includes(body.state)) {
@@ -334,11 +337,20 @@ export function createApi(): ApiHandler {
               res.end(JSON.stringify({ error: 'Closing a task needs completedHours — the hours it actually took — as a number greater than 0 (max 999).' }));
               return;
             }
-            await setCompletedWork(id, h);
-            await setRemaining(id, 0);
-            applied.state = await setStateBucket(id, 'done');
+            // Same path as session_end done:true: outside-sprint check, board
+            // first, then the timer stops and any open session on it closes.
+            const { closeTaskFromDashboard } = await import('./item-actions');
+            const closed = await closeTaskFromDashboard({ workItemId: id, completedHours: h, outsideSprintOk: body.outsideSprintOk === true });
+            if (!closed.ok) {
+              res.statusCode = closed.outsideSprint ? 409 : 502;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: closed.message, outsideSprint: closed.outsideSprint === true }));
+              return;
+            }
+            applied.state = closed.newState;
             applied.completedHours = h;
             applied.remainingWork = 0;
+            if (closed.storyCloseSuggestion) applied.storyCloseSuggestion = closed.storyCloseSuggestion;
           } else {
             applied.state = await setStateBucket(id, body.state);
           }
@@ -377,7 +389,16 @@ export function createApi(): ApiHandler {
       const [item, comments] = await Promise.all([getWorkItem(id), getWorkItemComments(id).catch(() => [])]);
       res.setHeader('Content-Type', 'application/json');
       res.setHeader('Cache-Control', 'no-store');
-      res.end(JSON.stringify({ item, comments }));
+      // What only this app knows: the timer and the chats' log for the task.
+      const { getTimerSnapshot } = await import('./timers');
+      const { getRecentEventsMap } = await import('./sessions');
+      const timer = getTimerSnapshot(id);
+      const local = {
+        timeSpentSeconds: timer.totalSeconds,
+        timerRunning: timer.running != null,
+        activity: (getRecentEventsMap([id], 6).get(id) ?? []).map(e => ({ type: e.type, text: e.text, createdAt: e.createdAt })),
+      };
+      res.end(JSON.stringify({ item, comments, local }));
     } catch (err) {
       const e = err as Error & {
         command?: string;

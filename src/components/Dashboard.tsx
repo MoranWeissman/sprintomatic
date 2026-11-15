@@ -1206,7 +1206,7 @@ function FocusPanel({
               })()}
             </div>
             <div className="a-box" title="Time your chats counted on this task">
-              <small>Logged</small>
+              <small>Time spent</small>
               <b>{logged}</b>
               {task.sessionCount > 0 && <span>{task.sessionCount} session{task.sessionCount === 1 ? '' : 's'}</span>}
             </div>
@@ -1332,7 +1332,7 @@ function FocusTaskDrill({
         {startedAt && <span className="r21-since">started <span className="v">{startedAt}</span></span>}
         <span className="r21-grow" />
         <span className="r21-num">
-          <span className="cap">LOGGED</span>
+          <span className="cap">TIME SPENT</span>
           <span className="val">{logged}</span>
           {task.sessionCount > 0 && <span className="sub">· {task.sessionCount} session{task.sessionCount === 1 ? '' : 's'}</span>}
         </span>

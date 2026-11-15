@@ -140,14 +140,12 @@ import {
   setStateBucket,
   removeWorkItem,
   setTitle,
-  transitionFromBlocked,
-  transitionToBlocked,
   updateTags,
   type StateBucket,
 } from '../server/writes.js';
 import { stripToolCallJunk } from '../server/text-clean.js';
 import { describeEditOutcome } from '../server/edit-outcome.js';
-import { planBlock, planUnblock } from '../server/block-plan.js';
+import { blockItem, suggestStoryClose, unblockItem } from '../server/item-actions.js';
 import { getPages, pageOffMessage } from '../server/user-config.js';
 import { SERVER_INSTRUCTIONS, WEEK } from './instructions.js';
 import { syncCopilotInstructions } from '../server/copilot-instructions.js';
@@ -546,29 +544,6 @@ server.registerTool(
   },
 );
 
-/**
- * After a task closes, check whether its parent story is now fully done (all
- * children closed) but the story itself is still open. Returns a suggestion the
- * AI can raise with the user ("its last task is done — close the story?"), or null.
- */
-async function maybeSuggestStoryClose(
-  taskId: number,
-): Promise<{ workItemId: number; displayName: string } | null> {
-  try {
-    const task = await getWorkItem(taskId);
-    const parentId = task.parent?.id;
-    if (parentId == null) return null;
-    const story = await getWorkItem(parentId);
-    const stype = story.type.toLowerCase();
-    if (stype === 'task' || stype === 'feature' || stype === 'epic') return null;
-    if (isDoneState(story.state)) return null;
-    if (story.children.some(c => !isDoneState(c.state))) return null;
-    return { workItemId: story.id, displayName: displayNameFor(story.id, story.title) };
-  } catch {
-    return null;
-  }
-}
-
 server.registerTool(
   'story_close',
   {
@@ -896,49 +871,7 @@ server.registerTool(
   },
   async ({ workItemId, reason, owner, unblockCondition }) => {
     try {
-      const stateChange = await transitionToBlocked(workItemId);
-      const plan = planBlock(stateChange);
-      const tags = plan.changeTag ? await updateTags(workItemId, { add: ['Blocked'] }) : null;
-      // A block can be called from any chat window, not necessarily the one
-      // actually working the task — so don't let this window's cwd stamp
-      // the session's home. Leave cwd unknown; the first working chat's
-      // session_start backfills it (never-overwrite keeps it honest).
-      const session = plan.openSession ? startSession({ workItemId, cwd: null, tty: ownChatTty() }) : null;
-      if (plan.clock === 'stop') timerService.pause(workItemId);
-
-      if (!plan.postComment) {
-        invalidateDashboardCache();
-        return jsonResult({
-          workItemId,
-          stateChange,
-          tags,
-          session,
-          event: null,
-          adoComment: { posted: false, skipped: plan.commentSkipped },
-          message: stateChange.message,
-        }, { fromBoard: true });
-      }
-
-      const parts = [`BLOCKED: ${reason}`];
-      if (owner) parts.push(`Owner: ${owner}`);
-      if (unblockCondition) parts.push(`Unblock when: ${unblockCondition}`);
-      parts.push(`(was ${stateChange.fromState})`);
-      const text = parts.join(' · ');
-      const event = logEvent({ sessionId: session!.id, type: 'blocker', text });
-
-      // Mirror the reason into ADO's Discussion so the team sees
-      // it on the board (CommentCount bumps by one). Don't fail the whole
-      // block action if the comment write fails — surface it in the payload.
-      let adoComment: { posted: boolean; error?: string };
-      try {
-        await addWorkItemComment(workItemId, text);
-        adoComment = { posted: true };
-      } catch (err) {
-        adoComment = { posted: false, error: err instanceof Error ? err.message : String(err) };
-      }
-
-      invalidateDashboardCache();
-      return jsonResult({ workItemId, stateChange, tags, session, event, adoComment, message: stateChange.message }, { fromBoard: true });
+      return jsonResult(await blockItem({ workItemId, reason, owner, unblockCondition, tty: ownChatTty() }), { fromBoard: true });
     } catch (e) {
       return errorResult(e instanceof Error ? e.message : String(e));
     }
@@ -961,41 +894,7 @@ server.registerTool(
   },
   async ({ workItemId, summary }) => {
     try {
-      const stateChange = await transitionFromBlocked(workItemId);
-      const plan = planUnblock(stateChange);
-
-      if (!plan.postComment) {
-        return jsonResult({
-          workItemId,
-          stateChange,
-          tags: null,
-          session: null,
-          event: null,
-          adoComment: { posted: false, skipped: plan.commentSkipped },
-          message: stateChange.message,
-        }, { fromBoard: true });
-      }
-
-      const tags = plan.changeTag ? await updateTags(workItemId, { remove: ['Blocked'] }) : null;
-      // Same constraint as workitem_block: an unblock can come from any
-      // window, so don't stamp this chat's cwd onto the session. Leave it
-      // unknown and let the first working chat's session_start backfill it.
-      const session = plan.openSession ? startSession({ workItemId, cwd: null, tty: ownChatTty() }) : null;
-      if (plan.clock === 'start') timerService.start(workItemId);
-
-      const text = `UNBLOCKED: ${summary} · (now ${stateChange.toState})`;
-      const event = logEvent({ sessionId: session!.id, type: 'decision', text });
-
-      let adoComment: { posted: boolean; error?: string };
-      try {
-        await addWorkItemComment(workItemId, text);
-        adoComment = { posted: true };
-      } catch (err) {
-        adoComment = { posted: false, error: err instanceof Error ? err.message : String(err) };
-      }
-
-      invalidateDashboardCache();
-      return jsonResult({ workItemId, stateChange, tags, session, event, adoComment, message: stateChange.message }, { fromBoard: true });
+      return jsonResult(await unblockItem({ workItemId, summary, tty: ownChatTty() }), { fromBoard: true });
     } catch (e) {
       return errorResult(e instanceof Error ? e.message : String(e));
     }
@@ -1984,7 +1883,7 @@ server.registerTool(
 
         // If this was the story's last open task, suggest closing the story
         // too so a finished story doesn't linger on New/Active.
-        const storyCloseSuggestion = await maybeSuggestStoryClose(session.workItemId);
+        const storyCloseSuggestion = await suggestStoryClose(session.workItemId);
         const unfinished = describeUnfinishedBoardChanges();
         return jsonResult({
           session,
