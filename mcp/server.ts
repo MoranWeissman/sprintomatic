@@ -2242,7 +2242,7 @@ server.registerTool(
   {
     title: 'Store the user\'s Outlook calendar URL',
     description:
-      "Save the published ICS URL from the user's Outlook (one-time setup). Pass an empty string to clear it. The URL is stored in local SQLite — never echoed back in chat. Setup instructions: docs/setup/outlook-calendar.md.",
+      "Save the published ICS URL from the user's Outlook (one-time setup). Pass an empty string to clear it. The URL is stored in local SQLite — never echoed back in chat. Setup guide: the Outlook calendar guide linked from https://www.npmjs.com/package/sprintomatic.",
     inputSchema: {
       url: z
         .string()

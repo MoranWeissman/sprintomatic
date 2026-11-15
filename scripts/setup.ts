@@ -17,7 +17,9 @@ import { stdin, stdout } from 'node:process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listSettings, saveSettings, SettingError, type SettingView } from '../server/settings-registry';
-import { invalidateAdoConfig } from '../server/config';
+import { invalidateAdoConfig, loadAdoConfig } from '../server/config';
+import { getCurrentIteration } from '../server/ado';
+import { NO_SPRINT_STEP } from '../server/setup-needed';
 import { resetAdoClient } from '../server/ado-client';
 import { probeBoardStates } from '../server/state-probe';
 import { hourLabel, workingDaysLabel } from '../server/user-config';
@@ -80,10 +82,10 @@ async function main() {
   const mode = listSettings().find(s => s.key === 'ado_access_mode')!;
   const usesToken = (mode.value ?? mode.defaultValue) === 'api';
 
-  console.log('\nYour board.' + (usesToken ? '' : ' Leave any of these empty to use what az already knows.'));
+  console.log('\nYour board.' + (usesToken ? '' : ' Leave any of these empty to use what az already knows. The check at the end shows what was found.'));
   await ask('ado_org', 'like https://dev.azure.com/your-org');
   await ask('ado_project');
-  await ask('ado_team');
+  await ask('ado_team', 'the team you plan sprints with' + (usesToken ? '' : '; leave empty and the check lists them'));
   await ask('ado_user', 'your sign-in email');
   if (usesToken) {
     console.log('  The token is kept in the Mac Keychain when there is one. Typing it shows on screen.');
@@ -92,6 +94,7 @@ async function main() {
 
   console.log('\nYour week.');
   await ask('working_days', 'like Mon-Fri or Sun-Thu');
+  console.log('  Story points: one point counts as one workday of the length you give here.');
   await ask('workday_hours');
   await ask('workday_start_hour', 'like 08:00');
   await ask('workday_end_hour', 'like 18:00');
@@ -99,7 +102,9 @@ async function main() {
   await ask('tentative_weight', '1, 2 or 3');
 
   console.log('\nFeature work. Some people work out a problem first (discovery) and write a');
-  console.log('design before the stories. Turn on what you do. Both can stay off.');
+  console.log('design before the stories. Turning one on adds its page to the dashboard and');
+  console.log('its tools to the chat. The step-by-step chat guides for them are not part of the');
+  console.log('npm package yet. Turn on what you do. Both can stay off.');
   console.log('  1 = on, 2 = off');
   await ask('use_discovery', '1 or 2');
   await ask('use_design', '1 or 2');
@@ -111,6 +116,10 @@ async function main() {
     const st = await probeBoardStates();
     console.log(`  Connected. Your tasks move through ${[st.waiting, st.going, st.done].filter(Boolean).join(' → ')}.`);
     if (!st.blocked) console.log("  Your board has no Blocked state for tasks, so blocking a task won't work.");
+    const cfg = await loadAdoConfig();
+    console.log(`  Using: ${cfg.organization}, project ${cfg.project}, team ${cfg.team}, you ${cfg.user}.`);
+    const sprint = await getCurrentIteration();
+    console.log(sprint ? `  Current sprint: ${sprint.name}.` : `  ${NO_SPRINT_STEP}`);
   } catch (err) {
     const e = err as Error & { azMessage?: string; azFix?: string | null };
     console.log(`  Couldn't reach the board: ${e.azMessage ?? e.message}`);

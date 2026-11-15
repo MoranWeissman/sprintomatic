@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { repoHintFor, sessionReminderFor, activeFeatureField, repoLinkFor, oldSprintLineFor } from './orient';
+import {
+  repoHintFor,
+  sessionReminderFor,
+  activeFeatureField,
+  repoLinkFor,
+  oldSprintLineFor,
+  firstRunPacket,
+  NO_SPRINT_STEP,
+  pickLastSession,
+  nextLineFrom,
+} from './orient';
+import type { SessionRow } from './sessions';
 import type { RepoLinkDeps } from './orient';
 import type { WorkItemDetail } from './ado';
 import type { FoundRepoLink } from './repo-link';
@@ -369,5 +380,72 @@ describe('oldSprintLineFor', () => {
     expect(line).toBe(
       'You still have 3 open tasks in a sprint that already ended (26_01, last sprint), under **Queue for deploys** (#100010) and **Alerts** (#100011). Move them into this sprint or close them, so the board shows where the work really is.',
     );
+  });
+});
+
+
+describe('firstRunPacket', () => {
+  const now = new Date(2026, 10, 15, 9, 0);
+  it('gives one plain step for a team with no sprint', () => {
+    const p = firstRunPacket('noSprint', now);
+    expect(p).toMatchObject({ greeting: 'Good morning', setupNeeded: false, noSprint: true, nextStep: `${NO_SPRINT_STEP} Then say hi again.` });
+    expect(p.nextStep).toContain('Iterations');
+  });
+  it('keeps the setup reason and points at setup', () => {
+    const p = firstRunPacket('setup', now, 'No Azure DevOps project is set. Fill it in under Settings.');
+    expect(p.setupNeeded).toBe(true);
+    expect(p.noSprint).toBe(false);
+    expect(p.nextStep).toBe(
+      'No Azure DevOps project is set. Fill it in under Settings. The quickest fix is to run `npx sprintomatic setup` in a terminal, then say hi again.',
+    );
+  });
+  it('still reads well with no reason', () => {
+    expect(firstRunPacket('setup', now).nextStep).toMatch(/^Sprintomatic isn't connected to your board yet\. The quickest fix/);
+  });
+});
+
+describe('pickLastSession', () => {
+  const row = (id: string, cwd: string | null): SessionRow => ({
+    id, work_item_id: 100001, started_at: '2026-11-15T07:00:00Z', ended_at: '2026-11-15T08:00:00Z',
+    client: 'claude-code', summary: null, cwd, waiting_note: null, waiting_since: null,
+  });
+  const rows = [row('a', '/w/other-repo'), row('b', '/w/this-repo'), row('c', '/w/this-repo/sub')];
+
+  it('prefers the newest session from this repo', () => {
+    const p = pickLastSession(rows, '/w/this-repo');
+    expect(p?.row.id).toBe('b');
+    expect(p?.fromThisRepo).toBe(true);
+    expect(p?.repoRows.map(r => r.id)).toEqual(['b', 'c']);
+  });
+  it('falls back to the newest anywhere, marked as not this repo', () => {
+    const p = pickLastSession(rows, '/w/new-repo');
+    expect(p?.row.id).toBe('a');
+    expect(p?.fromThisRepo).toBe(false);
+  });
+  it('falls back when the chat folder is unknown', () => {
+    expect(pickLastSession(rows, null)?.fromThisRepo).toBe(false);
+  });
+  it('returns null with no sessions', () => {
+    expect(pickLastSession([], '/w/this-repo')).toBeNull();
+  });
+});
+
+describe('nextLineFrom', () => {
+  it('finds the newest Next line', () => {
+    expect(nextLineFrom(['Did the tests.', 'Shipped it.\nNext: wire the button', 'Next: older'])).toBe(
+      'Next: wire the button',
+    );
+  });
+  it('takes the last Next line inside one log and reads bold or bullet forms', () => {
+    expect(nextLineFrom(['- Next: one\n**Next:** two'])).toBe('Next: two');
+  });
+  it('ignores Next in the middle of a sentence', () => {
+    expect(nextLineFrom(['The Next: step is unclear'])).toBeNull();
+  });
+  it('skips an empty Next line and drops a closing bold mark', () => {
+    expect(nextLineFrom(['Next:   \nmore text', '**Next: ship it**'])).toBe('Next: ship it');
+  });
+  it('returns null with no logs', () => {
+    expect(nextLineFrom([])).toBeNull();
   });
 });
