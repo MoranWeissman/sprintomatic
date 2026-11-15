@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import { describe, expect, it } from 'vitest';
-import { applyChatChange, buildChatsBlock, chatChangeFor, readChatRows, type ChatRow } from './chat-state';
+import { applyChatChange, buildChatsBlock, chatChangeFor, onlySprintChats, readChatRows, type ChatRow } from './chat-state';
 
 const t0 = new Date('2026-11-11T10:00:00Z');
 const later = (s: number) => new Date(t0.getTime() + s * 1000);
@@ -123,5 +123,27 @@ describe('buildChatsBlock', () => {
       storyFor: () => ({ story: 'Set up the release pipeline', task: 'Add the deploy step', question: 'Which region?' }),
     });
     expect(b.waiting[0]).toMatchObject({ story: 'Set up the release pipeline', task: 'Add the deploy step', why: 'Which region?' });
+  });
+});
+
+describe('onlySprintChats', () => {
+  const row = (cwd: string): ChatRow => ({
+    chatId: cwd, client: 'claude-code', cwd, tty: null, state: 'working', reason: null, since: '2026-07-05T10:00:00Z', seen: null,
+  });
+  // Pretend repo root = the first two path parts ("/code/app/src" → "/code/app").
+  const rootOf = (cwd: string) => cwd.split('/').slice(0, 3).join('/');
+
+  it('keeps chats in folders that had a session, drops side projects', () => {
+    const kept = onlySprintChats([row('/code/app'), row('/code/hobby')], ['/code/app'], rootOf);
+    expect(kept.map(r => r.cwd)).toEqual(['/code/app']);
+  });
+
+  it('matches by repo, so a subfolder chat still counts', () => {
+    const kept = onlySprintChats([row('/code/app/src')], ['/code/app/server'], rootOf);
+    expect(kept).toHaveLength(1);
+  });
+
+  it('shows nothing when no session ever ran', () => {
+    expect(onlySprintChats([row('/code/app')], [], rootOf)).toEqual([]);
   });
 });

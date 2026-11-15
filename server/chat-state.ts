@@ -168,6 +168,21 @@ export interface ChatsBlock {
   working: ChatView[];
 }
 
+/**
+ * Keep only chats in folders where the user has worked a board task before.
+ * A chat in a side project (never had a sprintomatic session) is not sprint
+ * work, so the dashboard and the menu bar leave it out. `rootOf` maps a
+ * folder to its repo root, so a chat in a subfolder or a worktree still counts.
+ */
+export function onlySprintChats(
+  rows: ChatRow[],
+  sessionCwds: string[],
+  rootOf: (cwd: string) => string,
+): ChatRow[] {
+  const sprintRepos = new Set(sessionCwds.map(rootOf));
+  return rows.filter(r => sprintRepos.has(rootOf(r.cwd)));
+}
+
 export function buildChatsBlock(opts: {
   rows: ChatRow[];
   now: Date;

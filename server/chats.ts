@@ -6,8 +6,9 @@
  * repo) and whether its terminal still exists.
  */
 import { execFile, execFileSync } from 'node:child_process';
+import { resolve } from 'node:path';
 import { getDb } from './db';
-import { buildChatsBlock, readChatRows, type ChatStory, type ChatsBlock } from './chat-state';
+import { buildChatsBlock, onlySprintChats, readChatRows, type ChatStory, type ChatsBlock } from './chat-state';
 import { listActiveSessions } from './sessions';
 import { repoRootFor } from './session-guard';
 import { peekDashboardPayload } from './dashboard-cache';
@@ -22,8 +23,17 @@ function liveTtys(): Set<string> | null {
   }
 }
 
+/** Every folder a sprintomatic session ever ran in. */
+function sessionFolders(): string[] {
+  const rows = getDb()
+    .prepare("SELECT DISTINCT cwd FROM sessions WHERE cwd LIKE '/%'")
+    .all() as { cwd: string }[];
+  return rows.map(r => r.cwd);
+}
+
 export function chatsNow(now = new Date()): ChatsBlock {
-  const rows = readChatRows(getDb(), now);
+  const rootOf = (cwd: string) => repoRootFor(cwd) ?? resolve(cwd);
+  const rows = onlySprintChats(readChatRows(getDb(), now), sessionFolders(), rootOf);
   if (rows.length === 0) return { waiting: [], finished: [], working: [] };
 
   const sessions = listActiveSessions().filter(s => s.cwd && s.cwd.startsWith('/'));
