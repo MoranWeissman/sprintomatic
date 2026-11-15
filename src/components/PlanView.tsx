@@ -1106,8 +1106,22 @@ function SectionHead({ step, title, note }: { step?: number; title: string; note
   );
 }
 
+/** The board state in the same words and colours as Daily. */
+const PLAN_STATE: Record<ReturnType<typeof boardStateClass>, { g: string; word: string }> = {
+  going: { g: 'work', word: 'in work' },
+  waiting: { g: 'wait', word: 'not started' },
+  blocked: { g: 'stuck', word: 'stuck' },
+  done: { g: 'done', word: 'done' },
+};
+
 function StateChip({ state }: { state: string }) {
-  return <span className="plan2-state">{state}</span>;
+  const s = PLAN_STATE[boardStateClass(state)];
+  return (
+    <span className={`a-chip g-text-${s.g}`} title={`On the board: ${state}`}>
+      <i className={`g-${s.g}`} aria-hidden="true" />
+      {s.word}
+    </span>
+  );
 }
 
 function KindBadge({ kind }: { kind: 'story' | 'task' | 'bug' }) {

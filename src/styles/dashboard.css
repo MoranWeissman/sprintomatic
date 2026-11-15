@@ -1977,51 +1977,6 @@ html, body {
 }
 .r21-focuspanel-remove:hover { background: var(--surface-3); color: var(--ink-1); }
 
-/* State mark (working / waiting / stale) */
-.r21-focuspanel-mark {
-  position: absolute;
-  top: 14px;
-  left: 14px;
-}
-
-.r21-mark {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  line-height: 1;
-}
-
-.r21-mark.is-working {
-  background: var(--accent-soft);
-  border: 1px solid var(--accent-hair);
-  color: var(--accent);
-}
-
-.r21-mark.is-waiting {
-  background: var(--accent-soft);
-  border: 1px solid var(--accent);
-  color: var(--accent);
-}
-
-.r21-mark.is-stuck {
-  background: var(--blocked-bg);
-  border: 1px solid var(--blocked-line);
-  color: var(--blocked-ink);
-}
-
-.r21-mark.is-stale {
-  background: var(--surface-3);
-  border: 1px solid var(--line-soft);
-  color: var(--ink-3);
-  font-size: 12px;
-}
-
 /* Ensure existing r21-focal classes still work inside panels. Titles scale
    with the panel width (cqi = 1% of the container's inline size) so a
    half-width panel's heading shrinks instead of overflowing. */
@@ -5217,7 +5172,73 @@ span.g-done, i.g-done { background: var(--st-done); }
 .r21-daily-tools { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: -8px; }
 
 /* Recap rows: the name takes the room, the chips stay their own size. */
-.r21-standup-item-head { flex-wrap: nowrap; align-items: center; gap: 8px; }
-.r21-standup-item-head .r21-standup-item-title { flex: 1 1 auto; min-width: 0; }
+.r21-standup-item-head { flex-wrap: wrap; align-items: center; gap: 8px; }
+/* The name gets at least ~180px; when the column is narrower the chips drop
+   under it instead of squeezing the name to one word per line. */
+.r21-standup-item-head .r21-standup-item-title { flex: 1 1 180px; min-width: 0; }
 .r21-standup-item-head .r21-grow { flex: 0 0 8px; }
 .r21-standup-item-head .a-chip { flex: 0 0 auto; }
+
+/* Focus split chips at the top, in the new look. Yellow = a chat waits. */
+.g-text-ask { color: var(--ask); } .g-ask { background: var(--ask); }
+.r21-splitchip {
+  background: linear-gradient(180deg, oklch(0.27 0.028 278 / .55), oklch(0.21 0.022 275 / .55));
+  border: 1px solid var(--line-soft); border-radius: 14px; padding: 12px 14px; gap: 8px;
+  color: var(--ink-1);
+}
+.r21-splitchip:hover { border-color: var(--line-strong); color: var(--ink-0); }
+.r21-splitchip.is-on {
+  border-color: color-mix(in oklab, var(--accent) 55%, transparent);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--accent) 16%, oklch(0.25 0.028 278 / .7)), oklch(0.21 0.022 275 / .7));
+  color: var(--ink-0);
+}
+.r21-splitchip.is-full { opacity: 1; color: var(--ink-2); cursor: default; }
+.r21-splitchip-story { font-size: 12px; color: var(--ink-2); }
+.r21-splitchip-title { font-size: 14px; font-weight: 600; }
+
+/* Right side, new look: notes and "what fits" rows sit lightly in the card. */
+.note {
+  background: oklch(0.80 0.03 275 / 0.05); border: 1px solid var(--line-hair);
+  border-left: 3px solid transparent; border-radius: 12px; padding: 12px 14px;
+}
+.note.is-kept { border-left-color: var(--accent); background: color-mix(in oklab, var(--accent) 10%, transparent); }
+.note-main { flex-direction: column-reverse; gap: 4px; align-items: stretch; }
+.note-age { font-size: 12px; color: var(--ink-2); }
+.note-actions { margin-top: 10px; }
+.note-actions button { border-radius: 8px; }
+.fits-row {
+  background: oklch(0.80 0.03 275 / 0.05); border: 1px solid var(--line-hair);
+  border-left: 3px solid var(--st-going); border-radius: 12px; padding: 10px 12px; align-items: center;
+}
+.fits-row:hover { background: oklch(0.80 0.03 275 / 0.09); border-color: var(--line-strong); border-left-color: var(--st-going); }
+.fits-hours { font-weight: 650; color: var(--ink-1); }
+
+/* Smaller laptop screens. */
+.r21-daily-feature-title { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+.a-boxes { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.r21-top .r21-pill, .r21-top .ember-sync, .r21-top .r21-escape, .r21-strip-meta > span { white-space: nowrap; }
+@media (max-width: 1440px) {
+  .r21-top .ember-sync .dim-small { display: none; }
+  .r21-top .r21-brand-meta { display: none; }
+}
+
+/* Plan in the new look: kind as plain text, rows as glass. */
+.plan2-kind {
+  width: auto; padding: 0; background: none; border: 0; font-size: 12px;
+  letter-spacing: 0; text-transform: none; font-weight: 650; color: var(--ink-1);
+}
+.plan2-kind.k-task { color: var(--ink-2); }
+.plan2-row {
+  background: linear-gradient(180deg, oklch(0.27 0.028 278 / .55), oklch(0.21 0.022 275 / .55));
+  border: 1px solid var(--line-soft); border-left-width: 3px; border-radius: 14px;
+}
+.plan2-row.is-blocked { border-left-color: var(--st-blocked); }
+.plan2-meter-foot .dim-small { text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--ink-2); }
+.a-boxes { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
+.a-box b { font-size: clamp(19px, 1.5vw, 24px); }
+@media (max-width: 1440px) { .r21-top .ember-sync > span[aria-hidden="true"]:first-child { display: none; } }
+/* Focus task rows: the row is the card; the button inside has no box of its own. */
+.r21-focal-task > button.a-task,
+.r21-focal-task.is-live > button.a-task,
+.r21-focal-task > button.a-task:hover { background: none; border: 0; border-radius: 0; padding: 12px 4px; }
+.r21-focal-tasks-list > li.is-live { border-left: 3px solid var(--st-going); }

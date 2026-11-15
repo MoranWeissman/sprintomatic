@@ -873,19 +873,25 @@ function priorColumnLabel(yesterdayISO: string, todayISO: string): string {
  */
 function StateMark({ state, stuck }: { state?: 'working' | 'waiting' | 'stale'; stuck?: boolean }) {
   // A blocked task keeps its session open (the blocker log lives there), but
-  // its clock is stopped. "Working" would say the opposite.
-  if (stuck) return <span className="r21-mark is-stuck">stuck</span>;
+  // its clock is stopped. "Timer on" would say the opposite.
+  if (stuck) return <StateChip state="stuck" text="stuck" />;
   if (state === 'waiting') {
-    return <span className="r21-mark is-waiting">waiting for you</span>;
-  }
-  if (state === 'stale') {
     return (
-      <span className="r21-mark is-stale" title="The timer is still running, but the chat has been quiet for over 2 hours.">
-        <span aria-hidden="true">🌙</span> chat quiet for 2h+
+      <span className="a-chip g-text-ask">
+        <i className="g-ask" aria-hidden="true" />
+        waiting for you
       </span>
     );
   }
-  return <span className="r21-mark is-working">working</span>;
+  if (state === 'stale') {
+    return (
+      <span className="a-chip g-text-wait" title="The timer is still running, but the chat has been quiet for over 2 hours.">
+        <i className="g-wait" aria-hidden="true" />
+        chat quiet for 2h+
+      </span>
+    );
+  }
+  return <StateChip state="work" text="timer on" />;
 }
 
 /**
@@ -1074,10 +1080,6 @@ function FocusPanel({
         </button>
       )}
 
-      <div className="r21-focuspanel-mark">
-        <StateMark state={state} stuck={liveStuck} />
-      </div>
-
       {story ? (
         <header className="r21-focal-story">
           <div className="a-story-top">
@@ -1146,7 +1148,7 @@ function FocusPanel({
         })()}
         <div className="a-now-main">
           <div className="a-story-top">
-            {liveStuck ? <StateChip state="stuck" text="stuck · clock stopped" /> : <StateChip state="work" text="timer on" />}
+            {liveStuck ? <StateChip state="stuck" text="stuck · clock stopped" /> : <StateMark state={state} />}
             <Mono className="a-id">#{task.id}</Mono>
           </div>
           <button
@@ -1160,7 +1162,16 @@ function FocusPanel({
           <div className="a-boxes">
             <div className="a-box">
               <small>Started</small>
-              <b>{startedAt || '—'}</b>
+              {(() => {
+                // "Oct 11 · 18:48" → big time, the day under it.
+                const [day, time] = startedAt.includes(' · ') ? startedAt.split(' · ') : ['', startedAt];
+                return (
+                  <>
+                    <b>{time || '—'}</b>
+                    {time && <span>{day || 'today'}</span>}
+                  </>
+                );
+              })()}
             </div>
             <div className="a-box" title="Time your chats counted on this task">
               <small>Logged</small>
