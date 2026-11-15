@@ -92,6 +92,7 @@ import {
   markPendingChangesApplied,
   describeUnfinishedBoardChanges,
   recordFailedSync,
+  addLoggedTime,
 } from '../server/timers.js';
 import * as timerService from '../server/timer-service.js';
 import { getWorkItem, getWorkItemsWithParents, addWorkItemComment, getCurrentIteration, listAllIterations, listMyOpenStoriesEverywhere, getWorkItemsByIds } from '../server/ado.js';
@@ -143,6 +144,7 @@ import {
   setStateBucket,
   removeWorkItem,
   setTitle,
+  setAssignedTo,
   updateTags,
   type StateBucket,
 } from '../server/writes.js';
@@ -442,7 +444,7 @@ server.registerTool(
   {
     title: 'Edit work item fields',
     description:
-      "Update an existing Azure DevOps work item: title, description, state (waiting/going only — close via session_end, not here), Remaining Work, Completed Work, Original Estimate (backfill only — see field), story Effort, tags, iteration path. Pass at least one field; per-field rules are on each field below.",
+      "Update an existing Azure DevOps work item: title, description, state (waiting/going only — close with session_end or task_close, not here), Remaining Work, Completed Work, hours worked with no session (addHours), Original Estimate (backfill only — see field), story Effort, tags, owner, iteration path. Pass at least one field; per-field rules are on each field below.",
     inputSchema: {
       workItemId: workItemIdSchema,
       title: z.string().min(1).optional().describe("New title. Others see it: confirm the exact wording with the user first."),
@@ -451,22 +453,28 @@ server.registerTool(
       remainingWork: z.number().min(0).optional().describe('Task hours left. Raise it when a task runs long; Original Estimate stays fixed.'),
       originalEstimate: z.number().min(0).optional().describe("Task hours, only when blank (refused if already set — it's set once). Propose it with estimate_anchor first. A growing task raises remainingWork."),
       completedWork: z.number().min(0).optional().describe('Task hours spent so far. Overwrites, does not add.'),
+      addHours: z.number().gt(0).max(24).optional().describe("Task only: hours worked with no session open on it (for example helper agents working several tasks under one session). Adds to Completed, takes the same off Remaining, and counts on the dashboard. Propose the number and get the user's yes first. Don't pass with completedWork."),
+      assignedTo: z.string().min(3).optional().describe("New owner: the person's sign-in email. Others see it: confirm with the user first."),
       effort: z.number().min(0).optional().describe('Story hours. Story points follow on their own; never pass points.'),
       addTags: z.array(z.string().min(1)).optional().describe('Tags to add. Never Blocked — use workitem_block.'),
       removeTags: z.array(z.string().min(1)).optional().describe('Tag names to remove from this item.'),
       iterationPath: z.string().min(1).optional().describe('Where to move the item: a sprint name exactly as the board shows it (e.g. "26_21"), or a full ADO iteration path, backslash-separated (e.g. "MyProject\\\\2026\\\\Q4" for a quarter or "MyProject\\\\2026\\\\Q4\\\\26_21" for a sprint). A bare name is looked up among the team\'s sprints. PLANNING RULE (enforced server-side): a started story (any state other than New / To Do / Proposed / Approved / Ready For Dev / Accepted) never changes sprint — move its open TASKS instead, or close the story. A never-started story and any task move freely.'),
     },
   },
-  async ({ workItemId, title, description, state, remainingWork, completedWork, originalEstimate, effort, addTags, removeTags, iterationPath }) => {
+  async ({ workItemId, title, description, state, remainingWork, completedWork, addHours, assignedTo, originalEstimate, effort, addTags, removeTags, iterationPath }) => {
+    if (addHours != null && (completedWork != null || remainingWork != null)) {
+      return errorResult('Pass addHours on its own, without completedWork or remainingWork: it sets both.');
+    }
     if (
       title == null && description == null &&
       state == null && remainingWork == null && completedWork == null &&
+      addHours == null && assignedTo == null &&
       originalEstimate == null && effort == null &&
       (addTags == null || addTags.length === 0) &&
       (removeTags == null || removeTags.length === 0) &&
       iterationPath == null
     ) {
-      return errorResult('At least one of title, description, state, remainingWork, completedWork, originalEstimate, effort, addTags, removeTags, iterationPath is required.');
+      return errorResult('At least one of title, description, state, remainingWork, completedWork, addHours, assignedTo, originalEstimate, effort, addTags, removeTags, iterationPath is required.');
     }
     const applied: {
       title?: string;
@@ -474,6 +482,8 @@ server.registerTool(
       state?: string;
       remainingWork?: number;
       completedWork?: number;
+      addedHours?: number;
+      assignedTo?: string;
       originalEstimate?: number;
       storyPoints?: number;
       effort?: number;
@@ -490,6 +500,8 @@ server.registerTool(
     if (remainingWork != null) requested.push('remainingWork');
     if (originalEstimate != null) requested.push('originalEstimate');
     if (completedWork != null) requested.push('completedWork');
+    if (addHours != null) requested.push('addHours');
+    if (assignedTo != null) requested.push('assignedTo');
     if (effort != null) requested.push('effort');
     if ((addTags && addTags.length > 0) || (removeTags && removeTags.length > 0)) requested.push('tags');
     if (iterationPath != null) requested.push('iterationPath');
@@ -517,6 +529,20 @@ server.registerTool(
         await setCompletedWork(workItemId, completedWork);
         applied.completedWork = completedWork;
       }
+      if (addHours != null) {
+        const item = await getWorkItem(workItemId);
+        if (item.type !== 'Task') throw new Error(`addHours is for tasks; ${displayNameFor(item.id, item.title)} is a ${item.type}.`);
+        // Remaining never drops to 0 on an open task: that reads as done.
+        // Nearly done stays at a quarter hour; closing it is task_close's job.
+        const left = item.remainingWork != null ? Math.max(0.25, item.remainingWork - addHours) : undefined;
+        await setCompletedWork(workItemId, (item.completedWork ?? 0) + addHours);
+        if (left != null) await setRemaining(workItemId, left);
+        addLoggedTime(workItemId, addHours);
+        applied.addedHours = addHours;
+        applied.completedWork = (item.completedWork ?? 0) + addHours;
+        if (left != null) applied.remainingWork = left;
+      }
+      if (assignedTo != null) applied.assignedTo = await setAssignedTo(workItemId, assignedTo);
       if (effort != null) {
         const { effort: appliedEffort, storyPoints: appliedPoints } =
           await setEffortWithDerivedPoints(workItemId, effort);
@@ -526,12 +552,18 @@ server.registerTool(
       if ((addTags && addTags.length > 0) || (removeTags && removeTags.length > 0)) {
         applied.tags = await updateTags(workItemId, { add: addTags, remove: removeTags });
       }
+      let noGuessNote: string | undefined;
       if (targetPath != null) {
         await setIterationPath(workItemId, targetPath);
         applied.iterationPath = targetPath;
+        // A task with no guess adds 0 hours to the sprint it lands in.
+        const moved = await getWorkItem(workItemId).catch(() => null);
+        if (moved?.type === 'Task' && !isDoneState(moved.state) && !(moved.originalEstimate! > 0) && originalEstimate == null) {
+          noGuessNote = `${displayNameFor(moved.id, moved.title)} has no guess, so it adds 0 hours to the sprint. Propose one with estimate_anchor and set it with originalEstimate.`;
+        }
       }
       invalidateDashboardCache();
-      return jsonResult({ applied });
+      return jsonResult({ applied, ...(noGuessNote ? { noGuessNote } : {}) });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       // A failure half-way through does NOT undo the fields that already went
@@ -1926,6 +1958,59 @@ server.registerTool(
         ...(unfinished ? { unfinishedBoardChanges: unfinished } : {}),
         ...(cwdWarning ? { cwdWarning } : {}),
       });
+    } catch (e) {
+      return errorResult(e instanceof Error ? e.message : String(e));
+    }
+  },
+);
+
+server.registerTool(
+  'task_close',
+  {
+    title: 'Close a finished task that has no open session',
+    description:
+      "Close a TASK the user says is finished when no session is open on it (for example helper agents did it, or its PR merged). Writes Completed, Remaining 0 and Done, like session_end done:true. A task with an open session is refused: use session_end there. Propose completedHours first (the real hours it took) and wait for the user's yes. Refuses a task outside the current sprint unless outsideSprintOk.",
+    inputSchema: {
+      workItemId: workItemIdSchema,
+      completedHours: z.number().gt(0).describe('The Completed hours the user confirmed: the real hours it took.'),
+      outsideSprintOk: z
+        .boolean()
+        .optional()
+        .describe('Pass true only after the user said to close it where it is, even though it is not in the current sprint.'),
+    },
+  },
+  async ({ workItemId, completedHours, outsideSprintOk }) => {
+    try {
+      const task = await getWorkItem(workItemId);
+      const name = displayNameFor(task.id, task.title);
+      if (task.type !== 'Task') {
+        return errorResult(`${name} is a ${task.type}. task_close is for tasks; close a story or bug with story_close.`);
+      }
+      if (isDoneState(task.state)) return jsonResult({ alreadyDone: true, message: `${name} is already closed.` });
+      const open = listActiveSessions().find(x => x.workItemId === workItemId);
+      if (open) {
+        return errorResult(`${name} has an open session (${open.id}). Close it with session_end done:true instead, so its time counts.`);
+      }
+      if (!outsideSprintOk) {
+        const refusal = outsideSprintRefusal({
+          displayName: name,
+          itemPath: task.iterationPath,
+          sprint: await getCurrentIteration().catch(() => null),
+          action: 'close',
+        });
+        if (refusal) return errorResult(refusal, { fromBoard: true });
+      }
+      const board = await timerService.closeTaskOnBoard({ workItemId, completedHours });
+      if (!board.ok) return errorResult(board.message!);
+      markPendingChangesApplied(workItemId);
+      invalidateDashboardCache();
+      const storyCloseSuggestion = await suggestStoryClose(workItemId);
+      return jsonResult({
+        closed: name,
+        completedHoursPushed: completedHours,
+        newState: board.newState,
+        ...(storyCloseSuggestion ? { storyCloseSuggestion } : {}),
+      }, { fromBoard: true });
     } catch (e) {
       return errorResult(e instanceof Error ? e.message : String(e));
     }

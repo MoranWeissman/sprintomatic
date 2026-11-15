@@ -151,6 +151,8 @@ export interface UserStoryGroup {
   tasks: DashboardWorkItem[];
   /** Aggregate effort across this group's tasks (in hours). */
   totalEstimateHours: number;
+  /** Open tasks with no Original Estimate. They add 0 to the guess above, so it reads low. */
+  noGuessTasks: number;
   completedHours: number;
   remainingHours: number;
   /** Counts for quick glance. */
@@ -951,6 +953,7 @@ export function groupByParent(rawItems: WorkItem[], projected: DashboardWorkItem
   const groups: UserStoryGroup[] = Array.from(buckets.values()).map(({ parent, header, tasks }) => {
     const taskOnly = tasks.filter(t => t.type === 'Task');
     const totalEstimateHours = taskOnly.reduce((s, t) => s + (t.originalEstimate ?? 0), 0);
+    const noGuessTasks = taskOnly.filter(t => !isDoneState(t.state) && !(t.originalEstimate! > 0)).length;
     const completedHours = taskOnly.reduce(
       (s, t) => s + (t.completedWork ?? 0) + t.localUncapturedSeconds / 3600,
       0,
@@ -990,6 +993,7 @@ export function groupByParent(rawItems: WorkItem[], projected: DashboardWorkItem
       feature: parent.feature,
       tasks,
       totalEstimateHours,
+      noGuessTasks,
       completedHours,
       remainingHours,
       counts,

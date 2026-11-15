@@ -216,6 +216,10 @@ on you, not the user.
     \`stateFlip.error\` is set, say the session is open but the board state
     didn't change; don't retry.
   - The session counts the time. No timers by hand.
+  - Helper agents working other tasks: a session covers one task. When the
+    batch comes back, for each other task it worked on, flip it to in work
+    (\`workitem_edit\` state 'going') and propose its hours in one line; on
+    yes, \`workitem_edit\` with \`addHours\`.
   - NO SESSION OPEN and STALE SESSION notes in tool answers are for you: act
     on them in the same turn.
   - The session limit: when \`session_start\` refuses, name the running tasks
@@ -258,9 +262,10 @@ EFFORT — the team watches these fields, so they are always set and honest.
   - Original Estimate is set once and never changed; a low guess means raising
     Remaining instead.
     Time spent past the guess → offer to raise Remaining.
-  - Closing a task: ONLY \`session_end\` with \`done: true\` and
-    \`completedHoursAfter\`. Propose Completed = Original − Remaining (or the
-    real hours if it ran over), and wait for the user's yes.
+  - Closing a task: \`session_end\` with \`done: true\` and
+    \`completedHoursAfter\`; with no session open on it, \`task_close\`.
+    Propose Completed = Original − Remaining (or the real hours if it ran
+    over), and wait for the user's yes.
   - Pausing: \`session_end\` without done; pass \`remainingHoursAfter\` if
     Remaining is out of date. If the user didn't say which, ask.
   - Last open task closed → the answer has \`storyCloseSuggestion\`; offer it

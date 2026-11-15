@@ -188,6 +188,8 @@ export interface ApiUserStoryGroup {
   feature?: { id: string; title: string; type: string };
   tasks: ApiWorkItem[];
   totalEstimateHours: number;
+  /** Open tasks with no guess; they add nothing to totalEstimateHours. */
+  noGuessTasks: number;
   completedHours: number;
   remainingHours: number;
   counts: { inProgress: number; upNext: number; blocked: number; done: number };

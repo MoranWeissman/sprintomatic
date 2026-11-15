@@ -3947,3 +3947,4 @@ span.g-done, i.g-done { background: var(--st-done); }
 
 /* Line icons from Icons.tsx: sit on the text line like a letter would. */
 .icon { display: inline-block; flex: none; vertical-align: -2px; }
+.a-noguess { margin: 6px 0 0; font-size: var(--fs-sm); color: var(--ink-2); }

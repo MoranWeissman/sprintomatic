@@ -64,6 +64,22 @@ export function startTimer(workItemId: number): TimeEntryRow {
 }
 
 /**
+ * Record hours that were worked with no session open (for example by helper
+ * agents), so the dashboard counts them like any other tracked time. The
+ * entry ends now and is marked as already on the board: the caller writes
+ * Completed Work itself.
+ */
+export function addLoggedTime(workItemId: number, hours: number, now = new Date()): void {
+  const startedAt = new Date(now.getTime() - hours * 3600_000).toISOString();
+  getDb()
+    .prepare(
+      `INSERT INTO time_entries (work_item_id, started_at, ended_at, note, synced_to_ado)
+       VALUES (?, ?, ?, 'added after the fact', 1)`,
+    )
+    .run(workItemId, startedAt, now.toISOString());
+}
+
+/**
  * Pause the running timer for a work item. No-op if none is running.
  * Returns the closed row, or null if there was nothing to close.
  *

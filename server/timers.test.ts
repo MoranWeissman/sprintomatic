@@ -18,6 +18,9 @@ import {
   listOpenPendingChanges,
   markPendingChangesApplied,
   describeUnfinishedBoardChanges,
+  addLoggedTime,
+  getLocalLoggedMap,
+  getUncapturedSecondsMap,
 } from './timers';
 
 const TASK_ID = 100001;
@@ -142,5 +145,13 @@ describe('changes that never reached the board', () => {
     expect(sentence).toContain('2');
     expect(sentence).toContain(String(TASK_ID));
     expect(sentence).toContain(String(OTHER_TASK_ID));
+  });
+});
+
+describe('addLoggedTime', () => {
+  it('counts the hours on the dashboard but not as time still to send', () => {
+    addLoggedTime(TASK_ID, 1.5, new Date('2026-11-15T12:00:00.000Z'));
+    expect(getLocalLoggedMap().get(TASK_ID)).toBe(5400);
+    expect(getUncapturedSecondsMap().get(TASK_ID)).toBeUndefined();
   });
 });

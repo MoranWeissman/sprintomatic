@@ -564,6 +564,16 @@ export async function setCompletedWork(workItemId: number, hours: number): Promi
   ]);
 }
 
+/** Change who a work item is assigned to. Takes the person's sign-in email. */
+export async function setAssignedTo(workItemId: number, who: string): Promise<string> {
+  const trimmed = who.trim();
+  if (!trimmed) throw new Error('Say who to assign it to: their sign-in email.');
+  await patchWorkItem(workItemId, [
+    { op: 'add', path: '/fields/System.AssignedTo', value: trimmed },
+  ]);
+  return trimmed;
+}
+
 /**
  * Rename a work item — overwrite System.Title. Trimmed; rejects an empty title.
  * Returns the title that was written so the caller can echo it back.

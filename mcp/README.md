@@ -88,12 +88,13 @@ to `~/.copilot/hooks/`. `skills_sync` copies the managed skills to
 
 | Tool | What it does |
 |---|---|
-| `workitem_edit` | Change state, original estimate, remaining hours, story points, effort, tags or sprint. |
+| `workitem_edit` | Change state, original estimate, remaining hours, story points, effort, tags, owner or sprint. Can also add hours worked with no session open. |
 | `workitem_reparent` | Move an item under a different parent. |
 | `workitem_change_type` | Flip an item between User Story and Bug. Only those two — tasks, features and epics are refused. |
 | `workitem_block` | Mark an item blocked: the state, the tag and a written reason together. |
 | `workitem_unblock` | Clear a block and record why it lifted. |
-| `story_close` | Move a finished story or bug to the team's done state. Stories only — tasks close through `session_end`. |
+| `story_close` | Move a finished story or bug to the team's done state. Stories only — tasks close through `session_end` or `task_close`. |
+| `task_close` | Close a finished task that has no open session, with the real hours it took. |
 
 ### Creating and planning
 

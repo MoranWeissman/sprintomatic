@@ -18,6 +18,7 @@ import {
   type ModeId,
 } from '../lib/api';
 import { boardStateClass } from '../lib/boardStateClass';
+import { noGuessLine } from '../lib/noGuess';
 import { oldNoteLine } from '../lib/noteAge';
 import { boldParts } from '../lib/boldParts';
 import {
@@ -1162,6 +1163,7 @@ function FocusPanel({
                 <span className="a-of">{storyGuess != null ? `of ${fmtNum(storyGuess)}h guessed` : 'no guess yet'}</span>
               </span>
               <HoursBar spent={storySec / 3600} guess={storyGuess} />
+              {noGuessLine(story.noGuessTasks) && <p className="a-noguess">{noGuessLine(story.noGuessTasks)}</p>}
             </div>
             <div className="a-strip-box">
               <span><b className="a-mid">{story.storyPoints != null ? fmtNum(story.storyPoints) : '—'}</b><small>points</small></span>
@@ -2070,6 +2072,7 @@ function DailyStoryCard({
             <span className="a-of">{guess != null ? `of ${fmtNum(guess)}h guessed` : 'no guess yet'}</span>
           </div>
           <HoursBar spent={loggedSec / 3600} guess={guess} />
+          {noGuessLine(story.noGuessTasks) && <p className="a-noguess">{noGuessLine(story.noGuessTasks)}</p>}
           <CountLine counts={c} />
         </div>
         <div className="a-stats-points">
