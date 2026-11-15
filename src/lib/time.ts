@@ -71,6 +71,7 @@ export function sprintDays(sprint: SprintContext, now: Date): SprintDay[] {
       label: WEEKDAYS_SHORT[dow],
       state: i < todayIdx ? 'past' : i === todayIdx ? 'today' : 'future',
       isOff: !sprint.workingDays.includes(dow),
+      dateLabel: `${WEEKDAYS_LONG[dow]} ${d.getDate()} ${MONTHS_LONG[d.getMonth()]}`,
     };
   });
 }

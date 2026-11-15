@@ -43,4 +43,6 @@ export interface SprintDay {
   state: 'past' | 'today' | 'future';
   /** True for a day outside the user's working days (off). Rendered grayed. */
   isOff: boolean;
+  /** "Tuesday 12 November", so two same letters can be told apart. */
+  dateLabel: string;
 }

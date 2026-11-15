@@ -39,6 +39,7 @@ import {
 } from '../lib/focusPicks';
 import { focusPanelTasks } from '../lib/focusTasks';
 import { buildNotePrompt } from '../lib/notePrompt';
+import { hoursAnswer } from '../lib/hoursAnswer';
 import type { SprintContext } from '../lib/types';
 import { CarryForwardBanner } from './CarryForwardBanner';
 import { DnDView } from './DnDView';
@@ -346,7 +347,7 @@ function DashboardLive({
                 <span className="dim-small">updates by itself</span>&nbsp;<span className="ember-sync-icon">↻</span>
               </button>
               <button className="r21-escape" onClick={() => setShowBoard(true)} title="Show the whole board — your work keeps logging">
-                <span><span className="v">{Math.max(0, storyOnlyAll.length - 1)}</span> more in sprint</span>
+                <span>All stories <span className="v">{storyOnlyAll.length}</span></span>
                 <span className="arr">↗</span>
               </button>
             </span>
@@ -636,7 +637,7 @@ function R21Sidebar({
   now: Date;
   sprintLabel: string;
   totalDays: number;
-  railDays: Array<{ index: number; state: string; label: string; isOff: boolean }>;
+  railDays: Array<{ index: number; state: string; label: string; isOff: boolean; dateLabel: string }>;
   view: 'daily' | 'focus';
   hasLive: boolean;
   onPickDaily: () => void;
@@ -710,6 +711,7 @@ function R21Sidebar({
                   <span
                     key={d.index}
                     className={`r21-side-week-cell ${d.isOff ? 'is-off' : ''} ${d.state === 'past' ? 'is-past' : d.state === 'today' ? 'is-today' : 'is-future'}`}
+                    title={`${d.dateLabel}${d.state === 'today' ? ' (today)' : ''}${d.isOff ? ' (day off)' : ''}`}
                   >
                     {d.label}
                   </span>
@@ -1330,20 +1332,23 @@ function FocusTaskDrill({
       <div className="r21-focal-meta">
         {startedAt && <span className="r21-since">started <span className="v">{startedAt}</span></span>}
         <span className="r21-grow" />
-        <span className="r21-num">
-          <span className="cap">LOGGED</span>
+        <span className="r21-num" title="Time your chats counted on this task">
+          <span className="cap">Logged</span>
           <span className="val">{logged}</span>
           {task.sessionCount > 0 && <span className="sub">· {task.sessionCount} session{task.sessionCount === 1 ? '' : 's'}</span>}
         </span>
-        <span className="r21-num">
-          <span className="cap">ESTIMATE</span>
+        <span className="r21-num" title="The first guess, set once">
+          <span className="cap">Guess</span>
           <span className="val">{estimateFor(task)}</span>
         </span>
-        <span className="r21-num">
-          <span className="cap">REMAINING</span>
+        <span className="r21-num" title="Hours the board says are left">
+          <span className="cap">Left</span>
           <span className={`val ${task.remainingWork == null ? 'is-missing' : ''}`}>{remaining}</span>
         </span>
       </div>
+      <p className="r21-answer">
+        {hoursAnswer({ loggedSeconds: loggedSec, guessHours: task.originalEstimate, leftHours: task.remainingWork })}
+      </p>
       <OverEstimateLine task={task} />
 
       <div className="r21-feed">
