@@ -3593,6 +3593,8 @@ button.r21-standup-item-head.is-toggle:hover .r21-standup-item-title { color: va
 .plan2-section-help { margin: 0 0 12px 36px; font-size: var(--fs-sm); color: var(--ink-2); }
 .plan2-moveall { display: flex; align-items: center; gap: 12px; margin: 0 0 12px 36px; flex-wrap: wrap; }
 .plan2-moveall-note { font-size: var(--fs-sm); color: var(--ink-2); }
+.plan2-moveall-list { margin: 6px 0 0; padding-left: 18px; font-size: var(--fs-sm); color: var(--ink-1); }
+.plan2-moveall-list .id { color: var(--ink-3); margin-left: 4px; }
 
 /* ==========================================================================
    2026-11 look A: a dark violet page with soft colour light behind it, glass

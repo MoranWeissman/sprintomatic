@@ -14,6 +14,7 @@
  */
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
+import { Writable } from 'node:stream';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listSettings, saveSettings, SettingError, type SettingView } from '../server/settings-registry';
@@ -25,7 +26,31 @@ import { probeBoardStates } from '../server/state-probe';
 import { hourLabel, workingDaysLabel } from '../server/user-config';
 import { copilotPresent, setupCopilot } from '../server/copilot-instructions';
 
-const rl = createInterface({ input: stdin, output: stdout });
+// Typing a token should not show it on screen. readline echoes through this
+// stream; while `hideTyping` is on, the echo is dropped. The prompt itself is
+// written straight to the screen so it still shows.
+let hideTyping = false;
+const echo = new Writable({
+  write(chunk, _enc, done) {
+    if (!hideTyping) stdout.write(chunk);
+    done();
+  },
+});
+Object.assign(echo, { isTTY: stdout.isTTY, columns: stdout.columns });
+const rl = createInterface({ input: stdin, output: echo, terminal: stdin.isTTY });
+
+/** Ask a question; for a secret, the typing stays hidden. */
+async function question(prompt: string, secret: boolean): Promise<string> {
+  if (!secret) return rl.question(prompt);
+  stdout.write(prompt);
+  hideTyping = true;
+  try {
+    return await rl.question('');
+  } finally {
+    hideTyping = false;
+    stdout.write('\n');
+  }
+}
 // Built files (an npm install) end in .js; the source run by tsx doesn't.
 const installed = import.meta.url.endsWith('.js');
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -54,7 +79,7 @@ async function ask(key: string, hint = ''): Promise<void> {
       const now = shown(s);
       prompt += now ? ` [${now}]: ` : ': ';
     }
-    const answer = (await rl.question(prompt)).trim();
+    const answer = (await question(prompt, s.kind === 'secret')).trim();
     if (answer === '') return;
     let value = answer;
     if (s.kind === 'choice') {
@@ -88,7 +113,7 @@ async function main() {
   await ask('ado_team', 'the team you plan sprints with' + (usesToken ? '' : '; leave empty and the check lists them'));
   await ask('ado_user', 'your sign-in email');
   if (usesToken) {
-    console.log('  The token is kept in the Mac Keychain when there is one. Typing it shows on screen.');
+    console.log('  The token is kept in the Mac Keychain when there is one. Typing it stays hidden; paste it and press Enter.');
     await ask('ado_pat', 'needs work item read and write');
   }
 

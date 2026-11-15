@@ -23,7 +23,7 @@ import {
 } from '../lib/api';
 import { boardStateClass } from '../lib/boardStateClass';
 import { parseHours } from '../lib/drawerBits';
-import { AskForm } from './AskForm';
+import { AskForm, AskYesNo } from './AskForm';
 
 type ScanState =
   | { status: 'idle' }
@@ -167,10 +167,9 @@ export function PlanView({ onOpenItem, onScanComplete }: PlanViewProps) {
     }
   };
 
-  // End of sprint: one yes for all the leftover tasks, listed by name.
-  const onMoveAll = async (tasks: ApiCockpitOpenTask[], path: string, name: string) => {
-    const list = tasks.map(t => `• ${t.title} (#${t.id})`).join('\n');
-    if (!window.confirm(`Move these ${tasks.length} open tasks to ${name}? Their stories stay here.\n\n${list}`)) return;
+  // End of sprint: one yes for all the leftover tasks (the page lists them by
+  // name and asks before this runs).
+  const onMoveAll = async (tasks: ApiCockpitOpenTask[], path: string) => {
     setActionError(null);
     const failed: string[] = [];
     for (const t of tasks) {
@@ -483,7 +482,7 @@ function CloseOutSection({
   cockpit: CockpitState;
   /** Planning into the running sprint: nothing to close out yet. */
   midSprint: boolean;
-  onMoveAll: (tasks: ApiCockpitOpenTask[], nextSprintPath: string, nextSprintName: string) => Promise<void>;
+  onMoveAll: (tasks: ApiCockpitOpenTask[], nextSprintPath: string) => Promise<void>;
   actingOn: number | null;
   expanded: Set<number>;
   onToggleExpanded: (id: number) => void;
@@ -491,6 +490,7 @@ function CloseOutSection({
   onCloseTask: (taskId: number, completedHours: number) => Promise<void>;
   onOpenItem?: (id: string) => void;
 }) {
+  const [askingMoveAll, setAskingMoveAll] = useState(false);
   if (cockpit.status === 'loading') {
     return (
       <section className="plan2-section">
@@ -533,11 +533,28 @@ function CloseOutSection({
             type="button"
             className="plan2-act plan2-act-pull"
             disabled={actingOn != null}
-            onClick={() => { void onMoveAll(allOpenTasks, moveTo.path, moveTo.name); }}
+            onClick={() => setAskingMoveAll(a => !a)}
           >
             Move all {allOpenTasks.length} open tasks to {moveTo.name}
           </button>
           <span className="plan2-moveall-note">The stories stay here. Only their open tasks move.</span>
+          {askingMoveAll && (
+            <AskYesNo
+              question={<>
+                <span>Move these {allOpenTasks.length} open tasks to {moveTo.name}? Their stories stay here.</span>
+                <ul className="plan2-moveall-list">
+                  {allOpenTasks.map(t => <li key={t.id}>{t.title} <span className="id">#{t.id}</span></li>)}
+                </ul>
+              </>}
+              yesText={`Move ${allOpenTasks.length} tasks`}
+              busy={actingOn != null}
+              onYes={() => {
+                setAskingMoveAll(false);
+                void onMoveAll(allOpenTasks, moveTo.path);
+              }}
+              onCancel={() => setAskingMoveAll(false)}
+            />
+          )}
         </div>
       )}
       {openStories.length === 0 ? (
@@ -669,7 +686,7 @@ function CloseOutTaskRow({
   onCloseTask: (taskId: number, completedHours: number) => Promise<void>;
   onOpenItem?: (id: string) => void;
 }) {
-  const [askingHours, setAskingHours] = useState(false);
+  const [asking, setAsking] = useState<'hours' | 'move' | null>(null);
   const stateClass = boardStateClass(task.state);
   const rem = task.remainingWork != null ? `${Math.round(task.remainingWork)}h` : '—';
   const remMissing = task.remainingWork == null;
@@ -701,10 +718,7 @@ function CloseOutTaskRow({
             type="button"
             className="plan2-act plan2-act-pull"
             disabled={busy}
-            onClick={() => {
-              if (!window.confirm(`Move "${task.title}" to ${nextSprintName ?? 'next sprint'}?`)) return;
-              void onMoveTask(task, nextSprintPath);
-            }}
+            onClick={() => setAsking(a => (a === 'move' ? null : 'move'))}
           >
             → {nextSprintName ?? 'next'}
           </button>
@@ -717,13 +731,27 @@ function CloseOutTaskRow({
           type="button"
           className="plan2-act plan2-act-done"
           disabled={busy}
-          onClick={() => setAskingHours(a => !a)}
+          onClick={() => setAsking(a => (a === 'hours' ? null : 'hours'))}
         >
           ✓ done
         </button>
       </span>
     </li>
-    {askingHours && (
+    {asking === 'move' && nextSprintPath && (
+      <li className="plan2-ask">
+        <AskYesNo
+          question={`Move "${task.title}" to ${nextSprintName ?? 'the next sprint'}?`}
+          yesText="Move it"
+          busy={busy}
+          onYes={() => {
+            setAsking(null);
+            void onMoveTask(task, nextSprintPath);
+          }}
+          onCancel={() => setAsking(null)}
+        />
+      </li>
+    )}
+    {asking === 'hours' && (
       <li className="plan2-ask">
         <AskForm
           label={`How many hours did "${task.title}" really take? This is written to the board.`}
@@ -732,10 +760,10 @@ function CloseOutTaskRow({
           submitText="Mark done"
           check={v => (parseHours(v) == null ? 'Type the hours as a number above 0 (999 at most).' : null)}
           onSubmit={v => {
-            setAskingHours(false);
+            setAsking(null);
             void onCloseTask(task.id, parseHours(v)!);
           }}
-          onCancel={() => setAskingHours(false)}
+          onCancel={() => setAsking(null)}
         />
       </li>
     )}
@@ -854,8 +882,10 @@ function PullBacklogRow({
   const effort = story.effort;
   const pointsMissing = points == null || points === 0;
   const effortMissing = effort == null || effort === 0;
+  const [askingPull, setAskingPull] = useState(false);
 
   return (
+    <>
     <li className={`plan2-row is-${stateClass}`}>
       <div className="plan2-row-main">
         <span className="plan2-chevron is-spacer" aria-hidden="true">▸</span>
@@ -906,10 +936,7 @@ function PullBacklogRow({
               type="button"
               className="plan2-act plan2-act-pull"
               disabled={busy}
-              onClick={() => {
-                if (!window.confirm(`Pull "${story.title}" into ${targetName ?? 'the sprint'}?`)) return;
-                void onPull(story, targetPath);
-              }}
+              onClick={() => setAskingPull(a => !a)}
             >
               → {targetName ?? 'sprint'}
             </button>
@@ -921,6 +948,21 @@ function PullBacklogRow({
         </span>
       </div>
     </li>
+    {askingPull && targetPath && (
+      <li className="plan2-ask">
+        <AskYesNo
+          question={`Pull "${story.title}" into ${targetName ?? 'the sprint'}?`}
+          yesText="Pull it in"
+          busy={busy}
+          onYes={() => {
+            setAskingPull(false);
+            void onPull(story, targetPath);
+          }}
+          onCancel={() => setAskingPull(false)}
+        />
+      </li>
+    )}
+    </>
   );
 }
 
