@@ -60,7 +60,7 @@ to `~/.copilot/hooks/`. `skills_sync` copies the managed skills to
 
 ## Tools
 
-52 tools, grouped by what they are for.
+53 tools, grouped by what they are for. With Discovery and Design both off, the 10 workspace, feature and design tools are left out.
 
 ### Getting oriented
 

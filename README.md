@@ -206,6 +206,9 @@ The rest works the same way as in Claude Code:
   restart, either open a chat or run `npx sprintomatic dashboard`.
 - **Changed your settings?** Open a new chat to see the change. A chat that's
   already open still uses the old settings.
+- **Want chats to talk to you a certain way?** Write your own rules in
+  `~/.sprintomatic/house-rules.md`, for example "short sentences" or "never say
+  'velocity'". Every new chat reads them after sprintomatic's own rules.
 
 ## For developers
 

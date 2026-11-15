@@ -306,7 +306,7 @@ server.registerTool(
   {
     title: 'Greet the user at the start of a chat',
     description:
-      "Read where the user left off and what's waiting in their sprint, then write a friendly 2-4 sentence greeting (don't paste the numbers). Call once when they're reorienting — new chat, after a /compact or a resume, or a greeting like 'hi' / 'where were we'. Pass `cwd` (this chat's working directory, from your environment) so the greeting can tell whether an open session belongs to THIS chat or a different one. Full trigger list and how to use the packet: SERVER_INSTRUCTIONS → OPENING GREETING and → CAPACITY.",
+      "Read where the user left off and what's waiting in their sprint, then write a friendly 2-4 sentence greeting (don't paste the numbers). Call once when they're reorienting — new chat, after a /compact or a resume, or a greeting like 'hi' / 'where were we'. Pass `cwd` (this chat's working directory, from your environment) so the greeting can tell whether an open session belongs to THIS chat or a different one. Full trigger list and how to use the packet: SERVER_INSTRUCTIONS → OPENING GREETING and → TIME.",
     inputSchema: {
       cwd: z
         .string()
@@ -1072,7 +1072,7 @@ server.registerTool(
   {
     title: 'Create an ADO user story in the current sprint',
     description:
-      "Create a new User Story in Azure DevOps, placed in the user's current sprint and assigned to them. ALWAYS ask the user for effortHours before calling — never guess, never skip. Effort is the single planning field the POM delivery manager reads; Story Points are derived from it automatically (1 point = 1 workday, rounded to the nearest half) and written in the same patch. Pass `parentFeatureId` to nest under an existing Feature/Epic if the user has one. Returns the new story's id and URL.",
+      "Create a new User Story in Azure DevOps, placed in the user's current sprint and assigned to them. ALWAYS propose effortHours (see EFFORT in the instructions) and get the user's yes before calling — never call with a number they didn't confirm, never skip. Effort is the single planning field the POM delivery manager reads; Story Points are derived from it automatically (1 point = 1 workday, rounded to the nearest half) and written in the same patch. Pass `parentFeatureId` to nest under an existing Feature/Epic if the user has one. Returns the new story's id and URL.",
     inputSchema: {
       title: z.string().min(1).describe('Story title — short and specific.'),
       description: z.string().optional().describe('Optional details. Plain text or simple HTML.'),
