@@ -33,7 +33,105 @@ const PAGES_LINE = PAGES.discovery && PAGES.design
     ? 'The user has Discovery TURNED OFF: a handed feature goes straight to its design. Never offer or run a discovery, its meetings or its demo.'
     : PAGES.discovery
       ? 'The user has Design TURNED OFF: a feature ends with its discovery. Never offer a design, design_sync or design_push_stories.'
-      : 'The user has Discovery and Design BOTH TURNED OFF, so skip this whole part and the DESIGN PHASE below. Never offer feature folders, a discovery or a design. If the user asks for one, say it is turned off and can be turned on in the dashboard under Settings → Pages.';
+      : ''; // both off: FEATURE_WORK is left out, see below
+
+// Discovery and design work: the workspace, feature folders and the design
+// phase. Left out of the text entirely when both pages are off, so a chat
+// that can't use it doesn't read it.
+const FEATURE_WORK = PAGES.discovery || PAGES.design
+  ? `WORKSPACE — their home for non-code work (discovery, design, small demos):
+${PAGES_LINE}
+A workspace is a visible folder the user opens their AI chat in (Claude Code
+or Copilot CLI). Each feature gets its own subfolder inside it for design docs.
+  - OFFER on an empty folder: call \`workspace_status\` with your cwd. If
+    \`offer.shouldOffer\` is true, ask once — "this is an empty folder and
+    it's not one of your workspaces — want to make it your sprintomatic
+    workspace?" Yes → \`workspace_set\` with the path. No →
+    \`workspace_decline\` with the cwd, and it won't ask again.
+  - START A FEATURE: when the user names a feature, call
+    \`workspace_feature_folder\` with the feature id AND your cwd. That one
+    call makes the folder and puts the feature on their board. Write their
+    discovery and design docs into the returned folder path.
+  - TWO KINDS OF FEATURE — ASK, NEVER GUESS:
+      'handed'   — somebody gave them the problem to work out. Discovery,
+                   then design, then the stories. This is the normal path
+                   and everything below applies to it.
+      'grouping' — the user wrote the stories first and made a feature to gather
+                   them. BOARD ONLY: no folder, never opened, never the
+                   active feature, never on the Discovery & Design page,
+                   nothing in orient. There is nothing to discover and
+                   nothing to design — not "not yet", never. Its stories
+                   already show under it on their Daily view, so there's
+                   nothing to report either. Never offer discovery, design
+                   or \`design_push_stories\` for one.
+    You do not decide which it is. \`feature_create\` REQUIRES \`kind\`, and
+    \`workspace_feature_folder\` refuses when the kind isn't on record and
+    when it's 'grouping'. When that happens, or when orient returns
+    \`featureKindUnknown\`, ask them once in their own words — "did someone
+    hand you this problem to work out, or did you make it to gather
+    stories you already wrote?" — then call \`feature_kind_set\`. The user can
+    change the answer any time.
+  - ACTIVE FEATURE: orient returns \`activeFeature\` (or null). When it's
+    set, write docs into that feature's \`folderPath\` and nowhere else, and
+    echo its \`displayName\` in your greeting. After a compact, trust it
+    over your own memory.
+  - SWITCHING: only the user decides. When the user names a different feature, call
+    \`workspace_feature_folder\` for it — never infer a switch from
+    context. If a session started in this workspace is still open, the
+    call REFUSES and names the task. Read that task out and ask which the user
+    wants: stop it for now (\`session_end\` with no \`done\` — clock stops,
+    nothing reaches Azure DevOps), it's finished (\`session_end\` with
+    \`done=true\` after the user confirms the Completed hours), or leave it
+    running on purpose (call again with \`leaveSessionRunning=true\`).
+    Never pick for them. Stopping a session ENDS it; there is no
+    keep-it-open-but-pause path.
+  - A FEATURE TO GROUP STORIES: call \`feature_create\` with
+    \`kind: 'grouping'\` (confirm that with them) and \`adoptStoryIds\` set to
+    the existing stories — that creates the Feature and moves them under
+    it in one call. Don't ask for hours or story points; a Feature carries
+    neither. It only touches the board.
+  - Don't write feature docs into a folder that isn't the active feature's
+    unless the user says so. Stories the user breaks out go on the board through the
+    usual tools, parented under the feature, and pulled into their sprint.
+
+DESIGN PHASE — the "Design: <feature>" story holds everything in the
+feature folder's \`design/design.json\`: approach, the "not in this design"
+list (outOfScope), flows, draft stories with estimateHours, the working
+plan, open decisions.
+  - \`design.json\` is the ONLY file to edit. \`design.md\` beside it is
+    generated — call \`design_sync\` after every change and it rewrites the
+    markdown and reports what's wrong. Never hand-edit \`design.md\`.
+  - Walk it part by part; get their yes on each part before moving on
+    (\`agreed\` tracks this — same discipline as discovery).
+  - Then hold the design review with the team, record it as a meeting
+    summary, and mark the review done.
+  - Only then call \`design_push_stories\` — it creates every drafted story
+    in one step (Effort in, Story Points derived) and refuses if a part
+    isn't agreed, the review isn't recorded, or it pushed once before.
+  - Pushed stories land in the CURRENT sprint; move later ones on the
+    board after the push. Close the "Design: ..." story only after the
+    push goes through.
+  - No clock on this phase — no session or timer tracking, same as
+    discovery.
+  - SHARING WITH THE TEAM: when the user asks to share or publish a feature's
+    docs to the team's architect repo, call \`feature_share\`. It copies
+    the readable docs (discovery and design markdown, meetings, diagrams,
+    demo, walkthrough, story docs — never transcripts or .json files) into
+    the docs repo on a branch, commits, pushes and opens a PR. It refuses
+    on a dirty tree — relay the reason as-is. If it asks for the docs repo
+    path, ask them where that repo is cloned and call again with
+    \`docsRepoPath\`. This repo is shared with the whole team, so it is
+    ALWAYS two steps: call it plain first (that only shows the plan and
+    writes nothing), read the plan back in plain words, ask them, and only
+    on their yes call again with \`confirmPush: true\`. Never send
+    \`confirmPush: true\` on your own.
+
+`
+  : `DISCOVERY AND DESIGN are both turned off. Never offer feature folders, a
+discovery or a design. If the user asks for one, say it is turned off and can
+be turned on in the dashboard under Settings → Pages.
+
+`;
 
 export const SERVER_INSTRUCTIONS = `
 Sprintomatic keeps the user aligned with their Azure DevOps sprint while the user works
@@ -180,94 +278,7 @@ the planning home with \`planning_home_set\`; the default is
 \`~/.sprintomatic/home/\`, which exists only if it was created. Don't offer
 to set it unless the user asks.
 
-WORKSPACE — their home for non-code work (discovery, design, small demos):
-${PAGES_LINE}
-A workspace is a visible folder the user opens their AI chat in (Claude Code
-or Copilot CLI). Each feature gets its own subfolder inside it for design docs.
-  - OFFER on an empty folder: call \`workspace_status\` with your cwd. If
-    \`offer.shouldOffer\` is true, ask once — "this is an empty folder and
-    it's not one of your workspaces — want to make it your sprintomatic
-    workspace?" Yes → \`workspace_set\` with the path. No →
-    \`workspace_decline\` with the cwd, and it won't ask again.
-  - START A FEATURE: when the user names a feature, call
-    \`workspace_feature_folder\` with the feature id AND your cwd. That one
-    call makes the folder and puts the feature on their board. Write their
-    discovery and design docs into the returned folder path.
-  - TWO KINDS OF FEATURE — ASK, NEVER GUESS:
-      'handed'   — somebody gave them the problem to work out. Discovery,
-                   then design, then the stories. This is the normal path
-                   and everything below applies to it.
-      'grouping' — the user wrote the stories first and made a feature to gather
-                   them. BOARD ONLY: no folder, never opened, never the
-                   active feature, never on the Discovery & Design page,
-                   nothing in orient. There is nothing to discover and
-                   nothing to design — not "not yet", never. Its stories
-                   already show under it on their Daily view, so there's
-                   nothing to report either. Never offer discovery, design
-                   or \`design_push_stories\` for one.
-    You do not decide which it is. \`feature_create\` REQUIRES \`kind\`, and
-    \`workspace_feature_folder\` refuses when the kind isn't on record and
-    when it's 'grouping'. When that happens, or when orient returns
-    \`featureKindUnknown\`, ask them once in their own words — "did someone
-    hand you this problem to work out, or did you make it to gather
-    stories you already wrote?" — then call \`feature_kind_set\`. The user can
-    change the answer any time.
-  - ACTIVE FEATURE: orient returns \`activeFeature\` (or null). When it's
-    set, write docs into that feature's \`folderPath\` and nowhere else, and
-    echo its \`displayName\` in your greeting. After a compact, trust it
-    over your own memory.
-  - SWITCHING: only the user decides. When the user names a different feature, call
-    \`workspace_feature_folder\` for it — never infer a switch from
-    context. If a session started in this workspace is still open, the
-    call REFUSES and names the task. Read that task out and ask which the user
-    wants: stop it for now (\`session_end\` with no \`done\` — clock stops,
-    nothing reaches Azure DevOps), it's finished (\`session_end\` with
-    \`done=true\` after the user confirms the Completed hours), or leave it
-    running on purpose (call again with \`leaveSessionRunning=true\`).
-    Never pick for them. Stopping a session ENDS it; there is no
-    keep-it-open-but-pause path.
-  - A FEATURE TO GROUP STORIES: call \`feature_create\` with
-    \`kind: 'grouping'\` (confirm that with them) and \`adoptStoryIds\` set to
-    the existing stories — that creates the Feature and moves them under
-    it in one call. Don't ask for hours or story points; a Feature carries
-    neither. It only touches the board.
-  - Don't write feature docs into a folder that isn't the active feature's
-    unless the user says so. Stories the user breaks out go on the board through the
-    usual tools, parented under the feature, and pulled into their sprint.
-
-DESIGN PHASE — the "Design: <feature>" story holds everything in the
-feature folder's \`design/design.json\`: approach, the "not in this design"
-list (outOfScope), flows, draft stories with estimateHours, the working
-plan, open decisions.
-  - \`design.json\` is the ONLY file to edit. \`design.md\` beside it is
-    generated — call \`design_sync\` after every change and it rewrites the
-    markdown and reports what's wrong. Never hand-edit \`design.md\`.
-  - Walk it part by part; get their yes on each part before moving on
-    (\`agreed\` tracks this — same discipline as discovery).
-  - Then hold the design review with the team, record it as a meeting
-    summary, and mark the review done.
-  - Only then call \`design_push_stories\` — it creates every drafted story
-    in one step (Effort in, Story Points derived) and refuses if a part
-    isn't agreed, the review isn't recorded, or it pushed once before.
-  - Pushed stories land in the CURRENT sprint; move later ones on the
-    board after the push. Close the "Design: ..." story only after the
-    push goes through.
-  - No clock on this phase — no session or timer tracking, same as
-    discovery.
-  - SHARING WITH THE TEAM: when the user asks to share or publish a feature's
-    docs to the team's architect repo, call \`feature_share\`. It copies
-    the readable docs (discovery and design markdown, meetings, diagrams,
-    demo, walkthrough, story docs — never transcripts or .json files) into
-    the docs repo on a branch, commits, pushes and opens a PR. It refuses
-    on a dirty tree — relay the reason as-is. If it asks for the docs repo
-    path, ask them where that repo is cloned and call again with
-    \`docsRepoPath\`. This repo is shared with the whole team, so it is
-    ALWAYS two steps: call it plain first (that only shows the plan and
-    writes nothing), read the plan back in plain words, ask them, and only
-    on their yes call again with \`confirmPush: true\`. Never send
-    \`confirmPush: true\` on your own.
-
-CONTEXT CROSS-CHECK — call \`story_match\` with this chat's cwd, whether or
+${FEATURE_WORK}CONTEXT CROSS-CHECK — call \`story_match\` with this chat's cwd, whether or
 not a session is live. Optionally glance at
 \`git -C <cwd> log --oneline -8\` and pass the subjects as
 \`recentCommits\` to sharpen the match — cheap and worth it on the first

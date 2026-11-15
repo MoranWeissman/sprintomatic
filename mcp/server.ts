@@ -181,6 +181,23 @@ function detectedClient(): string | null {
  */
 let currentTool: string | null = null;
 
+/**
+ * Tools a chat can't use when their page is off. They are not registered at
+ * all, so a chat never reads their text or offers them.
+ */
+const DESIGN_TOOLS = ['design_sync', 'design_push_stories'];
+const FEATURE_TOOLS = [
+  ...DESIGN_TOOLS,
+  'workspace_set', 'workspace_decline', 'workspace_status', 'workspace_feature_folder',
+  'feature_share', 'feature_kind_set', 'feature_unmanage', 'skills_sync',
+];
+const HIDDEN_TOOLS: ReadonlySet<string> = (() => {
+  const pages = getPages();
+  if (!pages.discovery && !pages.design) return new Set(FEATURE_TOOLS);
+  if (!pages.design) return new Set(DESIGN_TOOLS);
+  return new Set();
+})();
+
 {
   const register = server.registerTool.bind(server) as (...args: unknown[]) => unknown;
   (server as unknown as { registerTool: (...args: unknown[]) => unknown }).registerTool = (
@@ -188,7 +205,9 @@ let currentTool: string | null = null;
     config: unknown,
     handler: unknown,
   ) =>
-    register(name, config, async (...args: unknown[]) => {
+    HIDDEN_TOOLS.has(String(name))
+      ? undefined
+      : register(name, config, async (...args: unknown[]) => {
       currentTool = String(name);
       try {
         return await (handler as (...a: unknown[]) => unknown)(...args);
