@@ -57,6 +57,7 @@ import { ChatsCard } from './ChatsCard';
 import { Ring, ShareRing, SegBar, HoursBar, fmtHours, type GaugePart, type GaugeState } from './Gauges';
 import { useChats } from '../lib/useChats';
 import { overEstimate, overEstimateText } from '../../server/over-estimate';
+import { Icon } from './Icons';
 
 export function Dashboard() {
   const [selectedSprintName, setSelectedSprintName] = useState<string | undefined>(undefined);
@@ -321,7 +322,7 @@ function DashboardLive({
               <span className="r21-pill"><span className="v">{clock}</span></span>
               <button className="ember-sync" onClick={onRefresh} title="This page updates by itself. Click to read the board again now.">
                 <Dot size={5} color="var(--accent)" />
-                <span className="dim-small">updates by itself</span>&nbsp;<span className="ember-sync-icon">↻</span>
+                <span className="dim-small">updates by itself</span>&nbsp;<span className="ember-sync-icon"><Icon name="refresh" /></span>
               </button>
             </div>
           </div>
@@ -344,11 +345,11 @@ function DashboardLive({
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button className="ember-sync" onClick={onRefresh} title="This page updates by itself. Click to read the board again now.">
                 <Dot size={5} color="var(--accent)" />
-                <span className="dim-small">updates by itself</span>&nbsp;<span className="ember-sync-icon">↻</span>
+                <span className="dim-small">updates by itself</span>&nbsp;<span className="ember-sync-icon"><Icon name="refresh" /></span>
               </button>
               <button className="r21-escape" onClick={() => setShowBoard(true)} title="Show the whole board — your work keeps logging">
                 <span>All stories <span className="v">{storyOnlyAll.length}</span></span>
-                <span className="arr">↗</span>
+                <span className="arr"><Icon name="external" /></span>
               </button>
             </span>
           </div>
@@ -544,7 +545,7 @@ function ActivityEntry({ event }: { event: ApiSessionEvent }) {
         <span className="r21-ev-time">{fmtEventStamp(event.createdAt)}</span>
         <span className="r21-ev-type">{EVENT_LABELS[event.type] ?? event.type}</span>
         <span className="r21-ev-summary">{summary}</span>
-        {hasMore && <span className="r21-ev-chev">{open ? '▾' : '▸'}</span>}
+        {hasMore && <span className="r21-ev-chev"><Icon name={open ? 'down' : 'right'} /></span>}
       </button>
       {hasMore && open && (
         <div
@@ -654,7 +655,7 @@ function R21Sidebar({
         title={collapsed ? 'Show the side panel' : 'Hide the side panel'}
         aria-label={collapsed ? 'Show the side panel' : 'Hide the side panel'}
       >
-        {collapsed ? '›' : '‹'}
+        <Icon name={collapsed ? 'right' : 'left'} />
       </button>
       <aside className="r21-side">
         <div className="r21-side-date">{dateLabel}</div>
@@ -1607,7 +1608,7 @@ function DailyView({
                     return (
                       <>
                         <span className="r21-daily-feature-caret" aria-hidden="true">
-                          {isCollapsed ? '▸' : '▾'}
+                          <Icon name={isCollapsed ? 'right' : 'down'} />
                         </span>
                         {childStories.length > 0 && (
                           <Ring parts={storyParts} size={76} width={8}>
@@ -1649,7 +1650,7 @@ function DailyView({
                               }}
                               title="Open this feature"
                             >
-                              Open <span aria-hidden="true">↗</span>
+                              Open <Icon name="external" />
                             </button>
                           )}
                         </span>
@@ -1701,7 +1702,7 @@ function DailyView({
         title={railCollapsed ? 'Show the side panel' : 'Hide the side panel'}
         aria-label={railCollapsed ? 'Show the side panel' : 'Hide the side panel'}
       >
-        {railCollapsed ? '‹' : '›'}
+        <Icon name={railCollapsed ? 'left' : 'right'} />
       </button>
       {!railCollapsed && (
         <>
@@ -1829,7 +1830,7 @@ function RailSprintTime({
         <button type="button" className="live" onClick={jumpToLive} title="Jump to the story you're working on">
           <span className="dot" aria-hidden="true" />
           Timer running on <b>{focalTitle}</b>
-          <span className="arr" aria-hidden="true">↗</span>
+          <span className="arr"><Icon name="external" /></span>
         </button>
       ) : (
         <span className="live is-quiet">
@@ -2106,14 +2107,14 @@ function DailyStoryCard({
       <div className="a-story-foot">
         {story.tasks.length > 0 ? (
           <button type="button" className="a-link" onClick={onToggleExpanded} aria-expanded={expanded}>
-            {expanded ? `▴ hide ${story.tasks.length} task${story.tasks.length === 1 ? '' : 's'}` : `▾ show ${story.tasks.length} task${story.tasks.length === 1 ? '' : 's'}`}
+            <Icon name={expanded ? 'up' : 'down'} /> {expanded ? 'hide' : 'show'} {story.tasks.length} task{story.tasks.length === 1 ? '' : 's'}
           </button>
         ) : (
           <span className="a-muted">no tasks under this story yet</span>
         )}
         {story.url && (
           <a className="a-link" href={story.url} target="_blank" rel="noopener noreferrer" title="Open this story on the board">
-            Open on the board <span aria-hidden="true">↗</span>
+            Open on the board <Icon name="external" />
           </a>
         )}
       </div>
@@ -2361,7 +2362,7 @@ function SprintPicker({
         title={hasPrev ? `Previous sprint: ${sorted[idx - 1]?.name}` : 'No previous sprint'}
         onClick={() => hasPrev && onSelect(sorted[idx - 1]!.name)}
       >
-        ←
+        <Icon name="left" />
       </button>
       <span className="ember-sprint-current" aria-current="true">
         {currentName}
@@ -2372,7 +2373,7 @@ function SprintPicker({
         title={hasNext ? `Next sprint: ${sorted[idx + 1]?.name}` : 'No next sprint'}
         onClick={() => hasNext && onSelect(sorted[idx + 1]!.name)}
       >
-        →
+        <Icon name="right" />
       </button>
     </div>
   );
@@ -2474,7 +2475,7 @@ function ErrorShell({
               <p className="ember-fix-label dim-small">OR, STEP BY STEP</p>
               <p className="ember-fix-line">{withCode('In a terminal, run `npx sprintomatic setup`. It asks a few questions and checks the connection.')}</p>
               <p className="ember-fix-after dim">Then click <em>Try again</em>, or reload this page.</p>
-              <button className="schedule-btn-ghost" onClick={onRetry}>Try again ↻</button>
+              <button className="btn-quiet" onClick={onRetry}>Try again <Icon name="refresh" /></button>
             </div>
           </div>
         </div>
@@ -2530,7 +2531,7 @@ function ErrorShell({
               </p>
             )}
             <p className="ember-fix-after dim">Then click <em>Try again</em>.</p>
-            <button className="schedule-btn-ghost" onClick={() => setSettingsOpen(true)}>Settings</button>
+            <button className="btn-quiet" onClick={() => setSettingsOpen(true)}>Settings</button>
           </div>
         </div>
       </div>

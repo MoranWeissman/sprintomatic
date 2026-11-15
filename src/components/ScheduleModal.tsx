@@ -6,6 +6,7 @@ import {
   type CeremonyRecurrence,
   type CeremonySchedule,
 } from '../lib/api';
+import { Icon } from './Icons';
 
 interface ScheduleModalProps {
   open: boolean;
@@ -164,9 +165,9 @@ export function ScheduleModal({ open, onClose, onSaved }: ScheduleModalProps) {
               : 'These times drive the reminders and the page each meeting opens. Your real meetings come from your calendar, if you linked one.'}
           </p>
           <div className="schedule-modal-foot-actions">
-            <button className="schedule-btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
+            <button className="btn-quiet" onClick={onClose} disabled={saving}>Cancel</button>
             <button
-              className="schedule-btn-accent"
+              className="btn-primary"
               onClick={handleSave}
               disabled={saving || !schedule}
             >
@@ -230,7 +231,7 @@ function PillSelect<T extends string | number>({
         onClick={() => setOpen(v => !v)}
       >
         <span>{selected?.label ?? ''}</span>
-        <span className="chev">▾</span>
+        <span className="chev"><Icon name="down" /></span>
       </button>
       {open && (
         <ul className="schedule-pick-menu" role="listbox" aria-label={label}>
