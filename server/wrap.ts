@@ -29,6 +29,8 @@ export interface WrapFirstMove {
 
 export interface WrapBlock {
   isWorkingDay: boolean;
+  /** The local hour the user's workday ends (from settings). */
+  workdayEndHour: number;
   /** Newest session start/end/event today (ISO); null = nothing today. */
   lastActivityAt: string | null;
   stillOpen: WrapOpenSession[];
@@ -91,6 +93,7 @@ export function buildWrap(opts: {
   /** RemainingWork hours for the item; null when unknown. */
   remainingFor: (workItemId: number) => number | null;
   isWorkingDay: boolean;
+  workdayEndHour: number;
 }): WrapBlock {
   const displayName = (id: number) => displayNameFor(id, opts.titleFor(id));
 
@@ -118,5 +121,5 @@ export function buildWrap(opts: {
       }
     : null;
 
-  return { isWorkingDay: opts.isWorkingDay, lastActivityAt, stillOpen, firstMove };
+  return { isWorkingDay: opts.isWorkingDay, workdayEndHour: opts.workdayEndHour, lastActivityAt, stillOpen, firstMove };
 }

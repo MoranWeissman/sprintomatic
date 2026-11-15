@@ -67,6 +67,8 @@ export interface ApiWrapFirstMove {
 
 export interface ApiWrap {
   isWorkingDay: boolean;
+  /** Local hour the workday ends. Older payloads leave it out. */
+  workdayEndHour?: number;
   /** Newest session activity today (ISO); null = nothing happened today. */
   lastActivityAt: string | null;
   stillOpen: ApiWrapOpenSession[];

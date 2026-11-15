@@ -1,29 +1,29 @@
 import { useState } from 'react';
 import type { ApiStandupEntry, ApiWrap } from '../lib/api';
 
-/** The card never shows before this local hour. */
-const QUIET_AFTER_HOUR = 14;
-/** Minutes without session activity that count as "work went quiet". */
-const QUIET_GAP_MINUTES = 60;
+/** The card shows this many hours before the workday ends. */
+const HOURS_BEFORE_END = 1;
+/** Used when an older payload doesn't say when the day ends. */
+const DEFAULT_END_HOUR = 17;
 
 const DISMISS_KEY = 'sh.wrap.dismissed';
 
 /**
- * The quiet rule. Lives on the client because the payload is cached — the
- * server ships facts (isWorkingDay, lastActivityAt) and the always-fresh
- * client clock decides, so the card appears on time, not up to a cache
- * interval late.
+ * The card shows in the last hour of the workday and after it, on a working
+ * day that had work. It used to wait for an hour of quiet after 14:00, which
+ * put it on top of the stories in the middle of the afternoon.
+ * Lives on the client because the payload is cached: the fresh client clock
+ * decides, so the card appears on time.
  */
 export function wrapVisible(opts: {
   now: Date;
   isWorkingDay: boolean;
-  lastActivityAt: string | null;
   workedToday: boolean;
+  workdayEndHour?: number;
 }): boolean {
-  if (!opts.isWorkingDay || !opts.workedToday || opts.lastActivityAt == null) return false;
-  if (opts.now.getHours() < QUIET_AFTER_HOUR) return false;
-  const gapMinutes = (opts.now.getTime() - Date.parse(opts.lastActivityAt)) / 60_000;
-  return gapMinutes >= QUIET_GAP_MINUTES;
+  if (!opts.isWorkingDay || !opts.workedToday) return false;
+  const end = opts.workdayEndHour ?? DEFAULT_END_HOUR;
+  return opts.now.getHours() >= end - HOURS_BEFORE_END;
 }
 
 function localISODate(d: Date): string {
@@ -76,8 +76,8 @@ export function WrapCard({
     !wrapVisible({
       now,
       isWorkingDay: wrap.isWorkingDay,
-      lastActivityAt: wrap.lastActivityAt,
       workedToday: standupToday.length > 0,
+      workdayEndHour: wrap.workdayEndHour,
     })
   ) {
     return null;

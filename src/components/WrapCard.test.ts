@@ -1,38 +1,38 @@
 import { describe, it, expect } from 'vitest';
 import { wrapVisible } from './WrapCard';
 
-// Local-time constructor: month is 0-based. 2026-07-05 is a Sunday (working day).
+// Local-time constructor: month is 0-based.
 const at = (h: number, m = 0) => new Date(2026, 6, 5, h, m, 0);
-const isoMinutesBefore = (now: Date, min: number) => new Date(now.getTime() - min * 60_000).toISOString();
 
-const base = { isWorkingDay: true, workedToday: true };
+const base = { isWorkingDay: true, workedToday: true, workdayEndHour: 18 };
 
 describe('wrapVisible', () => {
-  it('shows when afternoon + quiet + worked + working day', () => {
-    const now = at(16, 30);
-    expect(wrapVisible({ ...base, now, lastActivityAt: isoMinutesBefore(now, 90) })).toBe(true);
+  it('shows in the last hour of the workday', () => {
+    expect(wrapVisible({ ...base, now: at(17, 0) })).toBe(true);
+    expect(wrapVisible({ ...base, now: at(17, 45) })).toBe(true);
   });
 
-  it('hidden before 14:00 even when quiet', () => {
-    const now = at(13, 59);
-    expect(wrapVisible({ ...base, now, lastActivityAt: isoMinutesBefore(now, 90) })).toBe(false);
+  it('stays hidden in the afternoon before that', () => {
+    expect(wrapVisible({ ...base, now: at(16, 59) })).toBe(false);
+    expect(wrapVisible({ ...base, now: at(14, 0) })).toBe(false);
   });
 
-  it('boundary: exactly 14:00 and exactly 60 minutes of quiet both count', () => {
-    const now = at(14, 0);
-    expect(wrapVisible({ ...base, now, lastActivityAt: isoMinutesBefore(now, 60) })).toBe(true);
+  it('still shows after the workday ended', () => {
+    expect(wrapVisible({ ...base, now: at(21, 0) })).toBe(true);
   });
 
-  it('hidden while activity is fresher than the quiet gap', () => {
-    const now = at(16, 30);
-    expect(wrapVisible({ ...base, now, lastActivityAt: isoMinutesBefore(now, 59) })).toBe(false);
+  it('follows the end hour from settings', () => {
+    expect(wrapVisible({ ...base, workdayEndHour: 16, now: at(15, 0) })).toBe(true);
+    expect(wrapVisible({ ...base, workdayEndHour: 16, now: at(14, 59) })).toBe(false);
   });
 
-  it('hidden on a day off, an empty day, or with no activity timestamp', () => {
-    const now = at(16, 30);
-    const quiet = isoMinutesBefore(now, 90);
-    expect(wrapVisible({ ...base, isWorkingDay: false, now, lastActivityAt: quiet })).toBe(false);
-    expect(wrapVisible({ ...base, workedToday: false, now, lastActivityAt: quiet })).toBe(false);
-    expect(wrapVisible({ ...base, now, lastActivityAt: null })).toBe(false);
+  it('uses 17:00 when an older payload has no end hour', () => {
+    expect(wrapVisible({ isWorkingDay: true, workedToday: true, now: at(16, 0) })).toBe(true);
+    expect(wrapVisible({ isWorkingDay: true, workedToday: true, now: at(15, 59) })).toBe(false);
+  });
+
+  it('hidden on a day off or a day with no work', () => {
+    expect(wrapVisible({ ...base, isWorkingDay: false, now: at(17, 30) })).toBe(false);
+    expect(wrapVisible({ ...base, workedToday: false, now: at(17, 30) })).toBe(false);
   });
 });

@@ -51,7 +51,7 @@ import {
 } from './timers';
 import { getSHCreatedIdSet } from './sh-created';
 import { isSprintLevel } from './iteration-paths';
-import { getPages, getWorkingDays } from './user-config';
+import { getPages, getWorkingDays, getWorkdayEndHour } from './user-config';
 
 export type { SessionEvent, SessionEventType, Session } from './sessions';
 
@@ -557,6 +557,7 @@ export async function buildDashboard(opts: BuildOptions = {}): Promise<Dashboard
       needsYou: { waiting: [], recentlyFinished: [] },
       wrap: {
         isWorkingDay: isWorkingDayFor(new Date()),
+        workdayEndHour: getWorkdayEndHour(),
         lastActivityAt: null,
         stillOpen: [],
         firstMove: null,
@@ -780,6 +781,7 @@ export async function buildDashboard(opts: BuildOptions = {}): Promise<Dashboard
     isDone: id => isDoneState(taskMeta.get(id)?.state),
     remainingFor: id => remainingById.get(id) ?? null,
     isWorkingDay: isWorkingDayFor(new Date()),
+    workdayEndHour: getWorkdayEndHour(),
   });
 
   return {

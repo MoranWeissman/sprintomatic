@@ -50,6 +50,7 @@ import { ScheduleModal } from './ScheduleModal';
 import { SettingsModal } from './SettingsModal';
 import { WorkItemDrawer } from './WorkItemDrawer';
 import { WrapCard } from './WrapCard';
+import { dailySoonKey } from '../lib/dailySoon';
 import { ChatsCard } from './ChatsCard';
 import { Ring, ShareRing, SegBar, HoursBar, fmtHours, type GaugePart, type GaugeState } from './Gauges';
 import { useChats } from '../lib/useChats';
@@ -246,7 +247,12 @@ function DashboardLive({
   };
   // Focus has top precedence — if a session is live and the user hasn't asked to
   // see the whole board, the screen morphs to Focus.
-  const isFocus = mode === 'day' && !!focalTask && !showBoard;
+  // In the 30 minutes before the daily meeting the page opens on Daily, so
+  // the stories are on screen to talk through. Picking Focus then still wins,
+  // for that meeting only.
+  const dailyKey = dailySoonKey(ceremonies.upcoming, now);
+  const [focusAnyway, setFocusAnyway] = useState<string | null>(null);
+  const isFocus = mode === 'day' && !!focalTask && !showBoard && !(dailyKey && focusAnyway !== dailyKey);
   const chats = useChats();
 
   const sprintLabel = data.sprint?.name ?? '—';
@@ -276,7 +282,10 @@ function DashboardLive({
           view={isFocus ? 'focus' : 'daily'}
           hasLive={liveItems.length > 0}
           onPickDaily={() => setShowBoard(true)}
-          onPickFocus={() => setShowBoard(false)}
+          onPickFocus={() => {
+            setShowBoard(false);
+            if (dailyKey) setFocusAnyway(dailyKey);
+          }}
           collapsed={sideCollapsed}
           onToggleCollapsed={() => setSideCollapsed(v => !v)}
         />
@@ -327,7 +336,7 @@ function DashboardLive({
                 <span className="sep">·</span>
                 <span>day <span className="v">{today}/{workDays.total || '—'}</span></span>
                 <span className="sep">·</span>
-                <span><span className="v">{Math.round(data.capacity.remainingHours)}h</span> remaining</span>
+                <span><span className="v">{Math.round(data.capacity.remainingHours)}h</span> of work left</span>
                 <span className="sep">·</span>
                 <span><span className="v">{clock}</span></span>
               </span>
@@ -722,8 +731,24 @@ function R21Sidebar({
  * so it's the first thing the user sees when the delivery manager opens the
  * board.
  */
-function StandupCard({ standup }: { standup: ApiPayload['standup'] }) {
+function StandupCard({ standup, stories }: { standup: ApiPayload['standup']; stories: ApiUserStoryGroup[] }) {
   const { yesterday, today } = standup;
+  // Nothing worked on yet today: show what is in work on the board instead
+  // of an empty box, so there is still something to say at the meeting.
+  const planned: ApiPayload['standup']['today'] =
+    today.length > 0
+      ? []
+      : stories
+          .filter(st => boardStateClass(st.state) === 'going' && !st.movedTo)
+          .map(st => ({
+            workItemId: Number(st.id),
+            displayName: `**${st.title}** (#${st.id})`,
+            summary: null,
+            minutesInWindow: null,
+            state: 'paused' as const,
+            storyState: st.state,
+            tasks: [],
+          }));
   if (yesterday.length === 0 && today.length === 0) {
     // First-time empty state: don't waste real estate.
     return (
@@ -756,7 +781,14 @@ function StandupCard({ standup }: { standup: ApiPayload['standup'] }) {
             <span>Today</span>
             <span className="r21-standup-col-meta">{tDate}</span>
           </h3>
-          <StandupEntries entries={today} emptyHint="No session yet today." />
+          {today.length === 0 && planned.length > 0 ? (
+            <>
+              <p className="r21-standup-planned">Planned today: nothing started yet. In work on the board:</p>
+              <StandupEntries entries={planned} emptyHint="" />
+            </>
+          ) : (
+            <StandupEntries entries={today} emptyHint="No session yet today." />
+          )}
         </div>
       </div>
     </section>
@@ -1411,6 +1443,15 @@ function DailyView({
   // Default is expanded for every feature — the user collapses ones they're not
   // touching this sprint to reduce visual load.
   const [featuresCollapsed, setFeaturesCollapsed] = useState<Set<string>>(new Set());
+  // Features whose done stories are opened up (folded away by default).
+  const [doneShown, setDoneShown] = useState<Set<string>>(new Set());
+  const toggleDoneShown = (id: string) =>
+    setDoneShown(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   const toggleFeatureCollapsed = (id: string) =>
     setFeaturesCollapsed(prev => {
       const next = new Set(prev);
@@ -1464,7 +1505,7 @@ function DailyView({
       {/* Standup card — Daily-only. The first thing the user wants on the screen
           when the delivery manager opens the board: yesterday's work + today's
           work, brief, optimized for speaking aloud. */}
-      <StandupCard standup={standup} />
+      <StandupCard standup={standup} stories={stories} />
 
       {carryForward && (
         <CarryForwardBanner info={carryForward} onOpenItem={onOpenItem} onDone={onRefresh} />
@@ -1601,21 +1642,35 @@ function DailyView({
                     );
                   })()}
                 </header>
-                {!isCollapsed && childStories.length > 0 && (
-                  <div className="r21-daily-list">
-                    {[...childStories]
-                      .sort((a, b) => STORY_STATE_ORDER[storyDominantState(a)] - STORY_STATE_ORDER[storyDominantState(b)])
-                      .map(s => (
-                        <DailyStoryCard
-                          key={s.id}
-                          story={s}
-                          expanded={expanded.has(s.id)}
-                          onOpenItem={onOpenItem}
-                          onToggleExpanded={() => toggleExpanded(s.id)}
-                        />
-                      ))}
-                  </div>
-                )}
+                {!isCollapsed && childStories.length > 0 && (() => {
+                  const sorted = [...childStories].sort(
+                    (a, b) => storySortRank(a) - storySortRank(b),
+                  );
+                  const open = sorted.filter(st => storyDominantState(st) !== 'done');
+                  const done = sorted.filter(st => storyDominantState(st) === 'done');
+                  const showDone = doneShown.has(collapseKey);
+                  const card = (st: ApiUserStoryGroup) => (
+                    <DailyStoryCard
+                      key={st.id}
+                      story={st}
+                      expanded={expanded.has(st.id)}
+                      onOpenItem={onOpenItem}
+                      onToggleExpanded={() => toggleExpanded(st.id)}
+                    />
+                  );
+                  return (
+                    <div className="r21-daily-list">
+                      {open.map(card)}
+                      {done.length > 0 && (
+                        <button type="button" className="a-done-fold" onClick={() => toggleDoneShown(collapseKey)} aria-expanded={showDone}>
+                          <i className="g-done" aria-hidden="true" />
+                          {showDone ? 'Hide' : 'Show'} {done.length} done {done.length === 1 ? 'story' : 'stories'}
+                        </button>
+                      )}
+                      {showDone && done.map(card)}
+                    </div>
+                  );
+                })()}
               </section>
             );
           })}
@@ -1637,6 +1692,7 @@ function DailyView({
         <>
           <RailSprintTime
             capacity={outlookCapacity}
+            workLeft={data.capacity.remainingHours}
             today={today}
             totalDays={totalDays}
             live={live}
@@ -1662,6 +1718,7 @@ function DailyView({
 
 function RailSprintTime({
   capacity,
+  workLeft,
   today,
   totalDays,
   live,
@@ -1669,6 +1726,8 @@ function RailSprintTime({
   scrollerRef,
 }: {
   capacity: ApiOutlookCapacity | null;
+  /** Hours still on the user's tasks (their Remaining). */
+  workLeft: number;
   today: number;
   totalDays: number;
   live: boolean;
@@ -1733,7 +1792,7 @@ function RailSprintTime({
       <div className="hero">
         <span className="num">{availableLeft}</span>
         <span className="unit">h</span>
-        <span className="suffix">{hasCalendar ? 'left after meetings' : 'left'}</span>
+        <span className="suffix">{hasCalendar ? 'desk time left, after meetings' : 'desk time left'}</span>
       </div>
       <div className="bar" aria-hidden="true">
         <i style={{ width: `${pctUsed}%` }} />
@@ -1746,9 +1805,10 @@ function RailSprintTime({
         </div>
       )}
       <p className="caption">
-        {workingDaysLeft <= 0
-          ? `Last working day — ${availableLeft}h of ${available}h still open`
-          : `${workingDaysLeft} working day${workingDaysLeft === 1 ? '' : 's'} left — ${availableLeft}h of ${available}h still open`}
+        {/* The one sentence about hours: desk time left next to work left,
+            so the two numbers are never read as the same thing. */}
+        {workingDaysLeft <= 0 ? 'Last working day' : `${workingDaysLeft} working day${workingDaysLeft === 1 ? '' : 's'} left`}
+        {` — ${availableLeft}h of desk time for ${Math.round(workLeft)}h of work on your tasks.`}
       </p>
       {live && focalTitle ? (
         <button type="button" className="live" onClick={jumpToLive} title="Jump to the story you're working on">
@@ -2096,7 +2156,15 @@ function fmtNum(n: number): string {
 
 type StoryState = 'going' | 'waiting' | 'done' | 'blocked' | 'empty' | 'moved';
 
-const STORY_STATE_ORDER: Record<StoryState, number> = { going: 0, blocked: 1, waiting: 2, empty: 3, moved: 4, done: 5 };
+// Stuck first: it is what needs you. Done last, and folded away on Daily.
+const STORY_STATE_ORDER: Record<StoryState, number> = { blocked: 0, going: 1, waiting: 2, empty: 3, moved: 4, done: 5 };
+
+/** Daily order: stuck first (a stuck task counts), then in work, not started, done last. */
+function storySortRank(s: ApiUserStoryGroup): number {
+  const d = storyDominantState(s);
+  if (d !== 'done' && s.counts.blocked > 0) return STORY_STATE_ORDER.blocked;
+  return STORY_STATE_ORDER[d];
+}
 
 function isBlockedState(state: string): boolean {
   const s = state.toLowerCase();
