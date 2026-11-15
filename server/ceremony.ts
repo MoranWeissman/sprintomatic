@@ -22,19 +22,28 @@ import { getSetting, setSetting } from './timers';
 import { getWorkingDays } from './user-config';
 
 /**
- * Schedule entry ids — same ids the frontend uses for workspace modes.
- * (Mode "day" maps to the "Daily" event; the rest are 1:1.)
+ * Schedule entry ids. These are the real meetings, and they stay even though
+ * the Pre-plan and Demo pages are gone: the meetings still happen, and saved
+ * schedules list all five ids.
  */
 export type CeremonyId = 'daily' | 'preplan' | 'plan' | 'demo' | 'retro';
 
-/** Mode the dashboard switches into when this entry is suggested. */
-export type ModeId = 'day' | 'preplan' | 'plan' | 'demo' | 'retro';
+/** Page the dashboard suggests when this entry is near. Only pages that exist. */
+export type ModeId = 'day' | 'plan' | 'retro';
 
 const REQUIRED_IDS: CeremonyId[] = ['daily', 'preplan', 'plan', 'demo', 'retro'];
 const VALID_IDS: Set<string> = new Set<string>(REQUIRED_IDS);
 
+/**
+ * Pre-planning has no page of its own any more, so it points at Plan. Demo
+ * has no page either; it points at Retro, which lists what got done this
+ * sprint and comes right after the demo.
+ */
 export function modeForCeremony(id: CeremonyId): ModeId {
-  return id === 'daily' ? 'day' : id;
+  if (id === 'daily') return 'day';
+  if (id === 'preplan') return 'plan';
+  if (id === 'demo') return 'retro';
+  return id;
 }
 
 export type CeremonyRecurrence =

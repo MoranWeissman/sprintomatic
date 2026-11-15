@@ -7,6 +7,7 @@ vi.mock('./timers', () => ({ getSetting: () => undefined, setSetting: () => {} }
 import {
   ceremonyTodayLine,
   computeUpcomingCeremonies,
+  modeForCeremony,
   type CeremonyConfig,
   type CeremonySchedule,
 } from './ceremony';
@@ -125,5 +126,15 @@ describe('ceremonyTodayLine', () => {
     expect(ceremonyTodayLine(sched(PLAN), START, FINISH, now)).toBe(
       'Planning is today at 09:00 — the Plan page is ready for it.',
     );
+  });
+});
+
+describe('modeForCeremony points only at pages that exist', () => {
+  it('maps each meeting to a real page', () => {
+    expect(modeForCeremony('daily')).toBe('day');
+    expect(modeForCeremony('preplan')).toBe('plan');
+    expect(modeForCeremony('plan')).toBe('plan');
+    expect(modeForCeremony('demo')).toBe('retro');
+    expect(modeForCeremony('retro')).toBe('retro');
   });
 });
