@@ -321,6 +321,8 @@ export interface ApiDesignStory {
 }
 /** The design source file's shape (mirrors server/design.ts DesignDoc). */
 export interface ApiDesignDoc {
+  /** The design's own problem line, used when there is no discovery. Optional: older servers omit it. */
+  problem?: string;
   approach: { lines: string[]; diagram: string };
   /** "Not in this design" — deliberate scope cuts. Optional: older servers omit it. */
   outOfScope?: string[];

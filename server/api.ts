@@ -750,6 +750,7 @@ export function createApi(): ApiHandler {
       const { isDiscoveryStoryTitle, discoveryDayStage, discoveryDayLabel } = await import('./discovery');
       const { readdirSync } = await import('node:fs');
       const { readDesignDoc, listDesignMeetings, listDiagrams, diagramPath } = await import('./design-store');
+      const { designProblemLine } = await import('./design');
 
       const touched = listTouchedFeatureFolders(
         getWorkspaces().paths,
@@ -915,12 +916,14 @@ export function createApi(): ApiHandler {
       // walkthrough HTML was built) so the Design tab loads instantly.
       if (action === 'design') {
         if (method !== 'GET') { res.statusCode = 405; res.end(JSON.stringify({ error: 'GET only' })); return; }
+        const doc = readDesignDoc(folderPath);
         res.end(JSON.stringify({
           folderPath,
-          doc: readDesignDoc(folderPath),
-          // The review opens with WHAT this is about — that text lives in
-          // the discovery, so the design page borrows it (never rewrites it).
-          problem: readDiscoveryDoc(folderPath)?.problem ?? '',
+          doc,
+          // The review opens with WHAT this is about. With no discovery the
+          // design holds that line itself; otherwise it is borrowed from the
+          // discovery (never rewritten).
+          problem: designProblemLine(doc, readDiscoveryDoc(folderPath)),
           meetings: listDesignMeetings(folderPath),
           diagrams: listDiagrams(folderPath),
           hasWalkthrough: hasHtmlArtifact(folderPath, 'design-walkthrough'),

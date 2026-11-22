@@ -1,11 +1,12 @@
 ---
 name: design
-description: Use when running the DESIGN phase on a feature in this workspace — turning a finished discovery into agreed stories with estimates, a working plan, diagrams, and a push to the board. Comes AFTER discovery, never replaces it.
+description: Use when running the DESIGN phase on a feature in this workspace — turning the problem (a finished discovery, or what USER was handed when Discovery is turned off) into agreed stories with estimates, a working plan, diagrams, and a push to the board.
 ---
 
 # Design (this workspace)
 
-Design turns a finished discovery into work the team can pick up: stories
+Design turns a finished discovery (or, with Discovery turned off, the
+problem USER was handed) into work the team can pick up: stories
 with estimates, a build order, and pictures. It ends with ONE push that
 creates the stories on the board — nothing lands there before it.
 
@@ -34,19 +35,30 @@ Meeting summaries (the design review too) go in `design/meetings/` — same
 rules as discovery meetings: summaries ONLY, raw material in
 `design/meetings/sources/`, never rewrite an existing meeting file.
 
-## Start from the discovery
+## Start from the discovery, or from the problem
 
-Read `discovery.json` first. It feeds design:
+If the feature folder has `discovery.json`, read it first. It feeds design:
 
 - `option` items and the tech lead's lane become entries in `decisions`.
 - Risks and `dep` items must show up in story estimates: a story touching
   one gets more room, and its `why` line names it.
+- Leave `problem` in design.json empty — the review borrows the
+  discovery's problem line.
+
+No `discovery.json` (Discovery is turned off, or it was skipped): the
+FIRST part is `problem`. Read what USER was handed (the board text of the
+feature, any doc or email they paste), ask what it solves in their words,
+and write one or two plain sentences into `problem`. Get a yes and add
+`problem` to `agreed`, like any part. Risks and things it waits on still
+belong in the story `why` lines — ask USER for them, since no discovery
+listed them.
 
 ## The EXACT file shape — write these keys, no others
 
 ```json
 {
   "note": "",
+  "problem": "",
   "approach": { "lines": ["plain line: how we'll build it"], "diagram": "architecture.svg" },
   "outOfScope": ["what we deliberately leave out of this design, and one plain reason"],
   "flows": [ { "name": "Deploy flow", "steps": ["step 1", "step 2"], "diagram": "" } ],
@@ -76,7 +88,8 @@ Read `discovery.json` first. It feeds design:
 
 ## Agree per part — never hand USER a finished wall
 
-Build ONE PART at a time: approach → the "not in this design" list →
+Build ONE PART at a time: problem (only when there is no discovery) →
+approach → the "not in this design" list →
 flows → each story (one by one — every story gets its own yes and its own
 `story:<title>` key) → plan → decisions.
 After drafting each part: explain it in simple, non-academic English
@@ -87,7 +100,7 @@ remove its key and re-walk it. Retitling a story drops its old mark.
 ## Estimates must show their homework
 
 Propose hours per story and say why in the `why` field, in plain words. A
-story touching a discovery `risk` or `dep` MUST name it there and gets more
+story touching a risk or something it waits on MUST name it there and gets more
 room. Before proposing, use the estimate history tool
 (`mcp__sprintomatic__estimate_anchor`) so numbers anchor to USER's real
 history, not gut. Every story needs real hours before the push — the push
@@ -179,8 +192,9 @@ A design review never throws the parts in the reader's face. The order —
 on the dashboard, in the walkthrough, and when YOU walk the parts in
 chat — is always:
 
-1. **What this is about** — the need it solves. This text comes from the
-   discovery's `problem`; never rewrite it, the dashboard pulls it in.
+1. **What this is about** — the need it solves. With a discovery this
+   comes from its `problem`; never rewrite it, the dashboard pulls it in.
+   With no discovery it is design.json's own `problem`.
 2. **The big picture** — the architecture diagram, explained in a few
    plain words BEFORE any part is discussed.
 3. **What we're not doing** — the `outOfScope` list, so scope is framed

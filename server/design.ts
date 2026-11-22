@@ -22,6 +22,10 @@ export interface DesignDoc {
    *  yes-marks are off until re-agreed". Not a part to agree, just a note the
    *  next reader needs. Empty most of the time. */
   note: string;
+  /** What problem the design solves. Only filled in when the feature has no
+   *  discovery (Discovery turned off); otherwise the review borrows the
+   *  discovery's problem line. A part to agree, key 'problem'. */
+  problem: string;
   approach: { lines: string[]; diagram: string };
   /** "Not in this design" — deliberate scope cuts, named up front so the
    *  review doesn't relitigate them. Empty = nothing was cut. */
@@ -49,6 +53,7 @@ const obj = (v: unknown): Record<string, unknown> =>
 export function emptyDesignDoc(): DesignDoc {
   return {
     note: '',
+    problem: '',
     approach: { lines: [], diagram: '' },
     outOfScope: [],
     flows: [], stories: [], plan: [], decisions: [],
@@ -77,6 +82,7 @@ export function parseDesignDoc(raw: string | null | undefined): DesignDoc | null
   const pushed = obj(o.pushed);
   return {
     note: str(o.note),
+    problem: str(o.problem),
     approach: { lines: strArray(approach.lines), diagram: str(approach.diagram) },
     outOfScope: strArray(o.outOfScope),
     flows: Array.isArray(o.flows) ? o.flows.map(f => {
@@ -111,6 +117,7 @@ export function parseDesignDoc(raw: string | null | undefined): DesignDoc | null
 export function designAgreementCheck(doc: DesignDoc): { ok: boolean; unagreed: string[] } {
   const unagreed: string[] = [];
   const parts: { key: string; present: boolean; label: string }[] = [
+    { key: 'problem', present: doc.problem.trim() !== '', label: 'what problem it solves' },
     { key: 'approach', present: doc.approach.lines.length > 0 || doc.approach.diagram.trim() !== '', label: 'the approach' },
     { key: 'outOfScope', present: doc.outOfScope.length > 0, label: 'the "not in this design" list' },
     { key: 'flows', present: doc.flows.length > 0, label: 'the flows' },
@@ -122,6 +129,13 @@ export function designAgreementCheck(doc: DesignDoc): { ok: boolean; unagreed: s
     if (p.present && !doc.agreed.includes(p.key)) unagreed.push(p.label);
   }
   return { ok: unagreed.length === 0, unagreed };
+}
+
+/** The review's opening line: the design's own problem line when it has
+ *  one (no discovery), else the discovery's. Empty when neither has it. */
+export function designProblemLine(doc: DesignDoc | null, discovery: { problem: string } | null): string {
+  const own = doc?.problem.trim() ?? '';
+  return own !== '' ? own : discovery?.problem.trim() ?? '';
 }
 
 /** Title-based: design stories are titled "Design: X" (mirror of discovery). */
@@ -139,6 +153,7 @@ export function isDesignStoryTitle(title: string): boolean {
 /** Every string in the doc, each with a plain-English name for where it is. */
 function labelledText(doc: DesignDoc): { where: string; text: string }[] {
   const out: { where: string; text: string }[] = [];
+  if (doc.problem.trim() !== '') out.push({ where: 'what problem it solves', text: doc.problem });
   doc.approach.lines.forEach(l => out.push({ where: 'the approach', text: l }));
   doc.outOfScope.forEach(l => out.push({ where: 'the "not in this design" list', text: l }));
   doc.flows.forEach(f => {
@@ -278,6 +293,9 @@ export function renderDesignMarkdown(
   if (doc.note.trim() !== '') {
     doc.note.split('\n').forEach(l => lines.push(l.trim() === '' ? '>' : `> ${l}`));
     lines.push('');
+  }
+  if (doc.problem.trim() !== '') {
+    lines.push(`## What we're solving${mark('problem')}`, '', doc.problem, '');
   }
   lines.push(`## The approach${mark('approach')}`, '');
   if (doc.approach.lines.length === 0) lines.push('_(not filled in)_');

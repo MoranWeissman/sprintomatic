@@ -59,6 +59,10 @@ const PAGES_LINE = PAGES.discovery && PAGES.design
     ? 'Discovery is OFF: a handed feature goes straight to its design. Never offer a discovery, its meetings or its demo.'
     : 'Design is OFF: a feature ends with its discovery. Never offer a design, design_sync or design_push_stories.';
 
+const HANDED_PATH = PAGES.discovery && PAGES.design
+  ? 'discovery, then design, then stories'
+  : PAGES.design ? 'design, then stories' : 'discovery, then stories';
+
 // Discovery and design work. Left out entirely when both pages are off, so a
 // chat that can't use it doesn't read it.
 const FEATURE_WORK = PAGES.discovery || PAGES.design
@@ -70,7 +74,7 @@ demos). ${PAGES_LINE} Each feature gets its own subfolder.
   - Start a feature: \`workspace_feature_folder\` with the feature id and your
     cwd. Write its docs into the returned folder and nowhere else.
   - Two kinds of feature, and you never guess which. 'handed': someone gave
-    the user a problem to work out — discovery, then design, then stories.
+    the user a problem to work out — ${HANDED_PATH}.
     'grouping': the user made it to gather stories they already wrote — board
     only, nothing to discover or design, ever. When a tool refuses for an
     unknown kind, or orient returns \`featureKindUnknown\`, ask once ("did

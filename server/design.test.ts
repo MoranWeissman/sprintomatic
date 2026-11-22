@@ -1,6 +1,6 @@
 // server/design.test.ts
 import { describe, it, expect } from 'vitest';
-import { parseDesignDoc, emptyDesignDoc, designAgreementCheck, isDesignStoryTitle, designGate, designGateMessage, renderDesignMarkdown, designProblems, droppedByParse } from './design';
+import { parseDesignDoc, emptyDesignDoc, designAgreementCheck, isDesignStoryTitle, designGate, designGateMessage, renderDesignMarkdown, designProblems, droppedByParse, designProblemLine } from './design';
 
 function agreedDoc() {
   const d = emptyDesignDoc();
@@ -315,5 +315,30 @@ describe('the free note at the top', () => {
 
   it('adds nothing when there is no note', () => {
     expect(renderDesignMarkdown(emptyDesignDoc(), { featureDisplayName: '**F** (#1)' })).not.toContain('\n> ');
+  });
+});
+
+describe('problem — the design says what it solves when there is no discovery', () => {
+  it('parses it, and an old file without it reads as empty', () => {
+    expect(parseDesignDoc('{"problem":"Teams wait days for a test box."}')!.problem).toBe('Teams wait days for a test box.');
+    expect(parseDesignDoc('{}')!.problem).toBe('');
+  });
+  it('is a part to agree only when it is filled in', () => {
+    const d = { ...emptyDesignDoc(), problem: 'Teams wait days.' };
+    expect(designAgreementCheck(d).unagreed).toContain('what problem it solves');
+    expect(designAgreementCheck({ ...d, agreed: ['problem'] }).ok).toBe(true);
+    expect(designAgreementCheck(emptyDesignDoc()).unagreed).not.toContain('what problem it solves');
+  });
+  it('shows in design.md only when set', () => {
+    const md = renderDesignMarkdown({ ...emptyDesignDoc(), problem: 'Teams wait days.', agreed: ['problem'] }, { featureDisplayName: '**F** (#100001)' });
+    expect(md).toContain("## What we're solving · agreed ✓");
+    expect(md).toContain('Teams wait days.');
+    expect(renderDesignMarkdown(emptyDesignDoc(), { featureDisplayName: '**F** (#100001)' })).not.toContain("What we're solving");
+  });
+  it('the review line: own line first, else the discovery, else empty', () => {
+    const own = { ...emptyDesignDoc(), problem: ' Own line. ' };
+    expect(designProblemLine(own, { problem: 'From discovery.' })).toBe('Own line.');
+    expect(designProblemLine(emptyDesignDoc(), { problem: 'From discovery.' })).toBe('From discovery.');
+    expect(designProblemLine(null, null)).toBe('');
   });
 });

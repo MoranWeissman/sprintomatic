@@ -222,7 +222,8 @@ Build only on a yes.
 
 ## Design walkthrough — the funnel order
 
-Read `design.json`, plus the discovery's `problem` line for the opening.
+Read `design.json`. For the opening, use its own `problem` line when set;
+otherwise the discovery's `problem` line.
 Write `design/walkthrough.html`. Slides go **high level first**, details only
 after the big picture landed:
 

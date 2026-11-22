@@ -2023,6 +2023,15 @@ server.registerTool(
   },
 );
 
+/** The steps a handed feature goes through, with only the pages the user has on. */
+function handedPathWords(): string {
+  const p = getPages();
+  if (p.discovery && p.design) return 'discovery, then design, then the stories';
+  if (p.discovery) return 'discovery, then the stories';
+  if (p.design) return 'design, then the stories';
+  return 'the stories, on the board only';
+}
+
 /**
  * What orient says about tasks waiting for a PR. A task someone already
  * closed on the board is forgotten quietly instead of asked about. Null when
@@ -2670,7 +2679,7 @@ server.registerTool(
           /* keep the bare id — the question is the same either way */
         }
         return errorResult(
-          `I don't know what kind of feature ${name} is, and I'm not going to guess. Ask the user which one it is, in their words:\n  - somebody handed them the problem to work out → discovery, then design, then the stories\n  - the user wrote the stories already and made this feature to gather them → straight to the work, no discovery and no design ever\nThen call feature_kind_set with 'handed' or 'grouping', and call this again. The user can change the answer later.`,
+          `I don't know what kind of feature ${name} is, and I'm not going to guess. Ask the user which one it is, in their words:\n  - somebody handed them the problem to work out → ${handedPathWords()}\n  - the user wrote the stories already and made this feature to gather them → straight to the work, no discovery and no design ever\nThen call feature_kind_set with 'handed' or 'grouping', and call this again. The user can change the answer later.`,
         );
       }
 
@@ -2752,7 +2761,7 @@ server.registerTool(
         means:
           kind === 'grouping'
             ? 'No discovery and no design for this feature, ever. No nudges about either.'
-            : 'The full path: discovery, then design, then the stories.',
+            : `The full path: ${handedPathWords()}.`,
       }, { fromBoard: true });
     } catch (e) {
       return errorResult(e instanceof Error ? e.message : String(e));

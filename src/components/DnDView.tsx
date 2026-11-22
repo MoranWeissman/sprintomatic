@@ -1018,7 +1018,9 @@ function DesignReview(props: { doc: ApiDesignDoc | null; problem: string; diagra
   // Same present-parts logic as the server's designAgreementCheck: every
   // non-empty part plus every story needs its key in `agreed` to count.
   const outOfScope = doc.outOfScope ?? [];
+  const ownProblem = (doc.problem ?? '').trim() !== '';
   const parts = [
+    { key: 'problem', present: ownProblem },
     { key: 'approach', present: approachPresent },
     { key: 'outOfScope', present: outOfScope.length > 0 },
     { key: 'flows', present: flowsPresent },
@@ -1063,7 +1065,7 @@ function DesignReview(props: { doc: ApiDesignDoc | null; problem: string; diagra
 
       {problem.trim() !== '' && (
         <div className="dnd-problem dnd-design-intro">
-          <span className="dnd-kicker">What this is about — the need, from the discovery</span>
+          <span className="dnd-kicker">{ownProblem ? <>What this is about {mark('problem')}</> : 'What this is about — the need, from the discovery'}</span>
           {problem}
         </div>
       )}
