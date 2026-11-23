@@ -93,7 +93,7 @@ to `~/.copilot/hooks/`. `skills_sync` copies the managed skills to
 | `workitem_change_type` | Flip an item between User Story and Bug. Only those two — tasks, features and epics are refused. |
 | `workitem_block` | Mark an item blocked: the state, the tag and a written reason together. |
 | `workitem_unblock` | Clear a block and record why it lifted. |
-| `story_close` | Move a finished story or bug to the team's done state. Stories only — tasks close through `session_end` or `task_close`. |
+| `story_close` | Move a finished story or bug to the team's done state. Stories only — tasks close through `session_end` or `task_close`. When a story's last task closes, the story closes by itself, and the greeting closes stories whose tasks were all closed on the board by hand. |
 | `task_close` | Close a finished task that has no open session, with the real hours it took. |
 | `task_pr_set` | Mark a task as waiting for a PR (or clear it). The greeting then says when the PR merges. |
 

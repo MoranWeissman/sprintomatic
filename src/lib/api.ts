@@ -983,7 +983,7 @@ export async function markWorkItemDone(
   workItemId: number,
   completedHours: number,
   outsideSprintOk = false,
-): Promise<{ storyCloseSuggestion?: { workItemId: number; displayName: string } }> {
+): Promise<{ storyClosedLine?: string }> {
   const r = await fetch(`/api/workitem/${workItemId}/edit`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

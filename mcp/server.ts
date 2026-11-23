@@ -120,11 +120,9 @@ import {
   type OrientWorkspaceOffer,
 } from '../server/workspace.js';
 import { addGuardSkip, setGuardFolder } from '../server/session-guard-store.js';
-import { isDiscoveryStoryTitle, discoveryCloseBlockMessage, discoveryFinishedCheck } from '../server/discovery.js';
 import { listTouchedFeatureFolders } from '../server/discovery-list.js';
 import { runFeatureShare, ShareRefused, type ShareDeps } from '../server/feature-share-run.js';
-import { readDiscoveryDoc } from '../server/discovery-store.js';
-import { isDesignStoryTitle, designGate, designGateMessage } from '../server/design.js';
+import { designGate } from '../server/design.js';
 import { readDesignDoc, writeDesignDoc, listDesignMeetings, syncDesignMarkdown } from '../server/design-store.js';
 import {
   createStory,
@@ -151,7 +149,8 @@ import {
 } from '../server/writes.js';
 import { stripToolCallJunk } from '../server/text-clean.js';
 import { describeEditOutcome } from '../server/edit-outcome.js';
-import { blockItem, suggestStoryClose, unblockItem } from '../server/item-actions.js';
+import { blockItem, unblockItem } from '../server/item-actions.js';
+import { autoCloseParentStory, storyCloseGate, sweepFinishedStories } from '../server/story-autoclose.js';
 import { getPages, pageOffMessage } from '../server/user-config.js';
 import { SERVER_INSTRUCTIONS, WEEK } from './instructions.js';
 import { syncCopilotInstructions } from '../server/copilot-instructions.js';
@@ -325,9 +324,17 @@ server.registerTool(
     // copy ignores it and finds itself (server/dashboard-process.ts).
     const dashboard = await ensureDashboardRunning(process.cwd());
     try {
+      // Stories whose tasks were all closed some other way close first, so
+      // the packet below already shows them as done.
+      const storiesClosed = await sweepFinishedStories();
       const packet = await buildOrientPacket(chatCwdKey(cwd));
       const prs = 'setupNeeded' in packet ? null : await prLines();
-      return jsonResult({ ...packet, ...(prs ? { prs } : {}), dashboard }, { fromBoard: true });
+      return jsonResult({
+        ...packet,
+        ...(storiesClosed.length > 0 ? { storiesClosed } : {}),
+        ...(prs ? { prs } : {}),
+        dashboard,
+      }, { fromBoard: true });
     } catch (e) {
       return errorResult(e instanceof Error ? e.message : String(e));
     }
@@ -633,37 +640,9 @@ server.registerTool(
           `#${workItemId} still has open tasks: ${names}. Close or move those to the next sprint first, then close the story. If some were never worked and won't be, ask the user, then call story_close again with dropOpenTasks: true.`,
         );
       }
-      // Discovery stories must have a finished discovery doc before they close.
-      // Only gate when the active feature IS this story's parent — the active
-      // pointer is global and may point at another feature (The user runs several
-      // chats). On any mismatch or missing pointer, skip the gate rather than
-      // read the wrong feature's doc or trap a legitimate close.
-      if (isDiscoveryStoryTitle(d.title)) {
-        const active = getActiveFeature();
-        if (active && d.parent?.id === active.id) {
-          const doc = readDiscoveryDoc(active.folderPath);
-          const block = discoveryCloseBlockMessage({
-            isDiscoveryStory: true,
-            folderPath: active.folderPath,
-            check: discoveryFinishedCheck(doc),
-          });
-          if (block) return errorResult(block);
-        }
-      }
-      // Design stories must pass the three ordered gates before they close:
-      // agreed with the user → design review recorded → stories pushed.
-      // Same active-feature guard as the discovery gate above.
-      if (isDesignStoryTitle(d.title)) {
-        const active = getActiveFeature();
-        if (active && d.parent?.id === active.id) {
-          const block = designGateMessage({
-            isDesignStory: true,
-            doc: readDesignDoc(active.folderPath),
-            meetingCount: listDesignMeetings(active.folderPath).length,
-          });
-          if (block) return errorResult(block);
-        }
-      }
+      // Discovery and design stories have their own rules before they close.
+      const gate = storyCloseGate(d);
+      if (gate) return errorResult(gate);
       const toState = await setStateBucket(workItemId, 'done');
       invalidateDashboardCache();
       return jsonResult(
@@ -1919,9 +1898,8 @@ server.registerTool(
         afterSessionClosed();
         const prTagNote = await clearPrMarkOnClose(openWorkItemId);
 
-        // If this was the story's last open task, suggest closing the story
-        // too so a finished story doesn't linger on New/Active.
-        const storyCloseSuggestion = await suggestStoryClose(session.workItemId);
+        // If this was the story's last open task, the story closes too.
+        const storyClosedLine = await autoCloseParentStory(session.workItemId);
         const unfinished = describeUnfinishedBoardChanges();
         return jsonResult({
           session,
@@ -1930,7 +1908,7 @@ server.registerTool(
           remainingHoursPushed: 0,
           newState: board.newState,
           ...(prTagNote ? { prTagNote } : {}),
-          ...(storyCloseSuggestion ? { storyCloseSuggestion } : {}),
+          ...(storyClosedLine ? { storyClosedLine } : {}),
           ...(unfinished ? { unfinishedBoardChanges: unfinished } : {}),
           ...(cwdWarning ? { cwdWarning } : {}),
         }, { fromBoard: true });
@@ -2009,13 +1987,13 @@ server.registerTool(
       markPendingChangesApplied(workItemId);
       const prTagNote = await clearPrMarkOnClose(workItemId);
       invalidateDashboardCache();
-      const storyCloseSuggestion = await suggestStoryClose(workItemId);
+      const storyClosedLine = await autoCloseParentStory(workItemId);
       return jsonResult({
         ...(prTagNote ? { prTagNote } : {}),
         closed: name,
         completedHoursPushed: completedHours,
         newState: board.newState,
-        ...(storyCloseSuggestion ? { storyCloseSuggestion } : {}),
+        ...(storyClosedLine ? { storyClosedLine } : {}),
       }, { fromBoard: true });
     } catch (e) {
       return errorResult(e instanceof Error ? e.message : String(e));

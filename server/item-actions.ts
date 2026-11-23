@@ -7,40 +7,16 @@
  * session closed.
  */
 import { addWorkItemComment, getCurrentIteration, getWorkItem } from './ado';
+import { autoCloseParentStory } from './story-autoclose';
 import { checkpointWal } from './backup';
 import { invalidateDashboardCache } from './dashboard-cache';
 import { getDb } from './db';
-import { displayNameFor } from './display-name';
 import { iterationShortName, sameIterationPath } from './iteration-paths';
 import { planBlock, planUnblock } from './block-plan';
 import { endSession, listActiveSessions, logEvent, startSession } from './sessions';
-import { isDoneState } from './states';
 import * as timerService from './timer-service';
 import { markPendingChangesApplied } from './timers';
 import { transitionFromBlocked, transitionToBlocked, updateTags } from './writes';
-
-/**
- * After a task closes, check whether its parent story is now fully done (all
- * children closed) but the story itself is still open. Returns a suggestion
- * ("its last task is done — close the story?"), or null.
- */
-export async function suggestStoryClose(
-  taskId: number,
-): Promise<{ workItemId: number; displayName: string } | null> {
-  try {
-    const task = await getWorkItem(taskId);
-    const parentId = task.parent?.id;
-    if (parentId == null) return null;
-    const story = await getWorkItem(parentId);
-    const stype = story.type.toLowerCase();
-    if (stype === 'task' || stype === 'feature' || stype === 'epic') return null;
-    if (isDoneState(story.state)) return null;
-    if (story.children.some(c => !isDoneState(c.state))) return null;
-    return { workItemId: story.id, displayName: displayNameFor(story.id, story.title) };
-  } catch {
-    return null;
-  }
-}
 
 async function postComment(workItemId: number, text: string): Promise<{ posted: boolean; error?: string }> {
   // The reason goes into the board's discussion so the team sees it. A failed
@@ -120,14 +96,14 @@ export async function unblockItem(a: { workItemId: number; summary: string; tty?
 }
 
 export type DashboardCloseResult =
-  | { ok: true; newState?: string; storyCloseSuggestion: { workItemId: number; displayName: string } | null }
+  | { ok: true; newState?: string; storyClosedLine: string | null }
   | { ok: false; outsideSprint?: boolean; message: string };
 
 /**
  * Close a task from the dashboard, the same way session_end done:true does:
  * check it sits in the current sprint, write the hours and Done to the board,
- * then stop the timer and close any open session on it, and say whether the
- * story can close too. The board is written first; if that fails, nothing
+ * then stop the timer and close any open session on it, and close the story
+ * too when that was its last open task. The board is written first; if that fails, nothing
  * local changes, so trying again is safe.
  */
 export async function closeTaskFromDashboard(a: {
@@ -162,5 +138,5 @@ export async function closeTaskFromDashboard(a: {
   invalidateDashboardCache();
   checkpointWal(getDb());
 
-  return { ok: true, newState: board.newState, storyCloseSuggestion: await suggestStoryClose(workItemId) };
+  return { ok: true, newState: board.newState, storyClosedLine: await autoCloseParentStory(workItemId) };
 }

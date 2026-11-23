@@ -196,10 +196,7 @@ export function PlanView({ onOpenItem, onScanComplete }: PlanViewProps) {
     setOutsideAsk(null);
     try {
       const done = await markWorkItemDone(taskId, completedHours, outsideSprintOk);
-      const story = done.storyCloseSuggestion;
-      if (story) {
-        setActionNote(`That was the last open task of ${story.displayName.replace(/\*\*/g, '')}. You can close the story too.`);
-      }
+      if (done.storyClosedLine) setActionNote(done.storyClosedLine.replace(/\*\*/g, ''));
       await refreshCockpit();
     } catch (err) {
       if (err instanceof OutsideSprintError) setOutsideAsk({ taskId, hours: completedHours, message: err.message });

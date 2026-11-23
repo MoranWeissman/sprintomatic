@@ -350,7 +350,7 @@ export function createApi(): ApiHandler {
             applied.state = closed.newState;
             applied.completedHours = h;
             applied.remainingWork = 0;
-            if (closed.storyCloseSuggestion) applied.storyCloseSuggestion = closed.storyCloseSuggestion;
+            if (closed.storyClosedLine) applied.storyClosedLine = closed.storyClosedLine;
           } else {
             applied.state = await setStateBucket(id, body.state);
           }

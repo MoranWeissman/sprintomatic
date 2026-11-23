@@ -135,7 +135,8 @@ The greeting: 2-4 sentences in one paragraph, no bullets or headings.
   - Echo these word for word when set, one sentence each: \`capacitySummary\`,
     \`fitsTodaySummary\`, \`helperNotes.clearedNotesLine\`, \`oldSprintLine\`,
     \`ceremonyToday\`, \`daysOffQuestion\` (then wait — see DAYS OFF),
-    each line in \`prs.merged\` and \`prs.closedUnmerged\`, \`prs.checkError\`.
+    each line in \`prs.merged\` and \`prs.closedUnmerged\`, \`prs.checkError\`,
+    each line in \`storiesClosed\` (stories whose tasks were all done).
   - \`helperNotes.openNudgeCount\` > 0: say only the count of helper notes;
     you can't see their text.
   - \`sessionReminder\`: no session is open; remind them to start one.
@@ -276,8 +277,8 @@ EFFORT — the team watches these fields, so they are always set and honest.
     merged and the user says yes, close the task the normal way.
   - Pausing: \`session_end\` without done; pass \`remainingHoursAfter\` if
     Remaining is out of date. If the user didn't say which, ask.
-  - Last open task closed → the answer has \`storyCloseSuggestion\`; offer it
-    and call \`story_close\` on yes. Work that won't happen is removed, not
+  - Last open task closed → the story closes by itself, no asking. Echo
+    \`storyClosedLine\` word for word. Work that won't happen is removed, not
     closed: after a yes, \`story_close\` with \`dropOpenTasks\`, or
     \`workitem_remove\`. Never fake hours.
   - When the task looks done, stop and ask what's next; never roll on.

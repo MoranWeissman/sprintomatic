@@ -17,6 +17,7 @@ const m = vi.hoisted(() => ({
   transitionFromBlocked: vi.fn(),
   updateTags: vi.fn(),
   markPendingChangesApplied: vi.fn(),
+  autoCloseParentStory: vi.fn(),
 }));
 vi.mock('./ado', () => ({
   getWorkItem: m.getWorkItem,
@@ -39,6 +40,7 @@ vi.mock('./timers', () => ({ markPendingChangesApplied: m.markPendingChangesAppl
 vi.mock('./dashboard-cache', () => ({ invalidateDashboardCache: vi.fn() }));
 vi.mock('./backup', () => ({ checkpointWal: vi.fn() }));
 vi.mock('./db', () => ({ getDb: vi.fn() }));
+vi.mock('./story-autoclose', () => ({ autoCloseParentStory: m.autoCloseParentStory }));
 
 import { blockItem, blockText, closeTaskFromDashboard } from './item-actions';
 
@@ -76,7 +78,8 @@ describe('closeTaskFromDashboard', () => {
     expect(r.ok).toBe(true);
   });
 
-  it('writes the board, stops the timer, closes only this task\'s session, and offers the story', async () => {
+  it('writes the board, stops the timer, closes only this task\'s session, and closes the story too', async () => {
+    m.autoCloseParentStory.mockResolvedValue('All tasks are done, so I closed **Example story** (#100002) too.');
     m.getWorkItem.mockImplementation(async (id: number) =>
       id === 100001
         ? task()
@@ -95,7 +98,7 @@ describe('closeTaskFromDashboard', () => {
     expect(r).toEqual({
       ok: true,
       newState: 'Closed',
-      storyCloseSuggestion: { workItemId: 100002, displayName: '**Example story** (#100002)' },
+      storyClosedLine: 'All tasks are done, so I closed **Example story** (#100002) too.',
     });
   });
 
