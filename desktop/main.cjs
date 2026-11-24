@@ -34,6 +34,7 @@ const APP_CSS = `
   body:has(.ember-drawer-scrim, .schedule-scrim) #app-bar { -webkit-app-region: no-drag; }
   html body #root { padding-top: ${BAR}px; }
   html body :is(.r21-app, .ember) { min-height: calc(100vh - ${BAR}px); }
+  html body .r21-app { height: calc(100dvh - ${BAR}px); }
   html body :is(.ember-drawer, .ember-drawer-scrim, .schedule-scrim) { top: ${BAR}px; }
   html body :is(.r21-rail, .r21-sidewrap, .r21-topwrap, .ember-top) { user-select: none; }
   html body :is(.r21-rail, .r21-sidewrap) { border-right-color: oklch(0.42 0.005 75 / 0.85); }
