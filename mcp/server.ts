@@ -108,6 +108,7 @@ import {
   declineWorkspace,
   getWorkspaces,
   isKnownWorkspace,
+  workspaceForChat,
   isDeclinedPath,
   createFeatureFolder,
   addManagedFeatureId,
@@ -2661,17 +2662,13 @@ server.registerTool(
         );
       }
 
-      const { paths } = getWorkspaces();
-      let workspacePath: string | null = null;
-      if (isKnownWorkspace(cwd)) workspacePath = cwd;
-      else if (paths.length === 1) workspacePath = paths[0];
-      if (!workspacePath) {
+      const where = workspaceForChat(cwd);
+      if (!where) {
         return errorResult(
-          paths.length === 0
-            ? 'No workspace is set. Ask the user to open their workspace folder (or set one with workspace_set) first.'
-            : 'More than one workspace is registered and this chat is not inside one. Ask the user which workspace to use.',
+          'No workspace folder is set yet. Ask the user where feature folders should live, then set it with workspace_set. They can also set it in the dashboard: Settings → Workspace folder.',
         );
       }
+      const workspacePath = where.path;
       let title = '';
       try {
         const item = await getWorkItem(workItemId);
@@ -2693,11 +2690,17 @@ server.registerTool(
         folderPath: folder.path,
         setAt: new Date().toISOString(),
       });
+      // The chat isn't inside the workspace, so the folder went somewhere the
+      // user may not expect. Say where, and where to change it.
+      const whereLine = where.inside
+        ? null
+        : `${folder.created ? 'Made the folder' : 'The folder is'} in your workspace folder, ${where.path}. To keep feature folders somewhere else, change Settings → Workspace folder in the dashboard.`;
       return jsonResult({
         ...folder,
         featureTitle: title || null,
         active: true,
         kind: getFeatureKind(workItemId),
+        ...(whereLine ? { whereLine } : {}),
       }, { fromBoard: true });
     } catch (e) {
       return errorResult(e instanceof Error ? e.message : String(e));

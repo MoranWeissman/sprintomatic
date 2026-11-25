@@ -26,13 +26,17 @@ import {
 } from './user-config';
 import { DEFAULT_MAX_PARALLEL_SESSIONS } from './session-cap';
 import { keychainAvailable, readToken, saveToken } from './secrets';
+import { listActiveSessions } from './sessions';
+import { mainWorkspace, setMainWorkspace } from './workspace';
 
 export type SettingGroup = 'week' | 'board' | 'pages' | 'other';
 export type SettingKind = 'days' | 'hour' | 'number' | 'text' | 'choice' | 'secret';
 
 interface SettingDef {
   key: string;
-  env: string;
+  /** The environment variable that can force it. None for a setting that is
+   *  more than a stored value (the workspace folder moves files). */
+  env?: string;
   group: SettingGroup;
   label: string;
   help: string;
@@ -44,11 +48,14 @@ interface SettingDef {
   defaultValue?: string;
   /** Turn what was typed into the stored form, or throw with a plain reason. */
   clean?: (raw: string, next: (key: string) => string | undefined) => string;
+  /** For a setting that isn't a plain stored value: how to read it and save it. */
+  read?: () => string | undefined;
+  write?: (value: string) => void;
 }
 
 export interface SettingView {
   key: string;
-  env: string;
+  env?: string;
   group: SettingGroup;
   label: string;
   help: string;
@@ -264,6 +271,35 @@ const DEFS: SettingDef[] = [
     clean: raw => onOff('use_design', raw),
   },
 
+  {
+    key: 'workspace_folder', group: 'pages', kind: 'text',
+    label: 'Workspace folder',
+    help: 'Where each feature gets its own folder for discovery and design notes. Change it and the folder moves there, with everything in it. Close the chats open in the old folder first.',
+    defaultLabel: 'none yet',
+    read: () => mainWorkspace() ?? undefined,
+    clean: raw => {
+      const v = raw.trim();
+      if (!v.startsWith('/') && !v.startsWith('~')) {
+        throw new SettingError('workspace_folder', 'Use a full folder path, like ~/work/features.');
+      }
+      return v;
+    },
+    write: value => {
+      const from = mainWorkspace();
+      if (from) {
+        const busy = listActiveSessions().filter(s => s.cwd && (s.cwd === from || s.cwd.startsWith(from + '/')));
+        if (busy.length > 0) {
+          throw new SettingError('workspace_folder', 'A work session is still open inside the workspace. End it first, then move the folder.');
+        }
+      }
+      try {
+        setMainWorkspace(value);
+      } catch (e) {
+        throw new SettingError('workspace_folder', e instanceof Error ? e.message : String(e));
+      }
+    },
+  },
+
   // ---- other ----
   {
     key: 'mac_notices', env: 'SPRINTOMATIC_MAC_NOTICES', group: 'other', kind: 'choice',
@@ -299,9 +335,9 @@ function viewOf(def: SettingDef): SettingView {
     const { source } = readToken();
     return { ...base, value: null, source: source === 'none' ? 'default' : source, locked: source === 'env' };
   }
-  const fromEnv = process.env[def.env]?.trim();
+  const fromEnv = def.env ? process.env[def.env]?.trim() : undefined;
   if (fromEnv) return { ...base, value: fromEnv, source: 'env', locked: true };
-  const value = configValue(def.env, def.key);
+  const value = def.read ? def.read() : configValue(def.env ?? '', def.key);
   return { ...base, value: value ?? null, source: value == null ? 'default' : 'setting', locked: false };
 }
 
@@ -330,13 +366,14 @@ export function saveSettings(values: Record<string, string>): void {
   let token: string | null = null;
   const next = (key: string): string | undefined => {
     if (key in values && values[key].trim() !== '') return values[key].trim();
-    return configValue(BY_KEY.get(key)?.env ?? '', key);
+    const def = BY_KEY.get(key);
+    return def?.read ? def.read() : configValue(def?.env ?? '', key);
   };
   for (const [key, raw] of Object.entries(values)) {
     const def = BY_KEY.get(key);
     if (!def) throw new SettingError(key, `There is no setting called "${key}".`);
     const typed = String(raw ?? '').trim();
-    if (process.env[def.env]?.trim()) {
+    if (def.env && process.env[def.env]?.trim()) {
       // Unchanged is fine (the screen sends the whole form back); a change is not.
       if (def.kind === 'secret' ? typed === '' : typed === process.env[def.env]!.trim()) continue;
       throw new SettingError(key, `${def.label} is set by the ${def.env} environment variable, so it can't be changed here.`);
@@ -346,10 +383,17 @@ export function saveSettings(values: Record<string, string>): void {
       continue;
     }
     if (typed === '') {
-      cleaned.push([key, '']);
+      // A setting with its own save (the workspace) has no "back to the default".
+      if (!def.write) cleaned.push([key, '']);
       continue;
     }
     cleaned.push([key, def.clean ? def.clean(typed, next) : typed]);
+  }
+  // The ones with their own save first: moving a folder is the step most
+  // likely to be refused, and a refusal should leave the rest unsaved too.
+  for (const [key, value] of cleaned) {
+    const def = BY_KEY.get(key)!;
+    if (def.write && (def.read?.() ?? '') !== value) def.write(value);
   }
   if (token != null) {
     try {
@@ -359,6 +403,6 @@ export function saveSettings(values: Record<string, string>): void {
     }
   }
   for (const [key, value] of cleaned) {
-    if ((getSetting(key) ?? '') !== value) setSetting(key, value);
+    if (!BY_KEY.get(key)!.write && (getSetting(key) ?? '') !== value) setSetting(key, value);
   }
 }

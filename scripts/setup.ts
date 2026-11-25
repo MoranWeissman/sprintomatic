@@ -133,6 +133,11 @@ async function main() {
   console.log('  1 = on, 2 = off');
   await ask('use_discovery', '1 or 2');
   await ask('use_design', '1 or 2');
+  const on = (key: string) => listSettings().find(x => x.key === key)?.value === 'on';
+  if (on('use_discovery') || on('use_design')) {
+    console.log('  Each feature gets its own folder for those notes, inside one workspace folder.');
+    await ask('workspace_folder', 'like ~/work/features');
+  }
 
   console.log('\nChecking the connection…');
   invalidateAdoConfig();

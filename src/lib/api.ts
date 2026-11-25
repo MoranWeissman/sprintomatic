@@ -500,7 +500,7 @@ export async function putSchedule(schedule: CeremonySchedule): Promise<CeremonyS
 
 export interface ApiSetting {
   key: string;
-  env: string;
+  env?: string;
   group: 'week' | 'board' | 'pages' | 'other';
   label: string;
   help: string;

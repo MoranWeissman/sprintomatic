@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-const h = vi.hoisted(() => ({ settings: new Map<string, string>() }));
+const h = vi.hoisted(() => ({ settings: new Map<string, string>(), sessions: [] as { cwd: string | null }[] }));
 vi.mock('./timers', () => ({
   getSetting: (k: string) => h.settings.get(k),
   setSetting: (k: string, v: string) => void h.settings.set(k, v),
 }));
+
+vi.mock('./sessions', () => ({ listActiveSessions: () => h.sessions }));
 
 import { listSettings, parseWorkingDays, saveSettings, SettingError } from './settings-registry';
 import { getPages } from './user-config';
@@ -18,6 +20,26 @@ const ENV_KEYS = [
 beforeEach(() => {
   for (const k of ENV_KEYS) delete process.env[k];
   h.settings.clear();
+  h.sessions = [];
+});
+
+describe('the workspace folder', () => {
+  it('reads the main workspace and has no environment variable', () => {
+    h.settings.set('workspace_paths', JSON.stringify(['/tmp/sm-ws-100901']));
+    expect(view('workspace_folder')).toMatchObject({ value: '/tmp/sm-ws-100901', source: 'setting', locked: false });
+    expect(view('workspace_folder').env).toBeUndefined();
+  });
+
+  it('wants a full path', () => {
+    expect(() => saveSettings({ workspace_folder: 'features' })).toThrow(/full folder path/);
+  });
+
+  it('refuses to move while a work session is open inside it, and saves nothing else', () => {
+    h.settings.set('workspace_paths', JSON.stringify(['/tmp/sm-ws-100901']));
+    h.sessions = [{ cwd: '/tmp/sm-ws-100901/100901-x' }];
+    expect(() => saveSettings({ workspace_folder: '/tmp/sm-ws-new', workday_hours: '7' })).toThrow(/session is still open/);
+    expect(h.settings.get('workday_hours')).toBeUndefined();
+  });
 });
 
 const view = (key: string) => listSettings().find(s => s.key === key)!;

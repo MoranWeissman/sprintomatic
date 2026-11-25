@@ -72,7 +72,8 @@ demos). ${PAGES_LINE} Each feature gets its own subfolder.
     \`offer.shouldOffer\`, ask once whether to make it their workspace. Yes →
     \`workspace_set\`; no → \`workspace_decline\` (it won't ask again).
   - Start a feature: \`workspace_feature_folder\` with the feature id and your
-    cwd. Write its docs into the returned folder and nowhere else.
+    cwd. Write its docs into the returned folder and nowhere else. If it
+    returns \`whereLine\`, echo it word for word.
   - Two kinds of feature, and you never guess which. 'handed': someone gave
     the user a problem to work out — ${HANDED_PATH}.
     'grouping': the user made it to gather stories they already wrote — board

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, chmodSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, chmodSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -19,7 +19,7 @@ import {
   registerWorkspace, ensureWorkspaceScaffold, SEED_KEY,
   getActiveFeature, setActiveFeature, clearActiveFeature, ACTIVE_FEATURE_KEY,
   getFeatureKind, setFeatureKind, FEATURE_KINDS_KEY,
-  workspaceSettingsJson,
+  workspaceSettingsJson, setMainWorkspace, mainWorkspace, workspaceForChat, claudeProjectDirName,
 } from './workspace';
 
 beforeEach(() => store.clear());
@@ -126,6 +126,15 @@ describe('featureFolderName', () => {
   it('handles an empty/symbol-only title with just the id', () => {
     expect(featureFolderName(12, '!!!')).toBe('12');
   });
+
+  it('cuts a long title at the last whole word, never mid-word', () => {
+    expect(featureFolderName(100901, 'Self-Service Board to Repo Code Migration Tooling'))
+      .toBe('100901-self-service-board-to-repo-code');
+  });
+
+  it('keeps a hard cut when the title is one long word', () => {
+    expect(featureFolderName(7, 'a'.repeat(50))).toBe(`7-${'a'.repeat(40)}`);
+  });
 });
 
 describe('createFeatureFolder', () => {
@@ -141,6 +150,108 @@ describe('createFeatureFolder', () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it('reuses the folder a feature already has, even under an older name', () => {
+    const root = mkdtempSync(join(tmpdir(), 'sh-ws-'));
+    try {
+      mkdirSync(join(root, '100901-old-name-cut-mid-wor'));
+      mkdirSync(join(root, '1009010-another-feature'));
+      const r = createFeatureFolder(root, 100901, 'A new title on the board');
+      expect(r).toEqual({ path: join(root, '100901-old-name-cut-mid-wor'), created: false });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('the main workspace', () => {
+  let base: string;
+  let projects: string;
+  beforeEach(() => {
+    base = realpathSync(mkdtempSync(join(tmpdir(), 'sh-move-')));
+    projects = join(base, 'claude-projects');
+    store.set(SEED_KEY, join(base, 'no-seed')); // never copy a real seed
+  });
+  const cleanup = () => rmSync(base, { recursive: true, force: true });
+
+  it('is the first saved one; a chat inside another one uses that one', () => {
+    try {
+      store.set(WORKSPACE_PATHS_KEY, JSON.stringify([join(base, 'a'), join(base, 'b')]));
+      expect(mainWorkspace()).toBe(join(base, 'a'));
+      expect(workspaceForChat(join(base, 'b', '100901-x'))).toEqual({ path: join(base, 'b'), inside: true });
+      expect(workspaceForChat(join(base, 'elsewhere'))).toEqual({ path: join(base, 'a'), inside: false });
+      store.set(WORKSPACE_PATHS_KEY, '[]');
+      expect(workspaceForChat(base)).toBeNull();
+    } finally { cleanup(); }
+  });
+
+  it('moves the folder with its features and updates every saved path', () => {
+    try {
+      const from = join(base, 'old-name');
+      const to = join(base, 'parent', 'features');
+      mkdirSync(join(from, '100901-x'), { recursive: true });
+      writeFileSync(join(from, '100901-x', 'notes.md'), 'hi');
+      mkdirSync(join(from, '.claude'), { recursive: true });
+      writeFileSync(join(from, '.claude', 'settings.json'), workspaceSettingsJson(from));
+      mkdirSync(join(projects, claudeProjectDirName(from), 'memory'), { recursive: true });
+      writeFileSync(join(projects, claudeProjectDirName(from), 'memory', 'MEMORY.md'), 'remember');
+      store.set(WORKSPACE_PATHS_KEY, JSON.stringify([from]));
+      setActiveFeature({ id: 100901, title: 'x', folderPath: join(from, '100901-x'), setAt: 't' });
+
+      const r = setMainWorkspace(to, { claudeProjectsDir: projects });
+
+      expect(r).toEqual({ from, to, how: 'moved' });
+      expect(existsSync(from)).toBe(false);
+      expect(readFileSync(join(to, '100901-x', 'notes.md'), 'utf8')).toBe('hi');
+      expect(getWorkspaces().paths).toEqual([to]);
+      expect(getActiveFeature()?.folderPath).toBe(join(to, '100901-x'));
+      expect(readFileSync(join(to, '.claude', 'settings.json'), 'utf8')).toBe(workspaceSettingsJson(to));
+      expect(readFileSync(join(projects, claudeProjectDirName(to), 'memory', 'MEMORY.md'), 'utf8')).toBe('remember');
+    } finally { cleanup(); }
+  });
+
+  it('follows a folder the user already moved by hand', () => {
+    try {
+      const to = join(base, 'moved');
+      mkdirSync(join(to, '100901-x'), { recursive: true });
+      store.set(WORKSPACE_PATHS_KEY, JSON.stringify([join(base, 'gone')]));
+      expect(setMainWorkspace(to, { claudeProjectsDir: projects }).how).toBe('repointed');
+      expect(getWorkspaces().paths).toEqual([to]);
+    } finally { cleanup(); }
+  });
+
+  it('refuses a folder that already has files, and changes nothing', () => {
+    try {
+      const from = join(base, 'ws');
+      const to = join(base, 'busy');
+      mkdirSync(from);
+      mkdirSync(to);
+      writeFileSync(join(to, 'x.txt'), 'x');
+      store.set(WORKSPACE_PATHS_KEY, JSON.stringify([from]));
+      expect(() => setMainWorkspace(to, { claudeProjectsDir: projects })).toThrow(/already has files/);
+      expect(existsSync(from)).toBe(true);
+      expect(getWorkspaces().paths).toEqual([from]);
+    } finally { cleanup(); }
+  });
+
+  it('refuses a folder inside the workspace, and the home folder', () => {
+    try {
+      const from = join(base, 'ws');
+      mkdirSync(from);
+      store.set(WORKSPACE_PATHS_KEY, JSON.stringify([from]));
+      expect(() => setMainWorkspace(join(from, 'inner'), { claudeProjectsDir: projects })).toThrow(/inside the workspace/);
+      expect(() => setMainWorkspace('~', { claudeProjectsDir: projects })).toThrow(/home folder/);
+    } finally { cleanup(); }
+  });
+
+  it('sets the first one when none is saved', () => {
+    try {
+      const to = join(base, 'first');
+      expect(setMainWorkspace(to, { claudeProjectsDir: projects }).how).toBe('set');
+      expect(existsSync(to)).toBe(true);
+      expect(getWorkspaces().paths).toEqual([to]);
+    } finally { cleanup(); }
   });
 });
 

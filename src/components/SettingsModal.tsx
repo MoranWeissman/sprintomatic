@@ -87,6 +87,7 @@ export function SettingsModal({ open, onClose, onSaved }: SettingsModalProps) {
   const set = (key: string, value: string) => setDraft(d => ({ ...d, [key]: value }));
   const changed = Object.keys(draft).filter(k => draft[k] !== start[k]);
   const usesToken = draft.ado_access_mode === 'api';
+  const usesFeaturePages = draft.use_discovery === 'on' || draft.use_design === 'on' || !!start.workspace_folder;
 
   const runCheck = async () => {
     setBusy('check');
@@ -205,6 +206,8 @@ export function SettingsModal({ open, onClose, onSaved }: SettingsModalProps) {
   const row = (s: ApiSetting) => {
     // The token only matters when the board is reached with a token.
     if (s.kind === 'secret' && !usesToken) return null;
+    // The workspace only holds discovery and design notes.
+    if (s.key === 'workspace_folder' && !usesFeaturePages) return null;
     return (
       <div key={s.key} className={`settings-row ${saveError?.key === s.key ? 'has-error' : ''}`}>
         <div className="settings-row-name">{s.label}</div>

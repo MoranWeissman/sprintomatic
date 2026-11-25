@@ -10,8 +10,8 @@
  * All state lives in the settings table as JSON arrays, parsed defensively.
  * Everything here is LOCAL — no Azure DevOps access.
  */
-import { join, resolve } from 'node:path';
-import { existsSync, mkdirSync, cpSync, readdirSync, readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { existsSync, mkdirSync, cpSync, readdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { getSetting, setSetting } from './timers';
 import { writeFileAtomicSync, type AtomicWriter } from './atomic-write';
@@ -204,26 +204,162 @@ export function expandHome(p: string): string {
 const SLUG_MAX = 40;
 
 /** `<id>-<slug>` where slug = lowercased title, non-alphanumerics → '-',
- *  collapsed, trimmed, capped. Symbol-only title → just the id. */
+ *  collapsed, trimmed, capped at a whole word. Symbol-only title → just the id. */
 export function featureFolderName(id: number, title: string): string {
-  const slug = title
+  const full = title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, SLUG_MAX)
-    .replace(/-+$/g, ''); // re-trim after slice may leave a trailing dash
+    .replace(/^-+|-+$/g, '');
+  let slug = full.slice(0, SLUG_MAX);
+  // Cut at the last whole word, unless that leaves nothing (one long word).
+  if (full.length > SLUG_MAX && full[SLUG_MAX] !== '-' && slug.includes('-')) {
+    slug = slug.slice(0, slug.lastIndexOf('-'));
+  }
+  slug = slug.replace(/-+$/g, '');
   return slug ? `${id}-${slug}` : `${id}`;
 }
 
+/** The folder a feature already has in this workspace (`<id>` or `<id>-…`),
+ *  whatever its title was back then. Null when it has none. */
+function existingFeatureFolder(ws: string, id: number): string | null {
+  if (!existsSync(ws)) return null;
+  const hit = readdirSync(ws, { withFileTypes: true }).find(
+    d => d.isDirectory() && (d.name === String(id) || d.name.startsWith(`${id}-`)),
+  );
+  return hit ? join(ws, hit.name) : null;
+}
+
+/** Make the feature's folder, or reuse the one it has: a title renamed on the
+ *  board, or a change in how names are cut, never makes a second folder. */
 export function createFeatureFolder(
   workspacePath: string,
   id: number,
   title: string,
 ): { path: string; created: boolean } {
-  const abs = join(resolve(expandHome(workspacePath)), featureFolderName(id, title));
-  const existed = existsSync(abs);
+  const ws = resolve(expandHome(workspacePath));
+  const existing = existingFeatureFolder(ws, id);
+  if (existing) return { path: existing, created: false };
+  const abs = join(ws, featureFolderName(id, title));
   mkdirSync(abs, { recursive: true });
-  return { path: abs, created: !existed };
+  return { path: abs, created: true };
+}
+
+/** The workspace new feature folders go into when the chat isn't inside one:
+ *  the first one saved. Null when there is none. */
+export function mainWorkspace(): string | null {
+  const first = getWorkspaces().paths[0];
+  return first ? resolve(expandHome(first)) : null;
+}
+
+/** The workspace for a chat: the one it is open inside, else the main one. */
+export function workspaceForChat(cwd: string): { path: string; inside: boolean } | null {
+  const abs = resolve(expandHome(cwd));
+  const inside = getWorkspaces().paths
+    .map(p => resolve(expandHome(p)))
+    .find(p => abs === p || abs.startsWith(p + '/'));
+  if (inside) return { path: inside, inside: true };
+  const main = mainWorkspace();
+  return main ? { path: main, inside: false } : null;
+}
+
+/** `p` with the `from` folder swapped for `to`, when `p` is `from` or inside it. */
+function swapRoot(p: string, from: string, to: string): string {
+  const abs = resolve(expandHome(p));
+  if (abs === from) return to;
+  if (abs.startsWith(from + '/')) return to + abs.slice(from.length);
+  return p;
+}
+
+/** Claude Code keeps a chat folder's memory under ~/.claude/projects/<the path
+ *  with every non-letter-or-digit turned into '-'>. */
+export function claudeProjectDirName(path: string): string {
+  return path.replace(/[^a-zA-Z0-9]/g, '-');
+}
+
+export interface WorkspaceMove {
+  from: string | null;
+  to: string;
+  /** 'moved' = the folder moved on disk. 'repointed' = it was already at the
+   *  new place (moved by hand, or another saved workspace). 'set' = the first one. */
+  how: 'moved' | 'repointed' | 'set';
+}
+
+/**
+ * Make `target` the main workspace. When the current main one exists and the
+ * target doesn't (or is an empty folder), the folder moves there with every
+ * feature in it. Then every saved path that pointed inside the old one is
+ * updated, the hook file is pointed at the new place, and Claude Code's memory
+ * for the old folder is copied over. Throws a plain reason when it can't.
+ */
+export function setMainWorkspace(
+  target: string,
+  opts: { claudeProjectsDir?: string } = {},
+): WorkspaceMove {
+  const to = resolve(expandHome(target.trim()));
+  if (to === '/' || to === resolve(homedir())) {
+    throw new Error('Pick a folder of its own, not your home folder.');
+  }
+  const state = getWorkspaces();
+  const saved = state.paths.map(p => resolve(expandHome(p)));
+  const from = saved[0] ?? null;
+  if (from === to) return { from, to, how: 'repointed' };
+
+  const others = saved.slice(1);
+  if (!from || others.includes(to)) {
+    // No workspace yet, or it is one already saved: put it first, move nothing.
+    writeJsonArray(WORKSPACE_PATHS_KEY, [to, ...saved.filter(p => p !== to)]);
+    ensureWorkspaceScaffold(to);
+    return { from, to, how: from ? 'repointed' : 'set' };
+  }
+  if (to.startsWith(from + '/')) {
+    throw new Error('The new folder is inside the workspace itself. Pick a folder outside it.');
+  }
+
+  const toHasFiles = existsSync(to) && readdirSync(to).some(n => n !== '.DS_Store');
+  let how: WorkspaceMove['how'];
+  if (existsSync(from)) {
+    if (toHasFiles) {
+      throw new Error(`${to} already has files in it. Pick a new or empty folder, and the workspace moves there.`);
+    }
+    if (existsSync(to)) rmSync(to, { recursive: true, force: true }); // empty, or only .DS_Store
+    mkdirSync(dirname(to), { recursive: true });
+    try {
+      renameSync(from, to);
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code === 'EXDEV') throw new Error('The new folder is on another disk. Pick one on the same disk.');
+      throw e;
+    }
+    how = 'moved';
+  } else if (existsSync(to)) {
+    how = 'repointed'; // moved by hand already; just follow it
+  } else {
+    throw new Error(`The workspace isn't at ${from} any more, and ${to} doesn't exist either. Pick the folder it is in now.`);
+  }
+
+  writeJsonArray(WORKSPACE_PATHS_KEY, saved.map(p => swapRoot(p, from, to)));
+  writeJsonArray(WORKSPACE_DECLINED_KEY, state.declined.map(p => swapRoot(p, from, to)));
+  const active = getActiveFeature();
+  if (active) {
+    const folderPath = swapRoot(active.folderPath, from, to);
+    if (folderPath !== active.folderPath) setActiveFeature({ ...active, folderPath });
+  }
+
+  // The hook file names the workspace's own path; point it at the new one.
+  const settingsPath = join(to, '.claude', 'settings.json');
+  if (existsSync(settingsPath) && readFileSync(settingsPath, 'utf8') === workspaceSettingsJson(from)) {
+    writeFileAtomicSync(settingsPath, workspaceSettingsJson(to));
+  }
+  ensureWorkspaceScaffold(to);
+
+  // Claude Code's memory for chats opened in the old folder.
+  const projects = opts.claudeProjectsDir ?? join(homedir(), '.claude', 'projects');
+  const oldMemory = join(projects, claudeProjectDirName(from), 'memory');
+  const newMemory = join(projects, claudeProjectDirName(to), 'memory');
+  if (existsSync(oldMemory) && !existsSync(newMemory)) {
+    cpSync(oldMemory, newMemory, { recursive: true });
+  }
+  return { from, to, how };
 }
 
 export const SEED_KEY = 'workspace_seed_path';

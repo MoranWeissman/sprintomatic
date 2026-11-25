@@ -37,6 +37,8 @@ do. sprintomatic sits between the chat and your Azure DevOps board.
 - **Optional: Discovery and Design.** If you work out a problem or write a
   design before the stories, turn these on in Settings. Each one adds its own
   page and its own help in the chat. Both are off until you turn them on.
+  Their notes go in one workspace folder, one subfolder per feature. You
+  pick that folder in Settings; changing it moves the folder for you.
 
 **What it writes to your board.** So you know before you try it on a real
 team board:
